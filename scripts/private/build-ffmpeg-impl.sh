@@ -260,7 +260,8 @@ configure_and_build() {
   build_one
 }
 
-for ABI in arm64-v8a x86_64 armeabi-v7a x86 ; do
+# ABIS can be narrowed for local/device builds, for example ABIS=arm64-v8a.
+for ABI in ${ABIS:-arm64-v8a x86_64 armeabi-v7a x86} ; do
   for FLAVOR in $FLAVORS; do
     if [[ "$FLAVOR" != "legacy" || $ABI == "armeabi-v7a" || $ABI == "x86" ]]; then
       echo -e "${STYLE_INFO}- ffmpeg build start: ${ABI} ${FLAVOR}${STYLE_END}"

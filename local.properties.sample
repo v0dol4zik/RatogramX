@@ -10,14 +10,21 @@ sdk.dir=
 ## Path to the keystore file
 keystore.file=
 
+## Disable release signing for local development builds.
+## Remove this flag and configure your own keystore for release builds.
+app.disable_signing=true
+
 ## Package name
-app.id=org.example.tgx
+app.id=org.ratogramx.client
 
 ## Project name
-app.name=TGX Example
+app.name=Ratogram X
 
 ## Link to the app's website. If unavailable, link to the market page could be used.
-app.download_url=https://telegram.org/dlx
+app.download_url=https://github.com/v0dol4zik/RatogramX/releases
+
+## Public source code URL shown by the client.
+app.sources_url=https://github.com/v0dol4zik/RatogramX
 
 ## Obtain credentials to access Telegram API:
 # https://core.telegram.org/api/obtaining_api_id

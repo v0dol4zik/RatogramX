@@ -102,6 +102,8 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
           v.getToggler().setRadioEnabled(Settings.instance().needsIncognitoMode(), isUpdate);
         } else if (itemId == R.id.btn_blockedSenders) {
           v.setData(getBlockedSendersCount());
+        } else if (itemId == R.id.btn_profileChannel) {
+          v.setData(getProfileChannelValue());
         } else if (itemId == R.id.btn_newChatsPrivacy) {
           v.setData(buildNewChatsPrivacy());
         } else if (itemId == R.id.btn_privacyRule) {
@@ -155,6 +157,8 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.PrivacyTitle));
       items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
       items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_blockedSenders, R.drawable.baseline_remove_circle_24, R.string.BlockedSenders));
+      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+      items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_profileChannel, R.drawable.baseline_bullhorn_24, R.string.ProfileChannel));
     }
 
     TdApi.UserPrivacySetting[] privacySettings = new TdApi.UserPrivacySetting[] {
@@ -449,6 +453,8 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       SettingsBlockedController c = new SettingsBlockedController(context, tdlib);
       c.setArguments(new TdApi.BlockListMain());
       navigateTo(c);
+    } else if (id == R.id.btn_profileChannel) {
+      navigateTo(new ProfileChannelController(context, tdlib));
     } else if (id == R.id.btn_newChatsPrivacy) {
       if (!tdlib.canSetNewChatPrivacySettings() && tdlib.ui().showPremiumAlert(this, v, TdlibUi.PremiumFeature.NEW_CHATS_PRIVACY)) {
         return;
@@ -561,6 +567,14 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
     return blockedSendersCount == -1 ? Lang.getString(R.string.LoadingInformation) : blockedSendersCount > 0 ? Lang.pluralBold(R.string.xSenders, blockedSendersCount) : Lang.getString(R.string.BlockedNone);
   }
 
+  private CharSequence getProfileChannelValue () {
+    TdApi.UserFullInfo userFull = tdlib.myUserFull();
+    if (userFull == null) {
+      return Lang.getString(R.string.LoadingInformation);
+    }
+    return userFull.personalChatId != 0 ? tdlib.chatTitle(userFull.personalChatId) : Lang.getString(R.string.BioNone);
+  }
+
   private String getMapProviderName (boolean cloud) {
     switch (Settings.instance().getMapProviderType(cloud)) {
       case Settings.MAP_PROVIDER_TELEGRAM:
@@ -576,6 +590,13 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
 
   @Override
   public void onUserUpdated (TdApi.User user) { }
+
+  @Override
+  public void onUserFullUpdated (long userId, TdApi.UserFullInfo userFull) {
+    if (userId == tdlib.myUserId()) {
+      runOnUiThreadOptional(() -> adapter.updateValuedSettingById(R.id.btn_profileChannel));
+    }
+  }
 
   public void diffBlockList (int delta) {
     if (this.blockedSendersCount != -1) {

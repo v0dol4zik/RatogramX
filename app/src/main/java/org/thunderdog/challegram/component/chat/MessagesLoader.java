@@ -140,6 +140,14 @@ public class MessagesLoader implements Client.ResultHandler {
     tdlib.send(new TdApi.GetChatSponsoredMessages(chatId), sponsoredResultHandler);
   }
 
+  public void cancelSponsoredMessagesRequest () {
+    if (sponsoredResultHandler != null) {
+      sponsoredResultHandler.cancel();
+      sponsoredResultHandler = null;
+    }
+    isLoadingSponsoredMessage = false;
+  }
+
   public MessagesLoader (MessagesManager manager, MessagesSearchManagerMiddleware searchMiddleware) {
     this.manager = manager;
     this.tdlib = manager.controller().tdlib();
@@ -561,10 +569,7 @@ public class MessagesLoader implements Client.ResultHandler {
     mergeMode = MERGE_MODE_NONE;
     mergeChunk = null;
 
-    if (sponsoredResultHandler != null) {
-      sponsoredResultHandler.cancel();
-      sponsoredResultHandler = null;
-    }
+    cancelSponsoredMessagesRequest();
 
     synchronized (lock) {
       if (DEBUG_HANDLER) {

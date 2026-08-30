@@ -16,5 +16,18 @@ obj
 
 /captures
 /local.properties
+/keystore.properties
+/.env
+/.env.*
+/*.jks
+/*.keystore
+/*.p12
+/*.pem
+/*.key
 
 libc++_shared.so
+/.agents/
+/.codex/
+/.superdesign/
+/ratogramx_deploy_key
+/ratogramx_deploy_key.pub

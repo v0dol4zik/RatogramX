@@ -24,6 +24,7 @@ import org.thunderdog.challegram.service.PushHandler
 import org.thunderdog.challegram.telegram.TdlibNotificationUtils
 import org.thunderdog.challegram.tool.UI
 import org.thunderdog.challegram.unsorted.Settings
+import org.thunderdog.challegram.util.LowEndPerformanceProfile
 import tgx.bridge.DeviceTokenRetriever
 import tgx.bridge.DeviceTokenRetrieverFactory
 import tgx.bridge.PushManagerBridge
@@ -58,6 +59,7 @@ class BaseApplication : TgxApplication(), Configuration.Provider {
     )
 
     UI.initApp(applicationContext)
+    LowEndPerformanceProfile.applyInitialDefaults(applicationContext)
 
     if (!BuildConfig.EXPERIMENTAL) {
       val deviceTokenRetriever = TdlibNotificationUtils.getDeviceTokenRetriever()

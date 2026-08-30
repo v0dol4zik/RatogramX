@@ -126,10 +126,10 @@
     android:fullBackupContent="false"
     android:dataExtractionRules="@xml/data_extraction_rules"
     android:hardwareAccelerated="true"
-    android:icon="@mipmap/app_launcher"
+    android:icon="@mipmap/app_icon_original"
     android:label="@string/AppName"
     android:largeHeap="true"
-    android:roundIcon="@mipmap/app_launcher_round"
+    android:roundIcon="@mipmap/app_icon_original_round"
     android:supportsRtl="true"
     android:theme="@style/AppTheme"
     android:requestLegacyExternalStorage="true"
@@ -358,11 +358,6 @@
       android:launchMode="singleTask"
       android:windowSoftInputMode="stateHidden|adjustPan"
       android:exported="true">
-      <intent-filter android:label="@string/AppName">
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-      </intent-filter>
-
       <!-- Share from other apps -->
       <intent-filter>
         <action android:name="android.intent.action.SEND" />
@@ -411,7 +406,7 @@
         <data android:host="telegram.dog"/>
       </intent-filter>
       <intent-filter
-        android:icon="@mipmap/app_launcher_round"
+        android:icon="@mipmap/app_icon_original_round"
         android:priority="1"
         android:roundIcon="@mipmap/app_launcher_round">
         <action android:name="android.intent.action.VIEW" />
@@ -422,6 +417,133 @@
         <data android:scheme="tg" />
       </intent-filter>
     </activity>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconOriginal"
+      android:targetActivity=".MainActivity"
+      android:enabled="true"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_original"
+      android:roundIcon="@mipmap/app_icon_original_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconAmoled"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_amoled"
+      android:roundIcon="@mipmap/app_icon_amoled_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconLab"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_lab"
+      android:roundIcon="@mipmap/app_icon_lab_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconMalware"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_malware"
+      android:roundIcon="@mipmap/app_icon_malware_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconNotYou"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_not_you"
+      android:roundIcon="@mipmap/app_icon_not_you_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconNoTele"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_notele"
+      android:roundIcon="@mipmap/app_icon_notele_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconSteam"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_steam"
+      android:roundIcon="@mipmap/app_icon_steam_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconTwins"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_twins"
+      android:roundIcon="@mipmap/app_icon_twins_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
+    <activity-alias
+      android:name="${applicationId}.launcher.IconXue"
+      android:targetActivity=".MainActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_xue"
+      android:roundIcon="@mipmap/app_icon_xue_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
 
     <provider
       android:name=".FileProvider"

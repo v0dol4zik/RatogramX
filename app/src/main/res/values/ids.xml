@@ -371,6 +371,7 @@
   <item type="id" name="btn_speaker" />
   <item type="id" name="btn_emoji" />
   <item type="id" name="btn_icon" />
+  <item type="id" name="btn_appIconSelector" />
   <item type="id" name="btn_section" />
   <item type="id" name="btn_stickerSet" />
   <item type="id" name="btn_reactionSelector" />

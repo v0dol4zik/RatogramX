@@ -92,14 +92,30 @@ abstract class GitVersionSource : ValueSource<GitVersionSource.Details, GitVersi
       }
       standardOutput = output
     }
-    execOperations.exec {
+    val remoteOutput = ByteArrayOutputStream()
+    val remoteError = ByteArrayOutputStream()
+    val originResult = execOperations.exec {
       if (path.isNotEmpty()) {
-        commandLine("git", "-C", path, "config", "--get", "remote.origin.url")
+        commandLine("git", "-C", path, "remote", "get-url", "origin")
       } else {
-        commandLine("git", "config", "--get", "remote.origin.url")
+        commandLine("git", "remote", "get-url", "origin")
       }
-      standardOutput = output
+      standardOutput = remoteOutput
+      errorOutput = remoteError
+      isIgnoreExitValue = true
     }
+    if (originResult.exitValue != 0) {
+      remoteOutput.reset()
+      execOperations.exec {
+        if (path.isNotEmpty()) {
+          commandLine("git", "-C", path, "remote", "get-url", "upstream")
+        } else {
+          commandLine("git", "remote", "get-url", "upstream")
+        }
+        standardOutput = remoteOutput
+      }
+    }
+    output.write(remoteOutput.toByteArray())
     execOperations.exec {
       if (path.isNotEmpty()) {
         commandLine("git", "-C", path, "log", "-1", "--pretty=format:'%an'")

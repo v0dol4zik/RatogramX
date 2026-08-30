@@ -17,7 +17,10 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Rect;
+import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
@@ -44,6 +47,7 @@ import org.thunderdog.challegram.telegram.TdlibMessageViewer;
 import org.thunderdog.challegram.telegram.TdlibUi;
 import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
+import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.tool.Views;
 import org.thunderdog.challegram.ui.ListItem;
@@ -75,6 +79,21 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
   private SettingsAdapter chatSearchAdapter;
   private SearchManager chatSearchManager;
   private boolean chatSearchDisallowScreenshots;
+  private SearchTabsView chatSearchTabsView;
+  private RecyclerView.OnItemTouchListener chatSearchSwipeListener;
+  private boolean chatSearchTabsEnabled;
+  private int chatSearchBaseFlags;
+  private int selectedChatSearchTab;
+
+  private static final int SEARCH_TAB_ALL = 0;
+  private static final int SEARCH_TAB_CHATS = 1;
+  private static final int SEARCH_TAB_MEDIA = 2;
+  private static final int SEARCH_TAB_LINKS = 3;
+  private static final int SEARCH_TAB_FILES = 4;
+  private static final int SEARCH_TAB_MUSIC = 5;
+  private static final int SEARCH_TAB_VOICE = 6;
+  private static final int SEARCH_TAB_DOWNLOADS = 7;
+  private static final int SEARCH_TAB_COUNT = 8;
 
   /**
    * @return true, if event is consumed. False, if chat should be handled with default action (open)
@@ -105,6 +124,14 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
 
   protected int getChatSearchFlags () {
     return SearchManager.FLAG_NEED_TOP_CHATS;
+  }
+
+  protected boolean needGlobalSearchTabs () {
+    return false;
+  }
+
+  protected boolean areGlobalSearchTabsEnabled () {
+    return true;
   }
 
   protected boolean filterChatSearchResult (TdApi.Chat chat) {
@@ -154,17 +181,20 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
   protected void onBottomInsetChanged (int extraBottomInset, int extraBottomInsetWithoutIme, boolean isImeInset) {
     super.onBottomInsetChanged(extraBottomInset, extraBottomInsetWithoutIme, isImeInset);
     if (chatSearchView != null) {
-      chatSearchView.setPadding(0, 0, 0, extraBottomInsetWithoutIme);
+      updateChatSearchPadding(extraBottomInsetWithoutIme);
     }
   }
 
   protected final CustomRecyclerView generateChatSearchView (@Nullable ViewGroup parent) {
-    final boolean noChatSearch = (getChatSearchFlags() & SearchManager.FLAG_NO_CHATS) != 0;
+    chatSearchBaseFlags = getChatSearchFlags();
+    final boolean noChatSearch = (chatSearchBaseFlags & SearchManager.FLAG_NO_CHATS) != 0;
+    final boolean supportSearchTabs = needGlobalSearchTabs();
+    chatSearchTabsEnabled = supportSearchTabs && areGlobalSearchTabsEnabled();
     chatSearchViewport = tdlib.messageViewer().createViewport(new TdApi.MessageSourceSearch(), this);
     chatSearchViewport.addIgnoreLock(() -> !this.isSearchContentVisible);
     chatSearchView = (CustomRecyclerView) Views.inflate(context(), R.layout.recycler_custom, parent);
     chatSearchView.setClipToPadding(false);
-    chatSearchView.setPadding(0, 0, 0, systemInsets.bottom);
+    chatSearchView.setPadding(0, chatSearchTabsEnabled ? Screen.dp(SearchTabsView.HEIGHT_DP) : 0, 0, systemInsets.bottom);
     Views.setScrollBarPosition(chatSearchView);
     tdlib.ui().attachViewportToRecyclerView(chatSearchViewport, chatSearchView);
     chatSearchView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -504,6 +534,10 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
 
       @Override
       public void onPerformNewSearch (boolean isDefault) {
+        List<ListItem> items = chatSearchAdapter.getItems();
+        if (items.size() == 1 && items.get(0).getViewType() == ListItem.TYPE_EMPTY) {
+          chatSearchAdapter.setItems(new ListItem[] {new ListItem(ListItem.TYPE_EMPTY_OFFSET_SMALL)}, false);
+        }
         if (!DEBUG_CHATS_SEARCH_ADAPTER) {
           if (!noChatSearch) {
             chatSearchView.setItemAnimator(null);
@@ -816,7 +850,7 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
 
       @Override
       public int getMessagesHeightOffset () {
-        int totalHeight = 0;
+        int totalHeight = chatSearchTabsEnabled ? Screen.dp(SearchTabsView.HEIGHT_DP) : 0;
         for (ListItem item : chatSearchAdapter.getItems()) {
           if (item.getId() == R.id.search_section_messages) {
             break;
@@ -850,14 +884,15 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
       @Override
       public void onEndReached () {
         chatSearchAdapter.updateValuedSettingById(R.id.search_counter);
-        if (chatSearchAdapter.getItems().isEmpty()) {
+        List<ListItem> items = chatSearchAdapter.getItems();
+        if (items.isEmpty() || (items.size() == 1 && items.get(0).getViewType() == ListItem.TYPE_EMPTY_OFFSET_SMALL)) {
           chatSearchAdapter.setItems(new ListItem[] {
             new ListItem(ListItem.TYPE_EMPTY, 0, 0, R.string.NothingFound)
           }, false);
         }
       }
     });
-    chatSearchManager.setSearchFlags(getChatSearchFlags());
+    chatSearchManager.setSearchFlags(chatSearchBaseFlags);
 
     RemoveHelper.attach(chatSearchView, new RemoveHelper.Callback() {
       @Override
@@ -874,8 +909,22 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
       }
     });
 
+    if (supportSearchTabs) {
+      chatSearchTabsView = new SearchTabsView(context());
+      chatSearchTabsView.setTitles(getChatSearchTabTitles());
+      chatSearchTabsView.setListener(index -> setChatSearchTab(index, true));
+      chatSearchTabsView.setAlpha(parent != null || !chatSearchTabsEnabled ? 0f : 1f);
+      chatSearchTabsView.setVisibility(parent != null || !chatSearchTabsEnabled ? View.INVISIBLE : View.VISIBLE);
+      addThemeInvalidateListener(chatSearchTabsView);
+      chatSearchSwipeListener = new SearchSwipeListener();
+      chatSearchView.addOnItemTouchListener(chatSearchSwipeListener);
+    }
+
     if (parent != null) {
       parent.addView(chatSearchView);
+      if (chatSearchTabsView != null) {
+        parent.addView(chatSearchTabsView, FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(SearchTabsView.HEIGHT_DP), Gravity.TOP));
+      }
     }
     if (needChatSearchManagerPreparation()) {
       chatSearchManager.onPrepare(getChatMessagesSearchChatList(), getChatSearchInitialQuery());
@@ -889,6 +938,210 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
 
   protected String getChatSearchInitialQuery () {
     return "";
+  }
+
+  private void updateChatSearchPadding (int bottomInset) {
+    chatSearchView.setPadding(0, chatSearchTabsEnabled ? Screen.dp(SearchTabsView.HEIGHT_DP) : 0, 0, bottomInset);
+  }
+
+  protected final void setGlobalSearchTabsEnabled (boolean enabled) {
+    enabled = enabled && needGlobalSearchTabs();
+    if (chatSearchTabsEnabled == enabled) {
+      return;
+    }
+    chatSearchTabsEnabled = enabled;
+    if (chatSearchTabsView == null || chatSearchView == null) {
+      return;
+    }
+    if (!enabled) {
+      resetChatSearchTab();
+    }
+    updateChatSearchPadding(chatSearchView.getPaddingBottom());
+    float searchFactor = chatSearchView.getAlpha();
+    chatSearchTabsView.setAlpha(enabled ? searchFactor : 0f);
+    chatSearchTabsView.setVisibility(enabled && searchFactor != 0f ? View.VISIBLE : View.INVISIBLE);
+  }
+
+  private CharSequence[] getChatSearchTabTitles () {
+    return new CharSequence[] {
+      Lang.getString(R.string.SearchTabAll),
+      Lang.getString(R.string.SearchTabChats),
+      Lang.getString(R.string.SearchTabMedia),
+      Lang.getString(R.string.SearchTabLinks),
+      Lang.getString(R.string.SearchTabFiles),
+      Lang.getString(R.string.SearchTabMusic),
+      Lang.getString(R.string.SearchTabVoice),
+      Lang.getString(R.string.SearchTabDownloads)
+    };
+  }
+
+  private void setChatSearchTab (int tab, boolean animated) {
+    if (!chatSearchTabsEnabled || chatSearchTabsView == null || chatSearchManager == null) {
+      return;
+    }
+    tab = Math.max(SEARCH_TAB_ALL, Math.min(tab, SEARCH_TAB_COUNT - 1));
+    if (selectedChatSearchTab == tab) {
+      chatSearchTabsView.setSelectedIndex(tab, animated);
+      return;
+    }
+    selectedChatSearchTab = tab;
+    chatSearchTabsView.setSelectedIndex(tab, animated);
+    applyChatSearchTabConfiguration();
+    LinearLayoutManager layoutManager = (LinearLayoutManager) chatSearchView.getLayoutManager();
+    if (layoutManager != null) {
+      layoutManager.scrollToPositionWithOffset(0, 0);
+    }
+    chatSearchManager.reloadSearchResults(getChatMessagesSearchChatList());
+  }
+
+  private void resetChatSearchTab () {
+    if (chatSearchTabsView == null || selectedChatSearchTab == SEARCH_TAB_ALL) {
+      return;
+    }
+    selectedChatSearchTab = SEARCH_TAB_ALL;
+    chatSearchTabsView.setSelectedIndex(SEARCH_TAB_ALL, false);
+    applyChatSearchTabConfiguration();
+  }
+
+  private void applyChatSearchTabConfiguration () {
+    int flags = chatSearchBaseFlags;
+    TdApi.SearchMessagesFilter filter = null;
+    boolean searchDownloads = false;
+    switch (selectedChatSearchTab) {
+      case SEARCH_TAB_CHATS:
+        flags &= ~SearchManager.FLAG_NEED_MESSAGES;
+        break;
+      case SEARCH_TAB_MEDIA:
+        filter = new TdApi.SearchMessagesFilterPhotoAndVideo();
+        break;
+      case SEARCH_TAB_LINKS:
+        filter = new TdApi.SearchMessagesFilterUrl();
+        break;
+      case SEARCH_TAB_FILES:
+        filter = new TdApi.SearchMessagesFilterDocument();
+        break;
+      case SEARCH_TAB_MUSIC:
+        filter = new TdApi.SearchMessagesFilterAudio();
+        break;
+      case SEARCH_TAB_VOICE:
+        filter = new TdApi.SearchMessagesFilterVoiceAndVideoNote();
+        break;
+      case SEARCH_TAB_DOWNLOADS:
+        searchDownloads = true;
+        break;
+    }
+    if (selectedChatSearchTab >= SEARCH_TAB_MEDIA) {
+      flags |= SearchManager.FLAG_NEED_MESSAGES | SearchManager.FLAG_NO_CHATS;
+      flags &= ~(SearchManager.FLAG_NEED_TOP_CHATS | SearchManager.FLAG_NEED_GLOBAL_SEARCH);
+    }
+    chatSearchManager.setSearchFlags(flags);
+    if (searchDownloads) {
+      chatSearchManager.setSearchFileDownloads(true);
+    } else {
+      chatSearchManager.setMessageSearchFilter(filter);
+    }
+  }
+
+  protected final @StringRes int getChatSearchCategoryTitle () {
+    switch (selectedChatSearchTab) {
+      case SEARCH_TAB_MEDIA:
+        return R.string.SearchTabMedia;
+      case SEARCH_TAB_LINKS:
+        return R.string.SearchTabLinks;
+      case SEARCH_TAB_FILES:
+        return R.string.SearchTabFiles;
+      case SEARCH_TAB_MUSIC:
+        return R.string.SearchTabMusic;
+      case SEARCH_TAB_VOICE:
+        return R.string.SearchTabVoice;
+      case SEARCH_TAB_DOWNLOADS:
+        return R.string.SearchTabDownloads;
+      default:
+        return 0;
+    }
+  }
+
+  private final class SearchSwipeListener extends RecyclerView.SimpleOnItemTouchListener {
+    private final int touchSlop = ViewConfiguration.get(context()).getScaledTouchSlop();
+    private final int switchThreshold = Screen.dp(48f);
+    private final int edgeExclusion = Screen.dp(24f);
+    private float downX;
+    private float downY;
+    private boolean tracking;
+    private boolean swiping;
+
+    @Override
+    public boolean onInterceptTouchEvent (@NonNull RecyclerView recyclerView, @NonNull MotionEvent event) {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          downX = event.getX();
+          downY = event.getY();
+          tracking = chatSearchTabsEnabled && downX >= edgeExclusion && downX <= recyclerView.getWidth() - edgeExclusion && !isHorizontalSearchRow(recyclerView, event);
+          swiping = false;
+          if (tracking) {
+            recyclerView.getParent().requestDisallowInterceptTouchEvent(true);
+          }
+          return false;
+        case MotionEvent.ACTION_MOVE:
+          if (!tracking) {
+            return false;
+          }
+          float dx = event.getX() - downX;
+          float dy = event.getY() - downY;
+          if (Math.abs(dy) > touchSlop && Math.abs(dy) >= Math.abs(dx)) {
+            tracking = false;
+            recyclerView.getParent().requestDisallowInterceptTouchEvent(false);
+            return false;
+          }
+          if (Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy)) {
+            swiping = true;
+            recyclerView.getParent().requestDisallowInterceptTouchEvent(true);
+            return true;
+          }
+          return false;
+        case MotionEvent.ACTION_CANCEL:
+        case MotionEvent.ACTION_UP:
+          recyclerView.getParent().requestDisallowInterceptTouchEvent(false);
+          tracking = false;
+          swiping = false;
+          return false;
+        default:
+          return false;
+      }
+    }
+
+    @Override
+    public void onTouchEvent (@NonNull RecyclerView recyclerView, @NonNull MotionEvent event) {
+      if (!swiping) {
+        return;
+      }
+      if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+        float dx = event.getX() - downX;
+        float dy = event.getY() - downY;
+        if (Math.abs(dx) >= switchThreshold && Math.abs(dx) > Math.abs(dy)) {
+          int direction = dx < 0f ? 1 : -1;
+          if (Lang.rtl()) {
+            direction = -direction;
+          }
+          setChatSearchTab(selectedChatSearchTab + direction, true);
+        }
+        recyclerView.getParent().requestDisallowInterceptTouchEvent(false);
+        tracking = false;
+        swiping = false;
+      } else if (event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        recyclerView.getParent().requestDisallowInterceptTouchEvent(false);
+        tracking = false;
+        swiping = false;
+      }
+    }
+
+    private boolean isHorizontalSearchRow (RecyclerView recyclerView, MotionEvent event) {
+      View child = recyclerView.findChildViewUnder(event.getX(), event.getY());
+      if (child == null || !(child.getTag() instanceof ListItem)) {
+        return false;
+      }
+      return ((ListItem) child.getTag()).getId() == R.id.search_top;
+    }
   }
 
   private boolean isSearchAntagonistHidden;
@@ -1027,6 +1280,7 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
     // onLeaveSearchMode();
     setSearchTransformFactor(0f, false);
     // leaveSearchMode();
+    resetChatSearchTab();
     chatSearchManager.onClose(getChatMessagesSearchChatList());
     chatSearchView.setAdapter(null);
   }
@@ -1049,6 +1303,9 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
   protected void handleLanguageDirectionChange () {
     super.handleLanguageDirectionChange();
     Views.setScrollBarPosition(chatSearchView);
+    if (chatSearchTabsView != null) {
+      chatSearchTabsView.checkRtl();
+    }
   }
 
   @Override
@@ -1057,6 +1314,10 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
     super.onLanguagePackEvent(event, arg1);
     if (chatSearchAdapter != null) {
       chatSearchAdapter.onLanguagePackEvent(event, arg1);
+    }
+    if (chatSearchTabsView != null) {
+      chatSearchTabsView.setTitles(getChatSearchTabTitles());
+      chatSearchTabsView.setSelectedIndex(selectedChatSearchTab, false);
     }
   }
 
@@ -1093,6 +1354,10 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
     super.applySearchTransformFactor(factor, isOpening);
     if (chatSearchManager != null) {
       chatSearchView.setAlpha(factor);
+      if (chatSearchTabsView != null) {
+        chatSearchTabsView.setVisibility(!chatSearchTabsEnabled || factor == 0f ? View.INVISIBLE : View.VISIBLE);
+        chatSearchTabsView.setAlpha(chatSearchTabsEnabled ? factor : 0f);
+      }
       setSearchAntagonistHidden(factor == 1f);
       setSearchContentVisible(factor != 0f);
       // setNeedPreventKeyboardLag(factor != 0f && factor != 1f);
@@ -1144,6 +1409,7 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
   protected void onAfterLeaveSearchMode () {
     super.onAfterLeaveSearchMode();
     if (chatSearchManager != null) {
+      resetChatSearchTab();
       chatSearchManager.onClose(getChatMessagesSearchChatList());
       clearSearchInput();
     }
@@ -1154,6 +1420,9 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
     super.destroy();
     if (chatSearchManager != null) {
       TGLegacyManager.instance().removeEmojiListener(chatSearchAdapter);
+      if (chatSearchSwipeListener != null) {
+        chatSearchView.removeOnItemTouchListener(chatSearchSwipeListener);
+      }
       Views.destroyRecyclerView(chatSearchView);
     }
     if (chatSearchViewport != null) {

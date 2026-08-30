@@ -1,0 +1,22 @@
+!
+name: "Dark Red"
+time: 1787989485
+author: "dol6oe6xd"
+@
+parentTheme: 2
+#
+badge, bubbleIn_progress, bubbleOut_file, bubbleOut_waveformActive, chatListAction, chatSendButton, circleButtonActive, circleButtonRegular, circleButtonTheme, controlActive, file, fileRed, headerBarCallActive, playerButtonActive, profileSectionActive, progress, promo, snackbarUpdate, textSearchQueryHighlight, waveformActive, tooltip_textLink, avatarArchive, avatarSavedMessages, avatarSavedMessages_big, avatarReplies, avatarReplies_big, bubbleOut_fillingPositive, bubbleIn_fillingPositive, bubbleIn_fillingPositive_overlay, bubbleOut_fillingPositive_overlay: #D32F2F
+bubbleIn_textLink, bubbleOut_chatCorrectChosenFilling, bubbleOut_chatCorrectFilling, bubbleOut_chatVerticalLine, bubbleOut_textLink, chatListVerify, inputActive, iv_textLink, iv_textMarkedLink, messageCorrectChosenFilling, messageCorrectFilling, messageVerticalLine, seekDone, sliderActive, textLink, textNeutral: #C9403D
+bubbleIn_textLinkPressHighlight, bubbleOut_textLinkPressHighlight, iv_textLinkPressHighlight, iv_textMarkedLinkPressHighlight, textLinkPressHighlight, tooltip_textLinkPressHighlight: #C9403D40
+bubbleOut_inlineIcon, inlineIcon, messageSwipeBackground: #B71C1C
+bubbleOut_inlineOutline, bubbleOut_inlineText, bubbleOut_messageAuthor, checkActive, inlineOutline, inlineText, messageAuthor, online, profileSectionActiveContent, togglerActive, unreadText: #C62828
+bubbleOut_progress, bubbleOut_separator, bubbleOut_time: #9E696A
+bubbleOut_ticks, bubbleOut_ticksRead, iconActive, ticks, ticksRead: #D32F2F
+headerBackground, notification, notificationLink, notificationPlayer, passcode, fillingPositive: #B71C1C
+checkContent, circleButtonActiveIcon, controlContent, fillingPositiveContent, promoContent, bubbleOut_fillingPositiveContent, bubbleOut_fillingPositiveContent_overlay, bubbleIn_fillingPositiveContent, bubbleIn_fillingPositiveContent_overlay: #FFF
+messageSelection: #8E141410
+textNegative: #9B1616
+textSelectionHighlight: #B97979
+togglerActiveBackground: #A96060
+bubble_messageSelection, bubble_messageSelectionNoWallpaper: #C6282833
+bubbleOut_fillingActive: #B52F2F1A

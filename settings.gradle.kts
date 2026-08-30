@@ -26,7 +26,7 @@ val generateBaselineProfile = providers.gradleProperty("generateBaselineProfile"
   it.toBoolean()
 }.orElse(false)
 
-rootProject.name = "tgx"
+rootProject.name = "Ratogram-X"
 if (generateBaselineProfile.get()) {
   include(":baseline-profile")
 }

@@ -22,7 +22,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.SparseIntArray;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.widget.Toast;
 
 import androidx.annotation.IdRes;
@@ -52,11 +54,12 @@ import org.thunderdog.challegram.theme.ThemeId;
 import org.thunderdog.challegram.theme.ThemeInfo;
 import org.thunderdog.challegram.theme.ThemeManager;
 import org.thunderdog.challegram.tool.Fonts;
+import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.unsorted.Settings;
+import org.thunderdog.challegram.util.AppIconManager;
 import org.thunderdog.challegram.util.AppUpdater;
-import org.thunderdog.challegram.util.DrawableModifier;
 import org.thunderdog.challegram.util.Permissions;
 import org.thunderdog.challegram.util.StringList;
 import org.thunderdog.challegram.v.CustomRecyclerView;
@@ -77,6 +80,7 @@ import me.vkryl.core.DateUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.collection.IntList;
+import moe.kirao.mgx.MoexConfig;
 
 public class SettingsThemeController extends RecyclerViewController<SettingsThemeController.Args> implements View.OnClickListener, ViewController.SettingsIntDelegate, SliderWrapView.RealTimeChangeListener, View.OnLongClickListener, AppUpdater.Listener {
   public SettingsThemeController (Context context, Tdlib tdlib) {
@@ -94,18 +98,26 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
 
   public static class Args {
     private final int mode;
+    private int highlightItemId;
 
     public Args (int mode) {
       this.mode = mode;
     }
+
+    public Args setHighlightItemId (int highlightItemId) {
+      this.highlightItemId = highlightItemId;
+      return this;
+    }
   }
 
   private int mode = MODE_THEMES;
+  private int highlightItemId;
 
   @Override
   public void setArguments (Args args) {
     super.setArguments(args);
     this.mode = args.mode;
+    this.highlightItemId = args.highlightItemId;
   }
 
   @Override
@@ -114,6 +126,8 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
   }
 
   private SettingsAdapter adapter;
+  private AppIconSelectorAdapter appIconSelectorAdapter;
+  private View.OnTouchListener appIconGestureLock;
 
   private int currentNightMode = Settings.NIGHT_MODE_NONE;
   private int currentNightPercentage;
@@ -144,6 +158,29 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     adapter = new SettingsAdapter(this) {
+      @Override
+      protected void setRecyclerViewData (ListItem item, RecyclerView recyclerView, boolean isInitialization) {
+        if (item.getId() == R.id.btn_appIconSelector) {
+          if (appIconGestureLock == null) {
+            appIconGestureLock = new HorizontalGestureLock(context);
+          }
+          recyclerView.setOnTouchListener(appIconGestureLock);
+          if (appIconSelectorAdapter == null) {
+            appIconSelectorAdapter = new AppIconSelectorAdapter(context, SettingsThemeController.this, icon -> {
+              if (AppIconManager.setSelectedIcon(context, icon.id)) {
+                appIconSelectorAdapter.setSelectedIcon(icon.id);
+              }
+            });
+          }
+          if (recyclerView.getAdapter() != appIconSelectorAdapter) {
+            recyclerView.setClipToPadding(false);
+            recyclerView.setPadding(Screen.dp(8f), 0, Screen.dp(8f), 0);
+            recyclerView.setItemAnimator(null);
+            recyclerView.setAdapter(appIconSelectorAdapter);
+          }
+        }
+      }
+
       @Override
       protected void setValuedSetting (ListItem item, SettingView v, boolean isUpdate) {
         v.setDrawModifier(item.getDrawModifier());
@@ -276,8 +313,6 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
           }
         } else if (itemId == R.id.btn_hqRounds) {
           v.getToggler().setRadioEnabled(Settings.instance().needHqRoundVideos(), isUpdate);
-        } else if (itemId == R.id.btn_rearRounds) {
-          v.getToggler().setRadioEnabled(Settings.instance().startRoundWithRear(), isUpdate);
         } else if (itemId == R.id.btn_autoNightModeScheduled_timeOff || itemId == R.id.btn_autoNightModeScheduled_timeOn) {
           int time = v.getId() == R.id.btn_autoNightModeScheduled_timeOn ? Settings.instance().getNightModeScheduleOn() : Settings.instance().getNightModeScheduleOff();
           v.setData(U.timeToString(time));
@@ -285,6 +320,18 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
           StringBuilder b = new StringBuilder();
           if (Settings.instance().needChatQuickShare()) {
             b.append(Lang.getString(R.string.QuickActionSettingShare));
+          }
+          if (MoexConfig.quickEdit) {
+            if (b.length() > 0) {
+              b.append(Lang.getConcatSeparator());
+            }
+            b.append(Lang.getString(R.string.edit));
+          }
+          if (MoexConfig.quickFeatured) {
+            if (b.length() > 0) {
+              b.append(Lang.getConcatSeparator());
+            }
+            b.append(Lang.getString(R.string.SavedMessages));
           }
           if (Settings.instance().needChatQuickReply()) {
             if (b.length() > 0) {
@@ -384,13 +431,6 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
       items.add(new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_forcePlainChannels, 0, R.string.ChatStyleBubblesChannel, R.id.btn_forcePlainChannels, !tdlib.settings().forcePlainModeInChannels()));
 
-      if (!tdlib.account().isDebug()) {
-        if (BuildConfig.DEBUG) {
-          items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-          items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_icon, 0, R.string.Icons).setDrawModifier(new DrawableModifier(R.drawable.baseline_star_20, R.drawable.baseline_account_balance_wallet_20, R.drawable.baseline_location_on_20, R.drawable.baseline_favorite_20)));
-        }
-      }
-
       items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
       items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_chatListStyle, 0, R.string.ChatListStyle));
 
@@ -398,6 +438,11 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_chatBackground, 0, R.string.Wallpaper));
       items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
       items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_chatFontSize, 0, R.string.TextSize));
+      items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+
+      items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.AppIcon));
+      items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+      items.add(new ListItem(ListItem.TYPE_RECYCLER_HORIZONTAL, R.id.btn_appIconSelector).setBoolValue(true));
       items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
 
       items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ColorTheme));
@@ -597,8 +642,6 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.VideoMessages));
       items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
       items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_earpieceModeVideo, 0, R.string.EarpieceMode));
-      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-      items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_rearRounds, 0, R.string.UseRearRoundVideos));
       if (!Device.NEED_HQ_ROUND_VIDEOS && Config.ROUND_VIDEOS_RECORD_SUPPORTED) {
         items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hqRounds, 0, R.string.UseHqRoundVideos));
@@ -675,6 +718,47 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
     recyclerView.setAdapter(adapter);
 
     tdlib.wallpaper().getBackgrounds(null, Theme.isDark());
+  }
+
+  /** Keeps horizontal carousel gestures away from the navigation swipe-back handler. */
+  private static final class HorizontalGestureLock implements View.OnTouchListener {
+    private final int touchSlop;
+    private float downX;
+    private float downY;
+    private boolean directionResolved;
+
+    private HorizontalGestureLock (Context context) {
+      touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+    }
+
+    @Override
+    public boolean onTouch (View view, MotionEvent event) {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          downX = event.getX();
+          downY = event.getY();
+          directionResolved = false;
+          view.getParent().requestDisallowInterceptTouchEvent(true);
+          break;
+        case MotionEvent.ACTION_MOVE:
+          if (!directionResolved) {
+            float distanceX = Math.abs(event.getX() - downX);
+            float distanceY = Math.abs(event.getY() - downY);
+            if (Math.max(distanceX, distanceY) > touchSlop) {
+              directionResolved = true;
+              if (distanceY > distanceX) {
+                view.getParent().requestDisallowInterceptTouchEvent(false);
+              }
+            }
+          }
+          break;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          view.getParent().requestDisallowInterceptTouchEvent(false);
+          break;
+      }
+      return false;
+    }
   }
 
   private static final int CAMERA_SETTING_ITEM_COUNT = 8;
@@ -1088,8 +1172,6 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       }
     } else if (viewId == R.id.btn_hqRounds) {
       Settings.instance().setNeedHqRoundVideos(adapter.toggleView(v));
-    } else if (viewId == R.id.btn_rearRounds) {
-      Settings.instance().setStartRoundWithRear(adapter.toggleView(v));
     } else if (viewId == R.id.btn_autoNightModeScheduled_location) {
       if (locationHelper == null) {
         locationHelper = LocationHelper.requestLocation(context, 10000, true, true, (errorCode, location) -> {
@@ -1193,8 +1275,12 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
     } else if (viewId == R.id.btn_chatSwipes) {
       showSettings(R.id.btn_chatSwipes, new ListItem[] {
         new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_messageShare, 0, R.string.Share, R.id.btn_messageShare, Settings.instance().needChatQuickShare()),
+        new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_messageEdit, 0, R.string.edit, R.id.btn_messageEdit, MoexConfig.quickEdit),
+        new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_savedMessages, 0, R.string.SavedMessages, R.id.btn_savedMessages, MoexConfig.quickFeatured),
         new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_messageReply, 0, R.string.Reply, R.id.btn_messageReply, Settings.instance().needChatQuickReply())
       }, (id, result) -> {
+        if (((result.get(R.id.btn_messageEdit) == 0) == MoexConfig.quickEdit)) MoexConfig.instance().toggleQuickEdit();
+        if (((result.get(R.id.btn_savedMessages) == 0) == MoexConfig.quickFeatured)) MoexConfig.instance().toggleQuickFeatured();
         Settings.instance().setDisableChatQuickActions(result.get(R.id.btn_messageShare) != R.id.btn_messageShare, result.get(R.id.btn_messageReply) != R.id.btn_messageReply);
         adapter.updateValuedSettingById(R.id.btn_chatSwipes);
       });
@@ -1502,6 +1588,20 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
   public void onFocus () {
     super.onFocus();
     context().checkNightMode();
+    if (highlightItemId != 0) {
+      int position = adapter.indexOfViewById(highlightItemId);
+      if (position != -1) {
+        ((LinearLayoutManager) getRecyclerView().getLayoutManager()).scrollToPositionWithOffset(position, Screen.dp(8f));
+        highlightItemId = 0;
+        getRecyclerView().postDelayed(() -> {
+          RecyclerView.ViewHolder holder = getRecyclerView().findViewHolderForAdapterPosition(position);
+          if (holder != null) {
+            holder.itemView.setPressed(true);
+            holder.itemView.postDelayed(() -> holder.itemView.setPressed(false), 440);
+          }
+        }, 300);
+      }
+    }
   }
 
   private void editTheme (ThemeInfo theme, boolean add) {

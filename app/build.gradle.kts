@@ -845,6 +845,9 @@ dependencies {
   // mp4parser: https://github.com/sannies/mp4parser/releases
   implementation(libs.mp4parser.isoparser)
 
+  // Gson: used by Ratogram message details.
+  implementation("com.google.code.gson:gson:2.10.1")
+
   // Compiler warnings
   compileOnly(libs.annotations.errorprone)
   compileOnly(libs.annotations.j2objc)

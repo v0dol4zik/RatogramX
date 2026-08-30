@@ -93,8 +93,10 @@ import me.vkryl.core.StringUtils;
 import me.vkryl.core.collection.IntList;
 import me.vkryl.core.lambda.CancellableRunnable;
 import tgx.td.ChatId;
+import tgx.td.ChatPosition;
+import moe.kirao.mgx.MoexConfig;
 
-public class DrawerController extends ViewController<Void> implements View.OnClickListener, Settings.ProxyChangeListener, GlobalAccountListener, GlobalCountersListener, BaseView.CustomControllerProvider, BaseView.ActionListProvider, View.OnLongClickListener, TdlibSettingsManager.NotificationProblemListener, TdlibOptionListener, SessionListener, GlobalTokenStateListener, SystemBackEventListener {
+public class DrawerController extends ViewController<Void> implements View.OnClickListener, Settings.ProxyChangeListener, GlobalAccountListener, GlobalCountersListener, BaseView.CustomControllerProvider, BaseView.ActionListProvider, View.OnLongClickListener, TdlibSettingsManager.NotificationProblemListener, TdlibOptionListener, SessionListener, GlobalTokenStateListener, SystemBackEventListener, MoexConfig.SettingsChangeListener {
   private int currentWidth, shadowWidth;
 
   private boolean isVisible;
@@ -273,47 +275,15 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     FrameLayoutFix.LayoutParams params = FrameLayoutFix.newParams(currentWidth - shadowWidth, ViewGroup.LayoutParams.MATCH_PARENT);
     params.setMargins(0, Screen.dp(148f) + HeaderView.getTopOffset(), 0, 0);
 
-    ArrayList<ListItem> items = new ArrayList<>();
-    items.add(new ListItem(ListItem.TYPE_DRAWER_EMPTY));
-
-    if ((showingAccounts = Settings.instance().isAccountListOpened())) {
-      fillAccountItems(items);
+    showingAccounts = Settings.instance().isAccountListOpened();
+    if (showingAccounts) {
       headerView.getExpanderView().setExpanded(true, false);
     }
-
-    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_contacts, R.drawable.baseline_perm_contact_calendar_24, R.string.Contacts));
-    if (Settings.instance().chatFoldersEnabled()) {
-      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_calls, R.drawable.baseline_call_24, R.string.Calls));
-    }
-    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_savedMessages, R.drawable.baseline_bookmark_24, R.string.SavedMessages));
-    this.settingsClickBait = getSettingsClickBait();
-    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_settings, R.drawable.baseline_settings_24, R.string.Settings));
-    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_invite, R.drawable.baseline_person_add_24, R.string.InviteFriends));
-
-    this.proxyAvailable = Settings.instance().getAvailableProxyCount() > 0;
+    proxyAvailable = Settings.instance().getAvailableProxyCount() > 0;
     if (proxyAvailable) {
       proxyItem.setSelected(Settings.instance().getEffectiveProxyId() != Settings.PROXY_ID_NONE);
-      items.add(proxyItem);
     }
-    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_help, R.drawable.baseline_help_24, R.string.Help));
-    items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM_WITH_RADIO, R.id.btn_night, R.drawable.baseline_brightness_2_24, R.string.NightMode, R.id.btn_night, Theme.isDark()));
-    if (Test.NEED_CLICK) {
-      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_reportBug, R.drawable.baseline_bug_report_24, Test.CLICK_NAME, false));
-    }
-    if (BuildConfig.EXPERIMENTAL) {
-      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_featureToggles, R.drawable.outline_toggle_on_24, "Feature Toggles", false));
-    }
-    if (Settings.instance().inDeveloperMode()) {
-      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_tdlib_clearLogs, R.drawable.baseline_bug_report_24, "Clear TDLib logs", false));
-      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_tdlib_shareLogs, R.drawable.baseline_bug_report_24, "Send TDLib log", false));
-      /*if (BuildConfig.DEBUG) {
-        items.add(new SettingItem(SettingItem.TYPE_DRAWER_ITEM, R.id.btn_submitCrash, R.drawable.baseline_bug_report_24, "Crash app", false));
-      }*/
-    }
+    ArrayList<ListItem> items = buildDrawerItems();
 
     adapter = new SettingsAdapter(this) {
       @Override
@@ -531,8 +501,77 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     TdlibManager.instance().global().addAccountListener(this);
     TdlibManager.instance().global().addCountersListener(this);
     TdlibManager.instance().global().addTokenStateListener(this);
+    MoexConfig.instance().addSettingsListener(this);
 
     return contentView;
+  }
+
+  private ArrayList<ListItem> buildDrawerItems () {
+    ArrayList<ListItem> items = new ArrayList<>();
+    items.add(new ListItem(ListItem.TYPE_DRAWER_EMPTY));
+
+    if (showingAccounts) {
+      fillAccountItems(items);
+    }
+
+    int visibleItems = MoexConfig.instance().getDrawerItems();
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_CONTACTS) != 0) {
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_contacts, R.drawable.baseline_perm_contact_calendar_24, R.string.Contacts));
+    }
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_ARCHIVE) != 0) {
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_archive, R.drawable.baseline_archive_24, R.string.OpenArchive));
+    }
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_CALLS) != 0 && Settings.instance().chatFoldersEnabled()) {
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_calls, R.drawable.baseline_call_24, R.string.Calls));
+    }
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_SAVED_MESSAGES) != 0) {
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_savedMessages, R.drawable.baseline_bookmark_24, R.string.SavedMessages));
+    }
+
+    settingsClickBait = getSettingsClickBait();
+    items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_settings, R.drawable.baseline_settings_24, R.string.Settings));
+
+    if (proxyAvailable) {
+      items.add(proxyItem);
+    }
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_HELP) != 0) {
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_help, R.drawable.baseline_help_24, R.string.Help));
+    }
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_NIGHT_MODE) != 0) {
+      addDrawerSeparator(items);
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM_WITH_RADIO, R.id.btn_night, R.drawable.baseline_brightness_2_24, R.string.NightMode, R.id.btn_night, Theme.isDark()));
+    }
+    if (Test.NEED_CLICK) {
+      addDrawerSeparator(items);
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_reportBug, R.drawable.baseline_bug_report_24, Test.CLICK_NAME, false));
+    }
+    if (MoexConfig.enableTestFeatures || BuildConfig.EXPERIMENTAL) {
+      addDrawerSeparator(items);
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_featureToggles, R.drawable.outline_toggle_on_24, "Feature Toggles", false));
+    }
+    if (Settings.instance().inDeveloperMode()) {
+      addDrawerSeparator(items);
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_tdlib_clearLogs, R.drawable.baseline_bug_report_24, "Clear TDLib logs", false));
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_tdlib_shareLogs, R.drawable.baseline_bug_report_24, "Send TDLib log", false));
+    }
+    return items;
+  }
+
+  private static void addDrawerSeparator (ArrayList<ListItem> items) {
+    if (!items.isEmpty() && items.get(items.size() - 1).getViewType() != ListItem.TYPE_SEPARATOR_FULL) {
+      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+    }
+  }
+
+  @Override
+  public void onSettingsChanged (String key, Object newSettings, Object oldSettings) {
+    if (MoexConfig.KEY_DRAWER_ITEMS.equals(key)) {
+      runOnUiThreadOptional(() -> {
+        if (adapter != null) {
+          adapter.setItems(buildDrawerItems(), true);
+        }
+      });
+    }
   }
 
   /*private static SettingItem newWalletItem () {
@@ -546,6 +585,7 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     TdlibManager.instance().global().removeAccountListener(this);
     TdlibManager.instance().global().removeCountersListener(this);
     TdlibManager.instance().global().removeTokenStateListener(this);
+    MoexConfig.instance().removeSettingsListener(this);
   }
 
   @Override
@@ -784,7 +824,7 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
       adapter.getItems().addAll(1, items);
       adapter.notifyItemRangeInserted(1, items.size());
     } else {
-      int count = adapter.indexOfViewById(R.id.btn_contacts) - 1;
+      int count = TdlibManager.instance().getActiveAccounts().size() + 2;
       adapter.removeRange(1, count);
     }
   }
@@ -814,7 +854,7 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     if (itemId != R.id.account) {
       if (itemId == R.id.btn_addAccount) {
         context.currentTdlib().getTesterLevel(level -> {
-          if (Config.ALLOW_DEBUG_DC || level >= Tdlib.TesterLevel.MIN_LEVEL_FOR_DEBUG_DC) {
+          if (Config.ALLOW_DEBUG_DC || level >= Tdlib.TesterLevel.MIN_LEVEL_FOR_DEBUG_DC || MoexConfig.enableTestFeatures) {
             context.currentTdlib().ui().addAccount(context, true, true);
           }
         });
@@ -850,6 +890,8 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     } else if (viewId == R.id.btn_contacts) {
       openContacts();
       // openEmptyChat();
+    } else if (viewId == R.id.btn_archive) {
+      openArchive();
     } else if (viewId == R.id.btn_calls) {
       openCallList();
     } else if (viewId == R.id.btn_reportBug) {
@@ -878,11 +920,11 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
       cancelSupportOpen();
       supportOpen = context.currentTdlib().ui().openSupport(context.navigation().getCurrentStackItem());
     } else if (viewId == R.id.btn_invite) {
-      context.currentTdlib().cache().getInviteText(text -> {
-        if (isVisible() && !isDestroyed()) {
-          shareText(text.text);
-        }
-      });
+        context.currentTdlib().cache().getInviteText(text -> {
+          if (isVisible() && !isDestroyed()) {
+            shareText(text.text);
+          }
+        });
     } else if (viewId == R.id.btn_night) {
       ThemeManager.instance().toggleNightMode();
     } else if (viewId == R.id.btn_bubble) {
@@ -938,13 +980,7 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
   public void onProxyAvailabilityChanged (boolean isAvailable) {
     if (this.proxyAvailable != isAvailable) {
       this.proxyAvailable = isAvailable;
-      if (isAvailable) {
-        int i = adapter.indexOfViewByIdReverse(R.id.btn_help);
-        adapter.addItem(i, proxyItem);
-      } else {
-        int i = adapter.indexOfViewById(R.id.btn_proxy);
-        adapter.removeItem(i);
-      }
+      adapter.setItems(buildDrawerItems(), true);
     }
   }
 
@@ -986,6 +1022,12 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
       c.setNeedSearch();
       openController(c);
     });
+  }
+
+  private void openArchive () {
+    ChatsController c = new ChatsController(context, context.currentTdlib());
+    c.setArguments(new ChatsController.Arguments(ChatPosition.CHAT_LIST_ARCHIVE).setNeedMessagesSearch(true));
+    openController(c);
   }
 
   private void openCallList() {

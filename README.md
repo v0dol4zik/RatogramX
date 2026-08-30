@@ -1,135 +1,207 @@
-# [Telegram X](https://play.google.com/store/apps/details?id=org.thunderdog.challegram) — a slick experimental Telegram client based on [TDLib](https://core.telegram.org/tdlib).
+# Ratogram X
 
-![Telegram X](/images/feature.png)
+<p align="center">
+  <img src="artwork/ratogram-logo-round.svg" width="160" alt="Ratogram X logo">
+</p>
 
-This is the complete source code and the build instructions for the official alternative Android client for the Telegram messenger, based on the [Telegram API](https://core.telegram.org/api) and the [MTProto](https://core.telegram.org/mtproto) secure protocol via [TDLib](https://github.com/TGX-Android/tdlib).
+<p align="center">
+  A community-driven Telegram X fork focused on customization, practical
+  privacy controls, profile features, and good performance on constrained
+  Android devices.
+</p>
 
-* [**Telegram X** on Google Play](http://play.google.com/store/apps/details?id=org.thunderdog.challegram) ([subscribe to beta](https://play.google.com/apps/testing/org.thunderdog.challegram))
-* [APKs and Build Info](https://t.me/tgx_log)
-* [Bot to verify APK hash](https://t.me/tgx_bot)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 license"></a>
+  <img src="https://img.shields.io/badge/platform-Android-3DDC84.svg" alt="Android">
+  <img src="https://img.shields.io/badge/base-Telegram%20X-229ED9.svg" alt="Telegram X base">
+</p>
 
-<details>
-<summary>Other sources</summary>
+> [!IMPORTANT]
+> Ratogram X is an independent, unofficial client. It is not affiliated with,
+> endorsed by, or maintained by Telegram Messenger Inc. or the Telegram X
+> maintainers.
 
-* [**Telegram X** on Huawei AppGallery](https://appgallery.huawei.com/app/C101754199)
-* [**GitHub Releases**](https://github.com/TGX-Android/Telegram-X/releases)
+Ratogram X keeps the native Telegram X interface and TDLib architecture while
+adding selected functionality inspired by and integrated from
+[moeGramX](https://github.com/moeCrafters/moeGramX), along with original
+Ratogram X features and branding.
 
-</details>
+## Highlights
 
-## Build instructions
+- **Search tabs** for chats, media, links, files, music, voice messages, and
+  downloads, including horizontal swipe navigation and an option to disable
+  the tabs.
+- **Profile management** for birthdays, personal channels, and profile music.
+  Music can be added or removed from the player menu.
+- **Profile visibility controls** to locally hide phone numbers, music,
+  birthdays, or personal channels from profile screens.
+- **Nine launcher icons** with matching legacy, adaptive, round, and themed
+  icon resources.
+- **Customizable navigation drawer** with individually selectable entries.
+- **Sponsored-message visibility option** for Telegram-sponsored and
+  recommended messages in channels. Regular channel posts are unaffected.
+- **System media coordination** that can pause and optionally resume audio
+  from other apps while supported Ratogram X media is playing.
+- **VPN-aware proxy behavior** that can temporarily bypass the Telegram proxy
+  while a system VPN is active.
+- **Low-end device defaults** that reduce animation and autoplay load on the
+  first launch when Android reports constrained hardware. Every affected
+  setting remains user-configurable.
+- **Dark Red theme** included as `Dark Red.tgx-theme`.
 
-### Prerequisites
+The full project lineage and attribution notes are documented in
+[FORK.md](FORK.md) and [NOTICE.md](NOTICE.md).
 
-* At least **5,34GB** of free disk space: **487,10MB** for source codes and around **4,85GB** for files generated after building all variants
-* **4GB** of RAM
-* **macOS** or **Linux**-based operating system. **Windows** platform is supported by using [MSYS](https://www.msys2.org/) (e.g., [Git Bash](https://gitforwindows.org/)).
+## Screenshots
 
-#### macOS
+The existing images in [`images/screenshots`](images/screenshots) originate
+from the Telegram X source tree and are retained as upstream documentation.
+Ratogram X-specific screenshots will be added before the first public release.
 
-* [Homebrew](https://brew.sh)
-* git with LFS, wget and sed: `$ brew install git git-lfs wget gsed && git lfs install`
+## Downloads
 
-#### Ubuntu
+Verified Ratogram X APKs should be downloaded only from this repository's
+GitHub Releases page. Release signing details and checksums will be published
+with each release.
 
-* git with LFS: `# apt install git git-lfs`
-* Run `$ git lfs install` for the current user, if you didn't have `git-lfs` previously installed
+Do not treat APKs from unrelated websites or channels as official Ratogram X
+builds.
 
-#### Windows
+## Building from source
 
-* **Telegram X** does not provide official build instructions for Windows platform. It is recommended to rely on Linux distributions instead.
+### Requirements
 
-### Building
+- Linux or macOS. Windows is supported through an MSYS2-compatible shell, as
+  in upstream Telegram X.
+- Git and Git LFS.
+- JDK 21.
+- Android SDK package `android-37.1` and Build Tools `37.0.0`.
+- Android NDK `23.2.8568313`.
+- CMake `3.22.1`.
+- A personal Telegram `api_id` and `api_hash` from
+  [my.telegram.org](https://my.telegram.org/apps).
 
-1. `$ git clone --recursive --depth=1 --shallow-submodules https://github.com/TGX-Android/Telegram-X tgx` — clone **Telegram X** with submodules
-2. In case you forgot the `--recursive` flag, `cd` into `tgx` directory and: `$ git submodule init && git submodule update --init --recursive --depth=1`
-3. Create `keystore.properties` file outside of source tree with the following properties:<br/>`keystore.file`: absolute path to the keystore file<br/>`keystore.password`: password for the keystore<br/>`key.alias`: key alias that will be used to sign the app<br/>`key.password`: key password.<br/>**Warning**: keep this file safe and make sure nobody, except you, has access to it. For production builds one could use a separate user with home folder encryption to avoid harm from physical theft
-4. `$ cd tgx`
-5. Run `$ scripts/./setup.sh` and follow up the instructions
-6. If you specified package name that's different from the one Telegram X uses, [setup Firebase](https://firebase.google.com/docs/android/setup) and replace `google-services.json` with the one that's suitable for the `app.id` you need
-7. Now you can open the project using **[Android Studio](https://developer.android.com/studio/)** or build manually from the command line: `./gradlew assembleUniversalRelease`.
+The repository uses submodules and must be cloned recursively:
 
-#### Available flavors
+```bash
+git clone --recurse-submodules https://github.com/v0dol4zik/RatogramX.git RatogramX
+cd RatogramX
+git lfs install
+```
 
-* `arm64`: **arm64-v8a** build with `minSdkVersion` set to `21` (**Lollipop**)
-* `arm32`: **armeabi-v7a** build
-* `x64`: **x86_64** build with `minSdkVersion` set to `21` (**Lollipop**)
-* `x86`: **x86** build
-* `universal`: universal build that includes native bundles for all platforms.
+If the repository was cloned without submodules:
 
-### Quick setup for development
+```bash
+git submodule update --init --recursive
+```
 
-If you are developing a [contribution](https://github.com/TGX-Android/Telegram-X/blob/main/docs/PULL_REQUEST_TEMPLATE.md) to the project, you may follow the simpler building steps:
+### Configure the local build
 
-1. `$ git clone --recursive https://github.com/TGX-Android/Telegram-X tgx`
-2. `$ cd tgx`
-3. [Obtain Telegram API credentials](https://core.telegram.org/api/obtaining_api_id)
-4. Create `local.properties` file in the root project folder using any text editor:<br/><pre># Location where you have Android SDK installed
-sdk.dir=YOUR_ANDROID_SDK_FOLDER
-\# Telegram API credentials obtained at previous step
-telegram.api_id=YOUR_TELEGRAM_API_ID
-telegram.api_hash=YOUR_TELEGRAM_API_HASH</pre>
-5. Run `$ scripts/./setup.sh` — this will download required Android SDK packages and build native dependencies that aren't part of project's [CMakeLists.txt](/app/jni/CMakeLists.txt)
-6. Open and build project via [Android Studio](https://developer.android.com/studio) or by using one of `./gradlew assemble` commands in terminal
+Copy the public template:
 
-After submitting a pull request and its initial review, special build including your contribution will be published in [@tgx_prs](https://t.me/tgx_prs) channel, where it can be tested by the community. In case any issues or bugs found, you may push more commits to an existing PR that address them and request to publish a newer build by using comments section of pull request or in [@tgx_dev](https://t.me/tgx_dev) chat.
+```bash
+cp local.properties.sample local.properties
+```
 
-## Reproducing public builds
+Edit `local.properties` and provide at least:
 
-In order to verify that there is no additional source code injected inside official APKs, you must use one of the following versions of **Ubuntu**:
+```properties
+sdk.dir=/absolute/path/to/Android/Sdk
+app.disable_signing=true
+app.id=org.ratogramx.client
+app.name=Ratogram X
+app.download_url=https://github.com/v0dol4zik/RatogramX/releases
+app.sources_url=https://github.com/v0dol4zik/RatogramX
+telegram.api_id=YOUR_API_ID
+telegram.api_hash=YOUR_API_HASH
+tgx.extension=none
+```
 
-* **21.04**: for builds published before [26th May 2023](https://github.com/TGX-Android/Telegram-X/commit/e9a054a0f469a98a13f7e0d751539687fef8759b)
-* **22.04.2 LTS**: for builds published before 27th September 2025
-* **24.04 LTS**: for any newer releases.
+Never commit `local.properties`, a keystore, signing passwords, or private API
+credentials. The repository's `.gitignore` excludes the expected local files.
 
-And update its configuration:
+### Prepare native dependencies
 
-1. Create user called `vk` with the home directory located at `/home/vk`
-2. Clone `tgx` repository to `/home/vk/tgx`
-3. Check out the specific commit you want to verify
-4. In rare cases of builds that include unmerged pull requests, you must follow actions performed by [Publisher's](https://github.com/TGX-Android/Publisher/blob/main/main.js) `fetchPr` and `squashPr` tasks
-5. `cd` into `tgx` folder and install dependencies: `# apt install $(cat reproducible-builds/dependencies.txt)`
-6. Follow up the build instruction from the previous section
-7. Run `$ apkanalyzer apk compare --different-only <remote-apk> <reproduced-apk>`
-8. If only signature files and metadata differ, build reproduction is successful.
+For an ARM64 development device, the narrowed setup path avoids building
+unused ABIs:
 
-In future build reproduction might become easier. Here's a list of related PR-welcome TODOs:
+```bash
+ANDROID_SDK_ROOT=/absolute/path/to/Android/Sdk \
+  bash scripts/setup-arm64-dev.sh
+```
 
-* Project path must not affect the resulting `.so` files, so user & project location requirement could be removed
-* When building native binaries on **macOS**, `.comment` ELF section differs from the one built with **Linux** version of NDK. It must be removed or made deterministic without any side-effects like breaking `native-debug-symbols.zip` (or should be reported to NDK team?)
-* Checksums of cold APK builds always differ, even though the same keystore applied and generated inner APK contents do not differ. Real cause must be investigated and fixed, if possible.<br/>To generate cold build, invoke `$ scripts/./reset.sh` and `$ scripts/./setup.sh --skip-sdk-setup`.<br/>**Warning**: this will also reset changes inside some of the submodules ([ffmpeg](/app/jni/thirdparty/ffmpeg), [libvpx](/app/jni/thirdparty/libvpx), [webp](/app/jni/thirdparty/webp), [opus](/app/jni/thirdparty/opus) and [ExoPlayer](/app/jni/thirdparty/exoplayer))
-* Move local pull requests squash-merging from [Publisher](https://github.com/TGX-Android/Publisher) to some script inside this repository to make reproduction of builds that include them easier.
+For the complete upstream-compatible setup:
 
-<i>PS: [Docker](https://www.docker.com) is not considered an option, as it just hides away these tasks, and requires that all published APKs must be built using it.</i>
+```bash
+bash scripts/setup.sh
+```
 
-## Verifying side-loaded APKs
+The full setup is interactive and may download Android SDK components and
+build native dependencies.
 
-If you downloaded **Telegram X** APK from somewhere and would like to simply verify whether it's an original APK without any injected malicious source code, you need to get checksum (`SHA-256`, `SHA-1` or `MD5`) of the downloaded APK file and find whether it corresponds to any known **Telegram X** version.
+### Build an APK
 
-In order to obtain **SHA-256** of the APK:
+ARM64 debug build used for current Ratogram X development:
 
-* `$ sha256sum <path-to-apk>` on **Ubuntu**
-* `$ shasum -a 256 <path-to-apk>` on **macOS**
-* `$ certutil -hashfile <path-to-apk> SHA256` on **Windows**
+```bash
+JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleLatestArm64Debug
+```
 
-Once obtained, there are three ways to find out the commit for the specific checksum:
+Output:
 
-* Sending checksum to [`@tgx_bot`](https://t.me/tgx_bot)
-* Searching for a checksum in [`@tgx_log`](https://t.me/tgx_log). You can do so without need in installing any Telegram client by using this URL format: [`https://t.me/s/tgx_log?q={checksum}`](https://t.me/s/tgx_log?q=c541ebb0a3ae7bb6e6bd155530f375d567b8aef1761fdd942fb5d69af62e24ae) (click to see in action). Note: unpublished builds cannot be verified this way.
+```text
+app/build/outputs/apk/latestArm64/debug/
+```
+
+The `latest` SDK flavor requires Android 7.0 (API 24). Other inherited SDK
+flavors include `lollipop` (API 21), `marshmallow` (API 23), and `legacy`
+(API 16). ABI flavors include `arm64`, `arm32`, `x64`, `x86`, and
+`universal`; not every SDK/ABI combination is valid.
+
+Release builds require your own signing configuration. Never reuse or share a
+development keystore for public releases.
+
+## Development
+
+Before opening a pull request:
+
+```bash
+git diff --check
+JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleLatestArm64Debug
+```
+
+Keep changes focused, preserve the Telegram X visual language, and avoid
+introducing parallel networking or storage layers where TDLib already provides
+the required behavior. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete
+contribution workflow.
+
+## Security
+
+Do not report vulnerabilities in a public issue. Follow
+[SECURITY.md](SECURITY.md) and use GitHub's private vulnerability reporting
+for this repository. Security issues affecting Telegram or TDLib directly
+should also be reported through the relevant upstream security channels.
 
 ## License
 
-`Telegram X` is licensed under the terms of the GNU General Public License v3.0.
+Ratogram X is distributed under the
+[GNU General Public License v3.0](LICENSE). Source files and bundled
+dependencies may carry additional compatible notices or their own licenses;
+see [NOTICE.md](NOTICE.md) and [docs/THIRDPARTY.md](docs/THIRDPARTY.md).
 
-For more information, see [LICENSE](/LICENSE) file.
+If you distribute a modified Ratogram X APK, you must comply with GPL-3.0,
+including providing the corresponding source code and preserving applicable
+license and copyright notices.
 
-License of components and third-party dependencies it relies on might differ, check `LICENSE` file in the corresponding folder.
+## Acknowledgements
 
-### Third-party dependencies
+- [Telegram X](https://github.com/TGX-Android/Telegram-X) for the Android
+  client architecture and interface foundation.
+- [moeGramX](https://github.com/moeCrafters/moeGramX) for the extended feature
+  layer incorporated into Ratogram X.
+- [TDLib](https://github.com/tdlib/td) and the Telegram team for the Telegram
+  client library.
+- All upstream and Ratogram X contributors.
 
-List of third-party components used in **Telegram X** can be found [here](/docs/THIRDPARTY.md). Additionally you can check the specific commit of the third-party component used, for example, [here](/app/jni/thirdparty) and [here](/thirdparty).
-
-## Contributions
-
-**Telegram X** welcomes contributions. Check out [pull request template](/docs/PULL_REQUEST_TEMPLATE.md) and [guide for contributors](/docs/GUIDE.md) to learn more about Telegram X internals before creating the first pull request.
-
-If you are a regular user and experience a problem with Telegram X, the best place to look for solution is [Telegram X chat](https://t.me/tgandroidtests) — a community with over 4 thousand members. Please do not use this repository to ask questions: if you have general issue with Telegram, refer to [FAQ](http://telegram.org/faq) or contact [Telegram Support](https://telegram.org/faq#telegram-support).
+Telegram, the Telegram logo, and related marks belong to their respective
+owners. Ratogram X branding is used only to identify this independent fork.

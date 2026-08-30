@@ -1,0 +1,73 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Ratogram X
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security vulnerabilities here. Use private vulnerability reporting from the Security tab.
+  - type: input
+    id: version
+    attributes:
+      label: Ratogram X version
+      description: Include the version and commit shown in the app settings.
+      placeholder: 0.28.11.1806 / commit
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: Device model, Android version, architecture
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Installation source
+      options:
+        - GitHub Release
+        - Locally built APK
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or recordings
+      description: Remove phone numbers, account data, API credentials, and other private information.
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for an existing issue.
+          required: true
+        - label: I can reproduce this in Ratogram X.
+          required: true
+        - label: This report contains no private credentials or account data.
+          required: true

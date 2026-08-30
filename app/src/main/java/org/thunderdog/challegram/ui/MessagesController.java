@@ -292,6 +292,9 @@ import tgx.td.Td;
 import tgx.td.TdConstants;
 import tgx.td.data.MessageWithProperties;
 import tgx.td.ui.TdUi;
+import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.ui.MessageDetailsController;
+import moe.kirao.mgx.utils.SystemUtils;
 
 public class MessagesController extends ViewController<MessagesController.Arguments> implements
   Menu, Unlockable, View.OnClickListener,
@@ -311,8 +314,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   RecordAudioVideoController.RecordStateListeners,
   ViewPager.OnPageChangeListener, ViewPagerTopView.OnItemClickListener,
   TGMessage.SelectableDelegate, GlobalAccountListener, EmojiToneHelper.Delegate, ComplexHeaderView.Callback, LiveLocationHelper.Callback, CreatePollController.Callback,
-  HapticMenuHelper.Provider, HapticMenuHelper.OnItemClickListener, TdlibSettingsManager.DismissRequestsListener, InputView.SelectionChangeListener {
-
+  HapticMenuHelper.Provider, HapticMenuHelper.OnItemClickListener, TdlibSettingsManager.DismissRequestsListener, MoexConfig.SettingsChangeListener, InputView.SelectionChangeListener {
   private boolean reuseEnabled;
   private boolean destroyInstance;
 
@@ -583,6 +585,59 @@ public class MessagesController extends ViewController<MessagesController.Argume
       headerCell.setForcedSubtitle(Lang.lowercase(Lang.getString(isSelfChat() ? R.string.Reminders : R.string.ScheduledMessages)));
     } else {
       headerCell.setForcedSubtitle(null);
+    }
+  }
+
+  @Override
+  public void onSettingsChanged (String key, Object newSettings, Object oldSettings) {
+    switch (key) {
+      case MoexConfig.KEY_DISABLE_CAMERA_BUTTON:
+        if (cameraButton == null) {
+          return;
+        }
+        boolean disableCameraButton = (boolean) newSettings;
+        if (disableCameraButton) {
+          attachButtons.removeView(cameraButton);
+        } else {
+          attachButtons.addView(cameraButton);
+        }
+        break;
+      case MoexConfig.KEY_DISABLE_RECORD_BUTTON:
+        if (recordButton == null) {
+          return;
+        }
+        boolean disableRecordButton = (boolean) newSettings;
+        if (disableRecordButton) {
+          attachButtons.removeView(recordButton);
+        } else {
+          attachButtons.addView(recordButton);
+        }
+        break;
+      case MoexConfig.KEY_DISABLE_COMMANDS_BUTTON:
+        if (commandButton == null) {
+          return;
+        }
+        boolean disableCommandsButton = (boolean) newSettings;
+        if (disableCommandsButton) {
+          attachButtons.removeView(commandButton);
+        } else {
+          attachButtons.addView(commandButton);
+        }
+        break;
+      case MoexConfig.KEY_DISABLE_SEND_AS_BUTTON:
+        if (messageSenderButton == null) {
+          return;
+        }
+        boolean disableSendAsButton = (boolean) newSettings;
+        if (disableSendAsButton) {
+          contentView.removeView(messageSenderButton);
+        } else {
+          contentView.addView(messageSenderButton);
+        }
+        break;
+      case MoexConfig.KEY_HIDE_SPONSORED_MESSAGES:
+        manager.onHideSponsoredMessagesChanged((boolean) newSettings);
+        break;
     }
   }
 
@@ -1227,18 +1282,22 @@ public class MessagesController extends ViewController<MessagesController.Argume
     addThemeInvalidateListener(recordButton);
     recordButton.setLayoutParams(lp);
 
-    attachButtons.addView(commandButton);
+    if (!MoexConfig.disableCommandsButton) {
+      attachButtons.addView(commandButton);
+    }
     if (silentButton != null) {
       attachButtons.addView(silentButton);
     }
     if (scheduleButton != null) {
       attachButtons.addView(scheduleButton);
     }
-    if (cameraButton != null) {
+    if (!MoexConfig.disableCameraButton && cameraButton != null) {
       attachButtons.addView(cameraButton);
     }
     attachButtons.addView(mediaButton);
-    attachButtons.addView(recordButton);
+    if (!MoexConfig.disableRecordButton) {
+      attachButtons.addView(recordButton);
+    }
     attachButtons.updatePivot();
 
     params = new RelativeLayout.LayoutParams(Screen.dp(55f), Screen.dp(49f));
@@ -1472,7 +1531,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
       contentView.addView(emojiButton);
       contentView.addView(attachButtons);
       contentView.addView(sendButton);
-      contentView.addView(messageSenderButton);
+      if (!MoexConfig.disableSendAsButton) {
+        contentView.addView(messageSenderButton);
+      }
 
       initSearchControls();
       contentView.addView(searchControlsLayout);
@@ -1488,6 +1549,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
     updateView();
 
+    MoexConfig.instance().addSettingsListener(this);
     TGLegacyManager.instance().addEmojiListener(this);
 
     if (needTabs()) {
@@ -3474,7 +3536,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     if (needTabs() && y < HeaderView.getSize(true))
       return false;
 
-    if (Settings.instance().needChatQuickShare()) {
+    if (Settings.instance().needChatQuickShare() || MoexConfig.quickFeatured) {
       if (Lang.rtl()) {
         int width = contentView.getMeasuredWidth();
         return width != 0 && x >= width - bound;
@@ -4406,6 +4468,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
       }
       tdlib.settings().removeJoinRequestsDismissListener(this);
       TGLegacyManager.instance().removeEmojiListener(this);
+      MoexConfig.instance().removeSettingsListener(this);
       if (emojiLayout != null) {
         emojiLayout.destroy();
       }
@@ -5823,6 +5886,30 @@ public class MessagesController extends ViewController<MessagesController.Argume
           TD.saveFiles(context, (List<TD.DownloadedFile>) selectedMessageTag);
         }
         return true;
+      } else if (id == R.id.btn_saveDocument) {
+        if (selectedMessageTag != null) {
+          if (!selectedMessage.canBeSaved()) {
+            context().tooltipManager().builder(itemView).show(tdlib, R.string.ChannelNoSave).hideDelayed();
+            return false;
+          }
+          //noinspection unchecked
+          SystemUtils.saveFileToGallery(context, (List<TD.DownloadedFile>) selectedMessageTag);
+        }
+      } else if (id == R.id.btn_copyPhoto) {
+        TdApi.File file = TD.getFile(selectedMessage);
+        tdlib.files().isFileLoadedAndExists(file, isLoadedAndExists -> {
+          if (isLoadedAndExists) {
+            SystemUtils.copyFileToClipboard(file, R.string.CopiedPhoto);
+          }
+        });
+      } else if (id == R.id.btn_msgRepeat) {
+        TdApi.Message msg = selectedMessage.getMessage();
+        tdlib.client().send(new TdApi.ForwardMessages(msg.chatId, msg.topicId instanceof TdApi.MessageTopicForum
+          || msg.topicId instanceof TdApi.MessageTopicDirectMessages ? msg.topicId : null, msg.chatId, new long[] {msg.id}, null, true, false), tdlib.messageHandler());
+      } else if (id == R.id.btn_msgDetails) {
+        MessageDetailsController.Args args = new MessageDetailsController.Args(selectedMessage, messageThread);
+        MessageDetailsController c = new MessageDetailsController(context, tdlib, args);
+        navigateTo(c);
       } else if (id == R.id.btn_openIn) {
         if (selectedMessageTag != null) {
           TdApi.Document document = ((TdApi.MessageDocument) selectedMessage.getMessage().content).document;
@@ -5889,6 +5976,20 @@ public class MessagesController extends ViewController<MessagesController.Argume
           tdlib.ui().showStickerSet(this, sticker.sticker.setId, null);
         }
         return true;
+      } else if (id == R.id.btn_pinAudioProfile) {
+        TdApi.Audio audio = ((TdApi.MessageAudio) selectedMessage.getMessage().content).audio;
+        int fileId = audio.audio.id;
+        tdlib.send(new TdApi.IsProfileAudio(fileId), (ok, err) -> {
+          if (err == null) {
+            UI.showToast(R.string.AudioAlreadyPinned, Toast.LENGTH_SHORT);
+          } else {
+            tdlib.send(
+              new TdApi.AddProfileAudio(new TdApi.InputAudio(new TdApi.InputFileId(fileId), null, audio.duration, audio.title, audio.performer)),
+              Ok -> UI.showToast(R.string.AudioPinned, Toast.LENGTH_SHORT),
+              UI::showError
+            );
+          }
+        });
       }
       return true;
     };
@@ -5908,9 +6009,10 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   private int bottomButtonAction;
   private boolean needBigPadding;
+  private int CURRENT_BOTTOM_ACTION;
 
   private void checkExtraPadding () {
-    boolean needBigPadding = bottomBarVisible.getValue(); //  && !scrollToBottomVisible;
+    boolean needBigPadding = MoexConfig.hideBottomBar ? CURRENT_BOTTOM_ACTION == BOTTOM_ACTION_APPLY_WALLPAPER : bottomBarVisible.getValue(); //  && !scrollToBottomVisible;
     if (this.needBigPadding != needBigPadding) {
       this.needBigPadding = needBigPadding;
       manager.rebuildLastItem();
@@ -5922,7 +6024,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   private void showBottomButton (int bottomButtonAction, long bottomButtonData, boolean animated) {
-    this.bottomButtonAction = bottomButtonAction;
+    CURRENT_BOTTOM_ACTION = this.bottomButtonAction = bottomButtonAction;
     boolean animateButtonContent = animated && bottomBarVisible.getFloatValue() > 0f;
     switch (bottomButtonAction) {
       case BOTTOM_ACTION_FOLLOW:
@@ -5969,6 +6071,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
       return;
     float bottomButtonFactor = bottomBarVisible.getFloatValue();
     float detachFactor = scrollToBottomVisible.getFloatValue();
+    boolean needBottomBar = CURRENT_BOTTOM_ACTION == BOTTOM_ACTION_APPLY_WALLPAPER;
+    boolean needHideBottomBar = MoexConfig.hideBottomBar && !needBottomBar && !scrollToBottomVisible.getValue();
     int barHeight = Screen.dp(48f) + extraBottomInset;
     int baseY = needSearchControlsTranslate() ? (int) ((float) barHeight * MathUtils.clamp(searchControlsFactor)) : 0;
     float fromY = bottomButtonFactor == 1f ? baseY : baseY + (int) ((float) barHeight * (1f - bottomButtonFactor));
@@ -5980,7 +6084,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     int dx = (int) ((bottomBar.getMeasuredWidth() / 2f - Screen.dp(16f) - Screen.dp(48f) / 2f) * detachFactor);
     bottomBar.setTranslationY(bottomButtonFactor == 1f && detachFactor == 0f ? fromY : fromY + (toY - fromY) * detachFactor);
     bottomBar.setTranslationX(dx);
-    int desiredVisibility = (bottomButtonFactor > 0f && searchControlsFactor != 1f) ? View.VISIBLE : View.GONE;
+    int desiredVisibility = (bottomButtonFactor > 0f && searchControlsFactor != 1f) && !needHideBottomBar ? View.VISIBLE : View.GONE;
     if (bottomBar.getVisibility() != desiredVisibility) {
       bottomBar.setVisibility(desiredVisibility);
     }
@@ -6339,7 +6443,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   private void setReactionCountBadge (int reactionCount) {
-    if (reactionCount > 0 && (inPreviewMode || isInForceTouchMode() || areScheduledOnly())) {
+    if (reactionCount > 0 && (inPreviewMode || isInForceTouchMode() || areScheduledOnly() || MoexConfig.disableReactions)) {
       return;
     }
     if (reactionCountBadge != reactionCount) {
@@ -7264,7 +7368,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     sendButton.forceState(false, false);
   }
 
-  private void editMessage (@NonNull MessageWithProperties m) {
+  public void editMessage (@NonNull MessageWithProperties m) {
     if (isEditingMessage()) {
       return;
     }
@@ -8008,7 +8112,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public boolean obtainSilentMode () {
-    return tdlib.chatDefaultDisableNotifications(getChatId());
+    return tdlib.chatDefaultDisableNotifications(getChatId()) || MoexConfig.silentMessage;
   }
 
   // pinned messages
@@ -10600,7 +10704,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
       @TdApi.ChatAction.Constructors int action;
       switch (emojiType) {
         case EmojiMediaType.STICKER:
-          action = TdApi.ChatActionChoosingSticker.CONSTRUCTOR;
+          action = MoexConfig.typingInsteadChoosing ? TdApi.ChatActionChoosingSticker.CONSTRUCTOR : TdApi.ChatActionTyping.CONSTRUCTOR;
           if (suggestionYDiff > Screen.dp(50) || stickerPreviewIsVisible) {
             hideEmojiSuggestionsTemporarily();
           } else if (suggestionYDiff <= 0) {

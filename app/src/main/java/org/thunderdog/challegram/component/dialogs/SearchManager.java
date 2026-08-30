@@ -225,6 +225,8 @@ public class SearchManager {
   private final Tdlib tdlib;
   private final ListenerInterface listener;
   private int searchFlags;
+  private @Nullable TdApi.SearchMessagesFilter messageSearchFilter;
+  private boolean searchFileDownloads;
 
   private volatile int contextId;
   private String lastQuery;
@@ -248,6 +250,18 @@ public class SearchManager {
 
   public int getSearchFlags () {
     return searchFlags;
+  }
+
+  public void setMessageSearchFilter (@Nullable TdApi.SearchMessagesFilter filter) {
+    this.messageSearchFilter = filter;
+    this.searchFileDownloads = false;
+  }
+
+  public void setSearchFileDownloads (boolean searchFileDownloads) {
+    this.searchFileDownloads = searchFileDownloads;
+    if (searchFileDownloads) {
+      this.messageSearchFilter = null;
+    }
   }
 
   public void onOpen (final @Nullable TdApi.ChatList chatList) {
@@ -310,7 +324,7 @@ public class SearchManager {
   private static final int FORCE_MODE_ALL = 2;
 
   private void performSearch (final TdApi.ChatList chatList, final @NonNull String query, int forceMode) {
-    if (lastQuery != null && StringUtils.equalsOrBothEmpty(lastQuery, query) && Td.equalsTo(lastChatList, chatList)) {
+    if (forceMode != FORCE_MODE_ALL && lastQuery != null && StringUtils.equalsOrBothEmpty(lastQuery, query) && Td.equalsTo(lastChatList, chatList)) {
       if (isEndReached && forceMode != FORCE_MODE_NONE && StringUtils.isEmpty(lastQuery)) {
         if (forceMode == FORCE_MODE_TOP) {
           reloadTopChats();
@@ -322,6 +336,9 @@ public class SearchManager {
     }
 
     final int currentContextId = incrementContextId();
+    if (forceMode == FORCE_MODE_ALL) {
+      clearAllResults();
+    }
     reset();
 
     this.lastQuery = query;
@@ -334,6 +351,22 @@ public class SearchManager {
     } else {
       loadTopChats(currentContextId, chatList, query, false);
     }
+  }
+
+  private void clearAllResults () {
+    if (topChats != null && !topChats.isEmpty()) {
+      topChats = null;
+      topChatIds = null;
+      listener.onRemoveTopChats(true, false);
+    }
+    if (localChats != null && !localChats.isEmpty()) {
+      int oldCount = localChats.size();
+      localChats = null;
+      localChatsQuery = null;
+      listener.onRemoveLocalChats(oldCount);
+    }
+    clearGlobalChats();
+    clearMessages();
   }
 
   // 1. Top Chats
@@ -990,7 +1023,11 @@ public class SearchManager {
       if (isMore) {
         offset = messageList.nextOffset;
       }
-      tdlib.send(new TdApi.SearchMessages(chatList, query, offset, loadCount, null, null, 0, 0), new Tdlib.ResultHandler<>() {
+      if (searchFileDownloads) {
+        searchFileDownloads(currentContextId, chatList, query, offset, loadCount, isMore, runnable);
+        return;
+      }
+      tdlib.send(new TdApi.SearchMessages(chatList, query, offset, loadCount, messageSearchFilter, null, 0, 0), new Tdlib.ResultHandler<>() {
         @Override
         public void onResult (TdApi.FoundMessages foundMessages, @Nullable TdApi.Error error) {
           if (contextId != currentContextId) {
@@ -1011,12 +1048,12 @@ public class SearchManager {
             for (TdApi.Message message : foundMessages.messages) {
               if (chat == null || chat.id != message.chatId)
                 chat = tdlib.chat(message.chatId);
-              if (listener.filterMessageSearchResultSource(chat)) {
+              if (chat != null && listener.filterMessageSearchResultSource(chat)) {
                 foundMessageList.add(new TGFoundMessage(tdlib, chatList, chat, message, query));
               }
             }
             if (foundMessageList.isEmpty() && !StringUtils.isEmpty(foundMessages.nextOffset)) {
-              tdlib.send(new TdApi.SearchMessages(chatList, query, foundMessages.nextOffset, loadCount, null, null, 0, 0), this);
+              tdlib.send(new TdApi.SearchMessages(chatList, query, foundMessages.nextOffset, loadCount, messageSearchFilter, null, 0, 0), this);
               return;
             }
             messages = foundMessageList.toArray(new TGFoundMessage[0]);
@@ -1036,6 +1073,47 @@ public class SearchManager {
     } else {
       tdlib.ui().postDelayed(actor, 150l);
     }
+  }
+
+  private void searchFileDownloads (final int currentContextId, final TdApi.ChatList chatList, final String query, final String offset, final int loadCount, final boolean isMore, final @Nullable CancellableRunnable runnable) {
+    tdlib.send(new TdApi.SearchFileDownloads(query, false, false, offset, loadCount), (foundFileDownloads, error) -> {
+      if (contextId != currentContextId) {
+        return;
+      }
+      if (runnable != null) {
+        runnable.cancel();
+      }
+      final TGFoundMessage[] messages;
+      final String nextOffset;
+      if (error != null) {
+        Log.w("SearchFileDownloads returned error, displaying no results: %s", TD.toErrorString(error));
+        messages = null;
+        nextOffset = null;
+      } else {
+        List<TGFoundMessage> result = new ArrayList<>(foundFileDownloads.files.length);
+        for (TdApi.FileDownload fileDownload : foundFileDownloads.files) {
+          TdApi.Message message = fileDownload.message;
+          if (message == null) {
+            continue;
+          }
+          TdApi.Chat chat = tdlib.chat(message.chatId);
+          if (chat != null && listener.filterMessageSearchResultSource(chat)) {
+            result.add(new TGFoundMessage(tdlib, chatList, chat, message, query));
+          }
+        }
+        if (result.isEmpty() && !StringUtils.isEmpty(foundFileDownloads.nextOffset)) {
+          searchFileDownloads(currentContextId, chatList, query, foundFileDownloads.nextOffset, loadCount, isMore, runnable);
+          return;
+        }
+        messages = result.toArray(new TGFoundMessage[0]);
+        nextOffset = foundFileDownloads.nextOffset;
+      }
+      tdlib.ui().post(() -> {
+        if (contextId == currentContextId) {
+          setMessages(currentContextId, query, loadCount, messages, isMore, nextOffset);
+        }
+      });
+    });
   }
 
   private void setMessages (final int currentContextId, final @Nullable String query, final int loadCount, final TGFoundMessage[] foundMessages, final boolean isMore, final String nextOffset) {

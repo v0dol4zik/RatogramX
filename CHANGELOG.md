@@ -1,52 +1,45 @@
-# [Telegram X](https://play.google.com/store/apps/details?id=org.thunderdog.challegram): Change Logs 
+# Changelog
 
-![Telegram X](/images/feature.png)
+All notable Ratogram X-specific changes will be documented in this file.
 
-This file is a collection of full blog posts about major [**Telegram X** for Android](http://play.google.com/store/apps/details?id=org.thunderdog.challegram) updates. Note not all major updates had one, as some of them were limited to the change log on Google Play platform. 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project intends to use semantic version tags for public Ratogram X
+releases. The embedded Telegram X application version may continue to appear
+in development build metadata.
 
-If you want to see the exact changes between two versions, refer to `Changes in Source Code` in app settings, [**Releases**](https://github.com/TGX-Android/Telegram-X/releases) section of this repository, or directly by checking the commits list (the exact commit used in specific version can be found in app settings and [@tgx_log](https://t.me/tgx_log)).
-   
----
+## [Unreleased]
 
-* 10th June, 2024: https://telegra.ph/Telegram-X-06-08
-* 10th May, 2024: https://telegra.ph/Telegram-X-05-10
-* 1st January, 2024: https://telegra.ph/Telegram-X-2023-12-31
-* 3rd August, 2023: https://telegra.ph/Telegram-X-08-02
-* 2nd April, 2023: https://telegra.ph/Telegram-X-04-02
-* 8th March, 2023: https://telegra.ph/Telegram-X-03-08
-* 7th October, 2022: https://telegra.ph/Telegram-X-10-06
-* 16th June, 2022: https://telegra.ph/Telegram-X-06-11 (open source)
-* 12th November, 2021: https://telegra.ph/Telegram-X-11-08
-* 6th June, 2020: https://telegra.ph/Telegram-X-06-06
-* 15th May, 2020: https://telegra.ph/Telegram-X-04-23
-* 3rd March, 2020: https://telegra.ph/Telegram-X-02-29
-* 23rd January, 2020: https://telegra.ph/Telegram-X-01-23-2
-* 21st September, 2019: https://telegra.ph/Telegram-X-09-21
-* 26th April, 2019: https://telegra.ph/Telegram-X-04-25
-* 21th October, 2018: https://t.me/tgx_android/129
-* 15th October, 2018: https://telegra.ph/Telegram-X-10-14
-* 27th July, 2018: http://telegra.ph/Telegram-X-07-27
-* 31st March, 2018: http://telegra.ph/Telegram-X-03-26
-* 31st January, 2018: https://telegram.org/blog/telegram-x
+### Added
 
----
+- Ratogram X branding, package identity, notification artwork, and launcher
+  resources.
+- Runtime launcher icon selector with nine icon variants.
+- Search category tabs with swipe navigation and a client setting to disable
+  them.
+- Configurable navigation drawer entries.
+- Unified profile editor for name, birthday, and personal channel management.
+- Profile music actions in the player menu.
+- Local visibility controls for profile music, birthdays, and personal
+  channels.
+- Option to hide Telegram-sponsored and recommended channel messages.
+- VPN-aware proxy bypass option.
+- System media pause and optional resume behavior.
+- First-launch performance defaults for constrained devices.
+- Dark Red Telegram X theme.
+- ARM64-focused native dependency setup script.
 
-### Download on Google Play
+### Changed
 
-http://play.google.com/store/apps/details?id=org.thunderdog.challegram
+- Integrated and adapted selected GPL-3.0 functionality from moeGramX on top
+  of Telegram X `0.28.11.1806`.
+- Updated app and session icon presentation for Ratogram X.
 
-### Subscribe to Beta
+### Documentation
 
-https://play.google.com/apps/testing/org.thunderdog.challegram
+- Added public build, contribution, security, lineage, and attribution
+  documentation.
 
-### Change Logs
+## Upstream history
 
-https://t.me/tgx_android — big announcements and stable change logs
-
-https://t.me/tgx_log — beta change logs and automatic build status updates
-
-https://t.me/tgx_bot — verify APK checksum for authenticity against modifications
-
-### Source Code
-
-https://github.com/TGX-Android/Telegram-X — main repository of Telegram X
+Telegram X release history predating Ratogram X is maintained by the upstream
+project: <https://github.com/TGX-Android/Telegram-X/releases>.

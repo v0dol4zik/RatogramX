@@ -88,6 +88,7 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.FutureBool;
 import me.vkryl.core.lambda.RunnableData;
+import moe.kirao.mgx.MoexConfig;
 import tgx.td.ChatId;
 import tgx.td.MessageId;
 import tgx.td.Td;
@@ -1526,6 +1527,9 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   private void checkSponsoredMessages () {
+    if (MoexConfig.hideSponsoredMessages) {
+      return;
+    }
     if (sponsoredContext != null) {
       insertFirstSponsoredMessage();
       return;
@@ -1560,6 +1564,25 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
         act.runWithData(sponsoredMessages);
       }
     });
+  }
+
+  public void onHideSponsoredMessagesChanged (boolean hideSponsoredMessages) {
+    if (hideSponsoredMessages) {
+      loader.cancelSponsoredMessagesRequest();
+      if (sponsoredContext != null) {
+        sponsoredContext.cancel();
+      } else {
+        resetSponsoredContext();
+      }
+      for (int i = adapter.getMessageCount() - 1; i >= 0; i--) {
+        TGMessage message = adapter.getMessage(i);
+        if (message != null && message.isSponsoredMessage()) {
+          adapter.removeItem(i);
+        }
+      }
+    } else if (isFocused) {
+      checkSponsoredMessages();
+    }
   }
 
   @SuppressWarnings("SwitchIntDef")
