@@ -1,7 +1,8 @@
 # Project lineage
 
-Ratogram X is maintained as an independent repository based on the Telegram X
-Android source tree.
+Ratogram X is hosted in the moeGramX GitHub fork network. Its active `main`
+branch is based on the Telegram X Android source tree and incorporates selected
+moeGramX code as a source integration.
 
 ## Upstream projects
 
@@ -17,11 +18,10 @@ Android source tree.
    notification artwork, theme work, and further integrations.
 
 The Ratogram X work began from Telegram X `v0.28.11.1806`. The incorporation
-of moeGramX functionality was performed as a source integration rather than
-by preserving moeGramX's Git ancestry.
-For that reason, the public Ratogram X repository is described as an
-independent Telegram X fork that incorporates moeGramX code, not as a native
-GitHub fork of the moeGramX repository.
+of moeGramX functionality on `main` was performed as a source integration
+rather than by merging moeGramX's Git ancestry. Consequently, Ratogram X is a
+GitHub fork of moeGramX whose active development branch preserves Telegram X
+ancestry while clearly crediting the moeGramX code it adapts.
 
 ## Recommended remotes
 
