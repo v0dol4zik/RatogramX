@@ -58,9 +58,12 @@ public class MoexConfig {
   public static final String KEY_SILENT_MESSAGE = "silent_message";
   public static final String KEY_CHAT_QUICK_EDIT = "quick_edit";
   public static final String KEY_CHAT_QUICK_FEATURED = "quick_featured";
+  public static final String KEY_CHANNEL_BOTTOM_BUTTON = "channel_bottom_button";
 
   public static final String KEY_ROUND_VIDEOS = "round_videos";
   public static final String KEY_DISABLE_PROXY_ON_VPN = "disable_proxy_on_vpn";
+  /** Hide the channel advertised by an MTProto proxy from chat lists. */
+  public static final String KEY_HIDE_PROXY_SPONSOR = "hide_proxy_sponsor";
   public static final String KEY_AUTO_PAUSE_MEDIA_TYPES = "auto_pause_media_types";
   public static final String KEY_AUTO_PAUSE_RESUME = "auto_pause_resume_system_playback";
 
@@ -80,8 +83,10 @@ public class MoexConfig {
   public static final int DRAWER_ITEM_SAVED_MESSAGES = 1 << 3;
   public static final int DRAWER_ITEM_HELP = 1 << 4;
   public static final int DRAWER_ITEM_NIGHT_MODE = 1 << 5;
+  public static final int DRAWER_ITEM_PROXY = 1 << 6;
   public static final int DRAWER_ITEMS_ALL = DRAWER_ITEM_CONTACTS | DRAWER_ITEM_ARCHIVE |
-    DRAWER_ITEM_CALLS | DRAWER_ITEM_SAVED_MESSAGES | DRAWER_ITEM_HELP | DRAWER_ITEM_NIGHT_MODE;
+    DRAWER_ITEM_CALLS | DRAWER_ITEM_SAVED_MESSAGES | DRAWER_ITEM_HELP | DRAWER_ITEM_NIGHT_MODE |
+    DRAWER_ITEM_PROXY;
 
   public static final int SIZE_LIMIT_800 = 0;
   public static final int SIZE_LIMIT_1280 = 1;
@@ -90,6 +95,11 @@ public class MoexConfig {
   public static final int HEADER_TEXT_MOEX = 1;
   public static final int HEADER_TEXT_USERNAME = 2;
   public static final int HEADER_TEXT_NAME = 3;
+
+  /** Bottom action shown for channel chats that have a linked discussion group. */
+  public static final int CHANNEL_BOTTOM_BUTTON_AUTO = 0;
+  public static final int CHANNEL_BOTTOM_BUTTON_DISCUSS = 1;
+  public static final int CHANNEL_BOTTOM_BUTTON_MUTE = 2;
 
   public static boolean disableCameraButton = instance().getBoolean(KEY_DISABLE_CAMERA_BUTTON, false);
   public static boolean disableRecordButton = instance().getBoolean(KEY_DISABLE_RECORD_BUTTON, false);
@@ -117,6 +127,7 @@ public class MoexConfig {
   public static boolean quickEdit = instance().getBoolean(KEY_CHAT_QUICK_EDIT, false);
   public static boolean quickFeatured = instance().getBoolean(KEY_CHAT_QUICK_FEATURED, false);
   public static boolean disableProxyOnVpn = instance().getBoolean(KEY_DISABLE_PROXY_ON_VPN, false);
+  public static boolean hideProxySponsor = instance().getBoolean(KEY_HIDE_PROXY_SPONSOR, false);
   public static boolean autoPauseResumeSystemPlayback = instance().getBoolean(KEY_AUTO_PAUSE_RESUME, false);
 
   private MoexConfig () {
@@ -379,6 +390,25 @@ public class MoexConfig {
     return getInt(KEY_CHANGE_HEADER_TEXT, HEADER_TEXT_MOEX);
   }
 
+  public int getChannelBottomButton () {
+    int value = getInt(KEY_CHANNEL_BOTTOM_BUTTON, CHANNEL_BOTTOM_BUTTON_AUTO);
+    return value >= CHANNEL_BOTTOM_BUTTON_AUTO && value <= CHANNEL_BOTTOM_BUTTON_MUTE ? value : CHANNEL_BOTTOM_BUTTON_AUTO;
+  }
+
+  public void setChannelBottomButton (int value) {
+    int oldValue = getChannelBottomButton();
+    value = value >= CHANNEL_BOTTOM_BUTTON_AUTO && value <= CHANNEL_BOTTOM_BUTTON_MUTE ? value : CHANNEL_BOTTOM_BUTTON_AUTO;
+    if (oldValue == value) {
+      return;
+    }
+    if (value == CHANNEL_BOTTOM_BUTTON_AUTO) {
+      remove(KEY_CHANNEL_BOTTOM_BUTTON);
+    } else {
+      putInt(KEY_CHANNEL_BOTTOM_BUTTON, value);
+    }
+    notifyClientListeners(KEY_CHANNEL_BOTTOM_BUTTON, value, oldValue);
+  }
+
   public void setHeaderText (int mode) {
     int oldState = getHeaderText();
     if (mode == HEADER_TEXT_MOEX) {
@@ -450,6 +480,11 @@ public class MoexConfig {
   public void toggleDisableProxyOnVpn () {
     putBoolean(KEY_DISABLE_PROXY_ON_VPN, disableProxyOnVpn ^= true);
     notifyClientListeners(KEY_DISABLE_PROXY_ON_VPN, disableProxyOnVpn, !disableProxyOnVpn);
+  }
+
+  public void toggleHideProxySponsor () {
+    putBoolean(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor ^= true);
+    notifyClientListeners(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor, !hideProxySponsor);
   }
 
   public static boolean shouldBypassProxyForVpn () {

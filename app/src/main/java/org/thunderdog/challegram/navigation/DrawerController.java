@@ -531,7 +531,7 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     settingsClickBait = getSettingsClickBait();
     items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_settings, R.drawable.baseline_settings_24, R.string.Settings));
 
-    if (proxyAvailable) {
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_PROXY) != 0) {
       items.add(proxyItem);
     }
     if ((visibleItems & MoexConfig.DRAWER_ITEM_HELP) != 0) {
@@ -910,7 +910,7 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
     } else if (viewId == R.id.btn_settings) {
       openSettings();
     } else if (viewId == R.id.btn_proxy) {
-      if (v instanceof TogglerView) {
+      if (proxyAvailable && v instanceof TogglerView) {
         boolean value = Settings.instance().toggleProxySetting(Settings.PROXY_FLAG_ENABLED);
         setProxyEnabled(value);
       } else {

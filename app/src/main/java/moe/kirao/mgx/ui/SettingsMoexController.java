@@ -37,6 +37,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
   public static final int CATEGORY_INTERFACE = 2;
   public static final int CATEGORY_CHATS = 3;
   public static final int CATEGORY_MISC = 4;
+  public static final int CATEGORY_EXPERIMENTAL = 5;
 
   private int category;
 
@@ -59,7 +60,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       ? Lang.getString(R.string.GeneralMoexSettings) : category == CATEGORY_CHATS
       ? Lang.getString(R.string.Chats) : category == CATEGORY_INTERFACE
       ? Lang.getString(R.string.InterfaceMoexSettings) : category == CATEGORY_MISC
-      ? Lang.getString(R.string.Other) : Lang.getString(R.string.MoexSettings);
+      ? Lang.getString(R.string.Other) : category == CATEGORY_EXPERIMENTAL
+      ? Lang.getString(R.string.ExperimentalOptions) : Lang.getString(R.string.MoexSettings);
   }
 
   private SettingsAdapter adapter;
@@ -79,6 +81,9 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       navigateTo(c);
     } else if (viewId == R.id.btn_MiscMoexSettings) {
       c.setArguments(new SettingsMoexController.Args(SettingsMoexController.CATEGORY_MISC));
+      navigateTo(c);
+    } else if (viewId == R.id.btn_ExperimentalMoexSettings) {
+      c.setArguments(new SettingsMoexController.Args(SettingsMoexController.CATEGORY_EXPERIMENTAL));
       navigateTo(c);
     } else if (viewId == R.id.btn_moexCrowdinLink) {
       tdlib.ui().openUrl(this, Lang.getString(R.string.MoexCrowdinLink), new TdlibUi.UrlOpenParameters());
@@ -106,6 +111,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       MoexConfig.instance().toggleHideSponsoredMessages();
       adapter.updateValuedSettingById(viewId);
       UI.showToast(R.string.SponsoredMessagesSettingApplied, Toast.LENGTH_SHORT);
+    } else if (viewId == R.id.btn_channelBottomButton) {
+      showChannelBottomButtonOptions();
     } else if (viewId == R.id.btn_showSearchTabs) {
       MoexConfig.instance().toggleShowSearchTabs();
       adapter.updateValuedSettingById(viewId);
@@ -114,6 +121,28 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(viewId);
     } else if (viewId == R.id.btn_showIdProfile) {
       Settings.instance().setExperimentEnabled(Settings.EXPERIMENT_FLAG_SHOW_PEER_IDS, adapter.toggleView(v));
+    } else if (viewId == R.id.btn_experimentalAllow) {
+      boolean hadLocalPremium = Settings.instance().isLocalPremiumExperimentEnabled();
+      Settings.instance().setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, adapter.toggleView(v));
+      adapter.updateValuedSettingById(viewId);
+      adapter.updateValuedSettingById(R.id.btn_experimentalForums);
+      adapter.updateValuedSettingById(R.id.btn_experimentalQuotes);
+      adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
+      adapter.updateValuedSettingById(R.id.btn_showIdProfile);
+      if (hadLocalPremium != Settings.instance().isLocalPremiumExperimentEnabled()) {
+        scheduleActivityRestart();
+      }
+    } else if (viewId == R.id.btn_experimentalForums) {
+      Settings.instance().setForumTopicsExperimentEnabled(adapter.toggleView(v));
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_experimentalQuotes) {
+      Settings.instance().setPartialQuotesExperimentEnabled(adapter.toggleView(v));
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_experimentalLocalPremium) {
+      Settings.instance().setLocalPremiumExperimentEnabled(adapter.toggleView(v));
+      adapter.updateValuedSettingById(viewId);
+      // Premium-dependent controllers cache their capability state; rebuild them immediately.
+      scheduleActivityRestart();
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -231,7 +260,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_calls, 0, R.string.Calls, R.id.btn_calls, (items & MoexConfig.DRAWER_ITEM_CALLS) != 0),
       new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_savedMessages, 0, R.string.SavedMessages, R.id.btn_savedMessages, (items & MoexConfig.DRAWER_ITEM_SAVED_MESSAGES) != 0),
       new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_help, 0, R.string.Help, R.id.btn_help, (items & MoexConfig.DRAWER_ITEM_HELP) != 0),
-      new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_night, 0, R.string.NightMode, R.id.btn_night, (items & MoexConfig.DRAWER_ITEM_NIGHT_MODE) != 0)
+      new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_night, 0, R.string.NightMode, R.id.btn_night, (items & MoexConfig.DRAWER_ITEM_NIGHT_MODE) != 0),
+      new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_proxy, 0, R.string.Proxy, R.id.btn_proxy, (items & MoexConfig.DRAWER_ITEM_PROXY) != 0)
     }).setIntDelegate((id, result) -> {
       int newItems = 0;
       if (result.get(R.id.btn_contacts) == R.id.btn_contacts) newItems |= MoexConfig.DRAWER_ITEM_CONTACTS;
@@ -240,6 +270,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       if (result.get(R.id.btn_savedMessages) == R.id.btn_savedMessages) newItems |= MoexConfig.DRAWER_ITEM_SAVED_MESSAGES;
       if (result.get(R.id.btn_help) == R.id.btn_help) newItems |= MoexConfig.DRAWER_ITEM_HELP;
       if (result.get(R.id.btn_night) == R.id.btn_night) newItems |= MoexConfig.DRAWER_ITEM_NIGHT_MODE;
+      if (result.get(R.id.btn_proxy) == R.id.btn_proxy) newItems |= MoexConfig.DRAWER_ITEM_PROXY;
       MoexConfig.instance().setDrawerItems(newItems);
       adapter.updateValuedSettingById(R.id.btn_drawerItems);
     }));
@@ -313,6 +344,22 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     }));
   }
 
+  private void showChannelBottomButtonOptions () {
+    int selected = MoexConfig.instance().getChannelBottomButton();
+    showSettings(new SettingsWrapBuilder(R.id.btn_channelBottomButton).setRawItems(new ListItem[] {
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.channelBottomButtonAuto, 0, R.string.ChannelBottomButtonAuto, R.id.btn_channelBottomButton, selected == MoexConfig.CHANNEL_BOTTOM_BUTTON_AUTO),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.channelBottomButtonDiscuss, 0, R.string.ChannelBottomButtonDiscuss, R.id.btn_channelBottomButton, selected == MoexConfig.CHANNEL_BOTTOM_BUTTON_DISCUSS),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.channelBottomButtonMute, 0, R.string.ChannelBottomButtonMute, R.id.btn_channelBottomButton, selected == MoexConfig.CHANNEL_BOTTOM_BUTTON_MUTE),
+    }).setAllowResize(false).addHeaderItem(Lang.getMarkdownString(this, R.string.ChannelBottomButtonInfo)).setIntDelegate((id, result) -> {
+      int resultId = result.get(R.id.btn_channelBottomButton);
+      int mode = resultId == R.id.channelBottomButtonDiscuss ? MoexConfig.CHANNEL_BOTTOM_BUTTON_DISCUSS
+        : resultId == R.id.channelBottomButtonMute ? MoexConfig.CHANNEL_BOTTOM_BUTTON_MUTE
+        : MoexConfig.CHANNEL_BOTTOM_BUTTON_AUTO;
+      MoexConfig.instance().setChannelBottomButton(mode);
+      adapter.updateValuedSettingById(R.id.btn_channelBottomButton);
+    }));
+  }
+
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     adapter = new SettingsAdapter(this) {
@@ -339,12 +386,36 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
           view.getToggler().setRadioEnabled(MoexConfig.hideProfileChannel, isUpdate);
         } else if (itemId == R.id.btn_hideSponsoredMessages) {
           view.getToggler().setRadioEnabled(MoexConfig.hideSponsoredMessages, isUpdate);
+        } else if (itemId == R.id.btn_channelBottomButton) {
+          switch (MoexConfig.instance().getChannelBottomButton()) {
+            case MoexConfig.CHANNEL_BOTTOM_BUTTON_DISCUSS:
+              view.setData(R.string.ChannelBottomButtonDiscuss);
+              break;
+            case MoexConfig.CHANNEL_BOTTOM_BUTTON_MUTE:
+              view.setData(R.string.ChannelBottomButtonMute);
+              break;
+            default:
+              view.setData(R.string.ChannelBottomButtonAuto);
+              break;
+          }
         } else if (itemId == R.id.btn_showSearchTabs) {
           view.getToggler().setRadioEnabled(MoexConfig.showSearchTabs, isUpdate);
         } else if (itemId == R.id.btn_enableFeaturesButton) {
           view.getToggler().setRadioEnabled(MoexConfig.enableTestFeatures, isUpdate);
         } else if (itemId == R.id.btn_showIdProfile) {
           view.getToggler().setRadioEnabled(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_SHOW_PEER_IDS), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_experimentalAllow) {
+          view.getToggler().setRadioEnabled(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_experimentalForums) {
+          view.getToggler().setRadioEnabled(Settings.instance().isForumTopicsExperimentEnabled(), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_experimentalQuotes) {
+          view.getToggler().setRadioEnabled(Settings.instance().isPartialQuotesExperimentEnabled(), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_experimentalLocalPremium) {
+          view.getToggler().setRadioEnabled(Settings.instance().isLocalPremiumExperimentEnabled(), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
         } else if (itemId == R.id.btn_changeSizeLimit) {
@@ -488,8 +559,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ProfileOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
-        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_showIdProfile, 0, R.string.showIdProfile));
-        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hidePhone, 0, R.string.hidePhoneNumber));
         items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hideProfileBirthdate, 0, R.string.HideProfileBirthdate));
@@ -527,6 +596,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       case CATEGORY_CHATS:
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ChannelOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_channelBottomButton, 0, R.string.ChannelBottomButton));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hideSponsoredMessages, 0, R.string.HideSponsoredMessages));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.HideSponsoredMessagesInfo));
@@ -559,7 +630,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.AutoPauseMediaHint));
         break;
       case CATEGORY_MISC:
-        items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ExperimentalOptions));
+        items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.Other));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_changeSizeLimit, 0, R.string.changeSizeLimit));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
@@ -567,6 +638,28 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_enableFeaturesButton, 0, R.string.EnableFeatures));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        break;
+      case CATEGORY_EXPERIMENTAL:
+        items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ExperimentalOptions));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalAllow, 0, R.string.Experiment_EnableAll));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_EnableAllInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_showIdProfile, 0, R.string.showIdProfile));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalForums, 0, R.string.Experiment_Forums));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_ForumsInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalQuotes, 0, R.string.Experiment_PartialQuotes));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_PartialQuotesInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalLocalPremium, 0, R.string.Experiment_LocalPremium));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_LocalPremiumInfo));
         break;
       default:
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.MoexAbout));
@@ -583,6 +676,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_ChatsMoexSettings, R.drawable.baseline_chat_bubble_24, R.string.ChatsMoexSettings));
         items.add(new ListItem(ListItem.TYPE_SEPARATOR));
         items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_MiscMoexSettings, R.drawable.baseline_layers_24, R.string.Other));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR));
+        items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_ExperimentalMoexSettings, R.drawable.templarian_baseline_flask_24, R.string.ExperimentalOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.MoexLinks));

@@ -46,6 +46,10 @@
   <item name="btn_disableReactions" type="id"/>
   <item name="btn_hideMessagePanelButtons" type="id" />
   <item name="btn_hideBottomBar" type="id" />
+  <item name="btn_channelBottomButton" type="id" />
+  <item name="channelBottomButtonAuto" type="id" />
+  <item name="channelBottomButtonDiscuss" type="id" />
+  <item name="channelBottomButtonMute" type="id" />
   <item name="controller_details" type="id"/>
   <item name="btn_msgDetails" type="id"/>
   <item name="btn_chatIdDetails" type="id"/>
@@ -69,6 +73,11 @@
   <item name="btn_darkenDrawer" type="id" />
   <item name="btn_saveDocument" type="id" />
   <item name="btn_MiscMoexSettings" type="id" />
+  <item name="btn_ExperimentalMoexSettings" type="id" />
+  <item name="btn_experimentalAllow" type="id" />
+  <item name="btn_experimentalForums" type="id" />
+  <item name="btn_experimentalQuotes" type="id" />
+  <item name="btn_experimentalLocalPremium" type="id" />
   <item name="btn_profileNote" type="id" />
   <item name="btn_profileNote_copy" type="id" />
   <item name="btn_profileNote_edit" type="id" />
@@ -80,6 +89,7 @@
   <item name="btn_pinAudioProfile" type="id" />
   <item name="btn_removeProfileAudio" type="id" />
   <item name="btn_proxyDisableOnVpn" type="id" />
+  <item name="btn_hideProxySponsor" type="id" />
   <item name="btn_autoPauseMedia" type="id" />
   <item name="autoPauseTypeVoice" type="id" />
   <item name="autoPauseTypeRound" type="id" />

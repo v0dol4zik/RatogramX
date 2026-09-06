@@ -369,6 +369,34 @@ public final class TdlibChatListSlice implements Destroyable {
     });
   }
 
+  /** Removes matching entries while keeping source-list and displayed indices in sync. */
+  public void removeMatching (@NonNull Filter<TdApi.Chat> removeFilter) {
+    tdlib.runOnTdlibThread(() -> {
+      if (isDestroyed()) {
+        return;
+      }
+      boolean changed = false;
+      for (int i = filteredList.size() - 1; i >= 0; i--) {
+        Entry entry = filteredList.get(i);
+        if (!removeFilter.accept(entry.chat)) {
+          continue;
+        }
+        filteredList.remove(i);
+        if (i < displayCount) {
+          subListener.onChatRemoved(sourceList, entry.chat, i,
+            new Tdlib.ChatChange(entry.effectivePosition, Tdlib.ChatChange.ALL));
+          displayCount--;
+          changed = true;
+        }
+      }
+      if (changed) {
+        if (dispatchChats(ChatListListener.ChangeFlags.ITEM_REMOVED) == 0) {
+          subListener.onChatListChanged(sourceList, ChatListListener.ChangeFlags.ITEM_REMOVED);
+        }
+      }
+    });
+  }
+
   private boolean isDestroyed;
 
   @Override

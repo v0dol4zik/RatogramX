@@ -399,7 +399,11 @@ public class SettingsProxyController extends RecyclerViewController<Void> implem
       new ListItem(ListItem.TYPE_SHADOW_TOP),
       new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_proxyDisableOnVpn, 0, R.string.ProxyDisableOnVpn),
       new ListItem(ListItem.TYPE_SHADOW_BOTTOM),
-      new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.ProxyDisableOnVpnHint)
+      new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.ProxyDisableOnVpnHint),
+      new ListItem(ListItem.TYPE_SHADOW_TOP),
+      new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hideProxySponsor, 0, R.string.HideProxySponsor),
+      new ListItem(ListItem.TYPE_SHADOW_BOTTOM),
+      new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.HideProxySponsorHint)
     };
   }
 
@@ -478,6 +482,8 @@ public class SettingsProxyController extends RecyclerViewController<Void> implem
           view.getToggler().setRadioEnabled(Settings.instance().checkProxySetting(Settings.PROXY_FLAG_SWITCH_AUTOMATICALLY), isUpdate);
         } else if (itemId == R.id.btn_proxyDisableOnVpn) {
           view.getToggler().setRadioEnabled(MoexConfig.disableProxyOnVpn, isUpdate);
+        } else if (itemId == R.id.btn_hideProxySponsor) {
+          view.getToggler().setRadioEnabled(MoexConfig.hideProxySponsor, isUpdate);
         } else if (itemId == R.id.btn_noProxy || itemId == R.id.btn_proxy) {
           Settings.Proxy proxy = (Settings.Proxy) item.getData();
           if (proxy != null) {
@@ -624,6 +630,9 @@ public class SettingsProxyController extends RecyclerViewController<Void> implem
     } else if (viewId == R.id.btn_proxyDisableOnVpn) {
       MoexConfig.instance().toggleDisableProxyOnVpn();
       adapter.updateValuedSettingById(R.id.btn_proxyDisableOnVpn);
+    } else if (viewId == R.id.btn_hideProxySponsor) {
+      MoexConfig.instance().toggleHideProxySponsor();
+      adapter.updateValuedSettingById(R.id.btn_hideProxySponsor);
     } else if (viewId == R.id.btn_addProxy) {
       tdlib.ui().addNewProxy(this, false);
     } else if (viewId == R.id.btn_proxy) {

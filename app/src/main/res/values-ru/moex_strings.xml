@@ -7,7 +7,7 @@
   <string name="MoexLinks">Ссылки</string>
   <string name="MoexChatText">Чат</string>
   <string name="MoexChannelText">Канал</string>
-  <string name="MoexSourceText">Исходный код moeGramX</string>
+  <string name="MoexSourceText">Исходный код Ratogram X</string>
   <string name="MoexCategories">Категории</string>
   <string name="MoexHideButtons">Поле ввода сообщений</string>
   <string name="DisableCommandsButton">Команды</string>
@@ -25,12 +25,20 @@
   <string name="HideProfileChannel">Скрыть канал в профилях</string>
   <string name="EnableFeatures">Разрешить тестовые опции</string>
   <string name="FeaturesButtonInfo">Показать экспериментальные функции, такие как тестовый DC, переключатель временных настроек и другое</string>
-  <string name="ExperimentalOptions">Нестабильные настройки</string>
+  <string name="ExperimentalOptions">Экспериментальные настройки</string>
+  <string name="Experiment_EnableAll">Разрешить экспериментальные функции</string>
+  <string name="Experiment_EnableAllInfo">Экспериментальные функции могут быть незавершёнными или работать некорректно. Отключение выключает все бета-функции Ratogram X.</string>
+  <string name="Experiment_Forums">Форумы (бета)</string>
+  <string name="Experiment_ForumsInfo">Открывать форумные чаты со списком тем и показывать сообщения только выбранной темы. Эта бета-функция может работать некорректно.</string>
+  <string name="Experiment_PartialQuotes">Частичные цитаты (бета)</string>
+  <string name="Experiment_PartialQuotesInfo">Выбирать часть сообщения другого пользователя при создании цитаты. Функция находится в бета-версии и может работать некорректно.</string>
+  <string name="Experiment_LocalPremium">Локальный Telegram Premium (бета)</string>
+  <string name="Experiment_LocalPremiumInfo">Включает Premium-интерфейс и локальные проверки только на этом устройстве. После изменения переключателя экран приложения перезапускается для обновления кэшированного интерфейса. Серверные права и лимиты Telegram не меняются, поэтому отдельные действия всё равно могут завершиться ошибкой. Реализовано независимо по концепции AyuGram4A от Radolyn: https://github.com/AyuGram/AyuGram4A</string>
   <string name="PhoneHidden">Телефон скрыт</string>
   <string name="showIdProfile">Показывать ID в профиле</string>
   <string name="DisableSendAsButton">Каналы</string>
   <string name="MoexAbout">О нас</string>
-  <string name="MoexAboutText" formatted="true">**Ratogram X** — форк Telegram X с функциями открытого проекта moeGramX.</string>
+  <string name="MoexAboutText" formatted="true">**Ratogram X** — форк Telegram X, развиваемый в открытом проекте RatogramX.</string>
   <string name="HideCameraButtonInfo">Скрытие кнопки камеры на самом деле просто перемещает её в экран прикрепления вложения</string>
   <string name="IncreaseRecents">Увеличить количество недавних</string>
   <string name="hideMessagesBadge">Скрыть метку с кнопки меню</string>
@@ -53,6 +61,11 @@
   <string name="HideMessagePanelButtons">Скрыть кнопки панели сообщений</string>
   <string name="ProfileOptions">Профиль</string>
   <string name="ChannelOptions">Каналы</string>
+  <string name="ChannelBottomButton">Нижняя кнопка в каналах</string>
+  <string name="ChannelBottomButtonAuto">Автоматически</string>
+  <string name="ChannelBottomButtonDiscuss">Обсудить</string>
+  <string name="ChannelBottomButtonMute">Выключить уведомления</string>
+  <string name="ChannelBottomButtonInfo">Выберите действие под сообщениями канала. «Обсудить» показывается только при наличии привязанной группы, иначе используется «Выключить уведомления».</string>
   <string name="HideSponsoredMessages">Скрывать рекламные сообщения</string>
   <string name="HideSponsoredMessagesInfo">Скрывает рекламные и рекомендованные сообщения Telegram в каналах. Обычные посты, опубликованные администраторами каналов, не скрываются. Изменение применяется сразу.</string>
   <string name="SponsoredMessagesSettingApplied">Изменение применено сразу. Перезапуск не нужен.</string>
@@ -89,6 +102,8 @@
   <string name="AudioUnpinned">Аудио удалено из профиля</string>
   <string name="ProxyDisableOnVpn">Отключить при активном VPN</string>
   <string name="ProxyDisableOnVpnHint">При подключении системного VPN трафик Telegram будет проходить минуя прокси. Прокси восстанавливается автоматически после отключения VPN.</string>
+  <string name="HideProxySponsor">Скрывать спонсорский канал прокси</string>
+  <string name="HideProxySponsorHint">Скрывает канал, который продвигает ваш MTProxy, из списка чатов, не отключая прокси.</string>
   <string name="AutoPauseMedia">Авто пауза медиа системы</string>
   <string name="AutoPauseMediaHint">Приостанавливать музыку или другие аудио из других приложений, когда голосовое сообщение или видео проигрывается в Ratogram X.</string>
   <string name="AutoPauseMediaResume">Продолжить после воспроизведения</string>

@@ -8,12 +8,12 @@
   <string name="MoexCrowdinText" translatable="false">Crowdin</string>
   <string name="MoexChatText">Chat</string>
   <string name="MoexChannelText">Channel</string>
-  <string name="MoexSourceText">moeGramX upstream source</string>
+  <string name="MoexSourceText">Ratogram X source</string>
   <string name="MoexCategories">Categories</string>
   <string name="MoexChannelLink" translatable="false">https://t.me/moeGramX</string>
   <string name="MoexCrowdinLink" translatable="false">https://kiri.su/crowdin</string>
   <string name="MoexChatLink" translatable="false">https://t.me/moe_chat</string>
-  <string name="MoexSourceLink" translatable="false">https://github.com/moeCrafters/moeGramX</string>
+  <string name="MoexSourceLink" translatable="false">https://github.com/v0dol4zik/RatogramX</string>
   <string name="MoexHideButtons">Message panel</string>
   <string name="DisableCommandsButton">Commands</string>
   <string name="DisableCameraButton">Camera</string>
@@ -31,11 +31,19 @@
   <string name="EnableFeatures">Allow debug options</string>
   <string name="FeaturesButtonInfo">Show experimental features such as testing DC switch or a feature toggles button in various scenarios</string>
   <string name="ExperimentalOptions">Experimental options</string>
+  <string name="Experiment_EnableAll">Enable experimental features</string>
+  <string name="Experiment_EnableAllInfo">Experimental features may be incomplete or work incorrectly. Turn this off to disable all Ratogram X beta features.</string>
+  <string name="Experiment_Forums">Forums (Beta)</string>
+  <string name="Experiment_ForumsInfo">Open forum chats on the list of topics and keep each topic\'s messages separate. This beta feature may not work correctly.</string>
+  <string name="Experiment_PartialQuotes">Partial quotes (Beta)</string>
+  <string name="Experiment_PartialQuotesInfo">Select a part of another user\'s message when creating a quote. This feature is in beta and may not work correctly.</string>
+  <string name="Experiment_LocalPremium">Local Telegram Premium (Beta)</string>
+  <string name="Experiment_LocalPremiumInfo">Enables Premium-only client interface and local checks on this device. The app restarts this screen after changing the switch so cached UI is refreshed. Telegram server permissions and limits are unchanged; some actions may still fail. Independently implemented from the AyuGram4A concept by Radolyn: https://github.com/AyuGram/AyuGram4A</string>
   <string name="PhoneHidden">Phone hidden</string>
   <string name="showIdProfile">Show User ID in profiles</string>
   <string name="DisableSendAsButton">Channels</string>
   <string name="MoexAbout">About</string>
-  <string name="MoexAboutText" formatted="true">**Ratogram X** — a Telegram X fork that integrates features from the open-source moeGramX project.</string>
+  <string name="MoexAboutText" formatted="true">**Ratogram X** — a Telegram X fork maintained in the open-source RatogramX project.</string>
   <string name="MoexVer" translatable="false">Ratogram X 0.28.11.1806</string>
   <string name="HideCameraButtonInfo">Hide camera button option also adds a camera button to the buttom of the attach menu</string>
   <string name="IncreaseRecents">Increase recent stickers</string>
@@ -64,11 +72,16 @@
   <string name="AppSignatureOverride" translatable="false">**Ratogram X** `%1$s`</string>
   <string name="TypingInstead">Send choosing sticker status</string>
   <string name="TypingInsteadInfo" formatted="true">This will send **typing** status instead of **choosing** sticker</string>
-  <string name="cuteToast" translatable="false">Moe moe, kyun!</string>
+  <string name="cuteToast" translatable="false">bigrat found</string>
   <string name="DisableReactions">Hide reactions</string>
   <string name="HideMessagePanelButtons">Hide message panel buttons</string>
   <string name="ProfileOptions">Profile</string>
   <string name="ChannelOptions">Channels</string>
+  <string name="ChannelBottomButton">Channel bottom button</string>
+  <string name="ChannelBottomButtonAuto">Automatic</string>
+  <string name="ChannelBottomButtonDiscuss">Discuss</string>
+  <string name="ChannelBottomButtonMute">Mute</string>
+  <string name="ChannelBottomButtonInfo">Choose which action appears below channel posts. Discuss is only shown when a linked discussion group is available; otherwise Mute is used.</string>
   <string name="HideSponsoredMessages">Hide sponsored messages</string>
   <string name="HideSponsoredMessagesInfo">Hides Telegram sponsored and recommended messages in channels. Regular posts published by channel administrators are not affected. Changes apply immediately.</string>
   <string name="SponsoredMessagesSettingApplied">Applied immediately. No restart required.</string>
@@ -109,6 +122,8 @@
   <string name="AudioUnpinned">Audio removed from Profile</string>
   <string name="ProxyDisableOnVpn">Disable while system VPN is active</string>
   <string name="ProxyDisableOnVpnHint">When a system VPN is connected, route Telegram traffic through it instead of the proxy. The proxy is restored automatically once the VPN is disconnected.</string>
+  <string name="HideProxySponsor">Hide proxy sponsor channel</string>
+  <string name="HideProxySponsorHint">Hide the channel promoted by your MTProxy provider from chat lists while keeping the proxy connected.</string>
   <string name="AutoPauseMedia">Pause system media</string>
   <string name="AutoPauseMediaHint">Briefly pause music or other audio from other apps while a voice message, round video, or video plays in Ratogram X.</string>
   <string name="AutoPauseMediaResume">Resume after playback</string>
