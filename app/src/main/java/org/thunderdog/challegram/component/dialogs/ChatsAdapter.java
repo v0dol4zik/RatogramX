@@ -590,6 +590,11 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsViewHolder> {
     int fromIndex = getChatIndexByItemPosition(fromPosition);
     int toIndex = getChatIndexByItemPosition(toPosition);
     ArrayUtils.move(chatIds, fromIndex - promotedCount, toIndex - promotedCount);
+    if (context.tdlib().canUseLocalPins(context.chatList())) {
+      context.tdlib().setLocalPinnedChats(context.chatList(), chatIds);
+      context.scheduleActivityRestart();
+      return;
+    }
     context.tdlib().send(new TdApi.SetPinnedChats(context.chatList(), ArrayUtils.asArray(chatIds)), context.tdlib().typedOkHandler());
   }
 

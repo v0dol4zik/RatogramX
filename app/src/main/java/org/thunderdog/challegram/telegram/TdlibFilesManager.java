@@ -792,6 +792,33 @@ public class TdlibFilesManager implements GlobalConnectionListener {
     downloadFile(file, PRIORITY_USER_REQUEST_DOWNLOAD, null);
   }
 
+  /**
+   * Adds a user-requested document to TDLib's persistent downloads index.
+   *
+   * DownloadFile alone starts the transfer but does not associate it with the
+   * source message, so it cannot be returned by SearchFileDownloads after a
+   * restart. Keep the old path as a fallback for synthetic/non-message files.
+   */
+  public void addFileToDownloads (@NonNull TdApi.File file, long chatId, long messageId,
+                                  @IntRange(from = 1, to = 32) int priority,
+                                  @Nullable Tdlib.ResultHandler<TdApi.File> handler) {
+    if (chatId == 0 || messageId == 0) {
+      downloadFile(file, priority, handler);
+      return;
+    }
+    synchronized (this) {
+      manuallyCancelledFiles.remove(file.id);
+    }
+    tdlib.send(new TdApi.AddFileToDownloads(file.id, chatId, messageId, priority), (result, error) -> {
+      if (error != null) {
+        Log.w("AddFileToDownloads failed for file#%d: %s", file.id, TD.toErrorString(error));
+        downloadFile(file, priority, handler);
+      } else if (handler != null) {
+        handler.onResult(result, null);
+      }
+    });
+  }
+
   public void downloadFile (@NonNull TdApi.File file, @IntRange(from = 1, to = 32) int priority, @Nullable Tdlib.ResultHandler<TdApi.File> handler) {
     synchronized (this) {
       long offset = 0;

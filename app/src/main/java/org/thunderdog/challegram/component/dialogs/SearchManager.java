@@ -972,6 +972,17 @@ public class SearchManager {
 
   private MessagesList messageList;
 
+  /*
+   * Searching downloaded files through message history is expensive (TDLib
+   * may need to walk many pages). Keep the last completed empty-query result
+   * briefly so reopening the Downloads tab is instantaneous while still
+   * allowing newly downloaded or removed files to appear shortly afterwards.
+   */
+  private TGFoundMessage[] downloadedMessagesCache;
+  private String downloadedMessagesCacheNextOffset;
+  private long downloadedMessagesCacheTime;
+  private static final long DOWNLOADED_MESSAGES_CACHE_TTL_MS = 30_000L;
+
   private void setLoadingMessages (boolean areLoading) {
     if (this.isLoadingMessages != areLoading) {
       this.isLoadingMessages = areLoading;
@@ -1024,6 +1035,16 @@ public class SearchManager {
         offset = messageList.nextOffset;
       }
       if (searchFileDownloads) {
+        if (!isMore && StringUtils.isEmpty(query) && downloadedMessagesCache != null &&
+            System.currentTimeMillis() - downloadedMessagesCacheTime < DOWNLOADED_MESSAGES_CACHE_TTL_MS) {
+          final TGFoundMessage[] cached = downloadedMessagesCache;
+          tdlib.ui().post(() -> {
+            if (contextId == currentContextId) {
+              setMessages(currentContextId, query, loadCount, cached, false, downloadedMessagesCacheNextOffset);
+            }
+          });
+          return;
+        }
         searchFileDownloads(currentContextId, chatList, query, offset, loadCount, isMore, runnable);
         return;
       }
@@ -1076,6 +1097,10 @@ public class SearchManager {
   }
 
   private void searchFileDownloads (final int currentContextId, final TdApi.ChatList chatList, final String query, final String offset, final int loadCount, final boolean isMore, final @Nullable CancellableRunnable runnable) {
+    if (offset != null && offset.startsWith(LOCAL_DOWNLOADS_OFFSET_PREFIX)) {
+      searchLocalFileDownloads(currentContextId, chatList, query, offset.substring(LOCAL_DOWNLOADS_OFFSET_PREFIX.length()), loadCount, isMore, runnable);
+      return;
+    }
     tdlib.send(new TdApi.SearchFileDownloads(query, false, false, offset, loadCount), (foundFileDownloads, error) -> {
       if (contextId != currentContextId) {
         return;
@@ -1083,36 +1108,141 @@ public class SearchManager {
       if (runnable != null) {
         runnable.cancel();
       }
-      final TGFoundMessage[] messages;
-      final String nextOffset;
       if (error != null) {
-        Log.w("SearchFileDownloads returned error, displaying no results: %s", TD.toErrorString(error));
-        messages = null;
-        nextOffset = null;
+        Log.w("SearchFileDownloads returned error, falling back to message search: %s", TD.toErrorString(error));
+        searchLocalFileDownloads(currentContextId, chatList, query, "", loadCount, isMore, runnable);
+        return;
       } else {
-        List<TGFoundMessage> result = new ArrayList<>(foundFileDownloads.files.length);
+        /*
+         * File downloads may survive an application restart while their source
+         * chats are not in the in-memory cache yet. Resolve those chats through
+         * Tdlib before creating TGFoundMessage; otherwise the Downloads tab
+         * silently drops every result until the chat is opened manually.
+         */
+        final List<TGFoundMessage> result = new ArrayList<>(foundFileDownloads.files.length);
+        final int[] pending = {0};
         for (TdApi.FileDownload fileDownload : foundFileDownloads.files) {
-          TdApi.Message message = fileDownload.message;
-          if (message == null) {
-            continue;
+          if (fileDownload.message != null) {
+            pending[0]++;
           }
-          TdApi.Chat chat = tdlib.chat(message.chatId);
+        }
+        if (pending[0] == 0) {
+          if (!StringUtils.isEmpty(foundFileDownloads.nextOffset)) {
+            searchFileDownloads(currentContextId, chatList, query, foundFileDownloads.nextOffset, loadCount, isMore, runnable);
+            return;
+          }
+          searchLocalFileDownloads(currentContextId, chatList, query, "", loadCount, isMore, runnable);
+          return;
+        } else {
+          final String resultNextOffset = foundFileDownloads.nextOffset;
+          for (TdApi.FileDownload fileDownload : foundFileDownloads.files) {
+            final TdApi.Message message = fileDownload.message;
+            if (message == null) {
+              continue;
+            }
+            tdlib.chat(message.chatId, chat -> {
+              if (contextId != currentContextId) {
+                return;
+              }
+              if (chat != null && listener.filterMessageSearchResultSource(chat)) {
+                result.add(new TGFoundMessage(tdlib, chatList, chat, message, query));
+              }
+              if (--pending[0] == 0) {
+                if (result.isEmpty() && !StringUtils.isEmpty(resultNextOffset)) {
+                  searchFileDownloads(currentContextId, chatList, query, resultNextOffset, loadCount, isMore, runnable);
+                  return;
+                }
+                if (result.isEmpty()) {
+                  searchLocalFileDownloads(currentContextId, chatList, query, "", loadCount, isMore, runnable);
+                  return;
+                }
+                final TGFoundMessage[] resolvedMessages = result.toArray(new TGFoundMessage[0]);
+                tdlib.ui().post(() -> {
+                  if (contextId == currentContextId) {
+                    setMessages(currentContextId, query, loadCount, resolvedMessages, isMore, resultNextOffset);
+                  }
+                });
+              }
+            });
+          }
+          return;
+        }
+      }
+    });
+  }
+
+  private static final String LOCAL_DOWNLOADS_OFFSET_PREFIX = "local-downloads:";
+
+  private void searchLocalFileDownloads (final int currentContextId, final TdApi.ChatList chatList, final String query, final String offset, final int loadCount, final boolean isMore, final @Nullable CancellableRunnable runnable) {
+    // A null filter with an empty query is an intentional TDLib fast path that
+    // returns no messages. Document filter keeps the empty-query listing alive;
+    // TD.getFile below still verifies that the local file is fully downloaded.
+    // Request a larger page for the fallback. Most document messages are not
+    // downloaded locally, so a small page would force many sequential TDLib
+    // round trips before finding completed files.
+    final int searchLimit = Math.max(loadCount, 200);
+    tdlib.send(new TdApi.SearchMessages(chatList, query, offset, searchLimit, new TdApi.SearchMessagesFilterDocument(), null, 0, 0), (foundMessages, error) -> {
+      if (contextId != currentContextId) {
+        return;
+      }
+      if (runnable != null) {
+        runnable.cancel();
+      }
+      if (error != null) {
+        Log.w("SearchMessages fallback for file downloads returned error: %s", TD.toErrorString(error));
+        tdlib.ui().post(() -> {
+          if (contextId == currentContextId) {
+            setMessages(currentContextId, query, loadCount, null, isMore, null);
+          }
+        });
+        return;
+      }
+
+      final List<TGFoundMessage> result = new ArrayList<>(foundMessages.messages.length);
+      final List<TdApi.Message> downloadedMessages = new ArrayList<>(foundMessages.messages.length);
+      for (TdApi.Message message : foundMessages.messages) {
+        TdApi.File file = TD.getFile(message);
+        if (file != null && file.local != null && file.local.isDownloadingCompleted) {
+          downloadedMessages.add(message);
+        }
+      }
+      if (downloadedMessages.isEmpty()) {
+        if (!StringUtils.isEmpty(foundMessages.nextOffset)) {
+          searchLocalFileDownloads(currentContextId, chatList, query, foundMessages.nextOffset, loadCount, isMore, runnable);
+        } else {
+          tdlib.ui().post(() -> {
+            if (contextId == currentContextId) {
+              setMessages(currentContextId, query, loadCount, new TGFoundMessage[0], isMore, null);
+            }
+          });
+        }
+        return;
+      }
+
+      final int[] pending = {downloadedMessages.size()};
+      for (TdApi.Message message : downloadedMessages) {
+        tdlib.chat(message.chatId, chat -> {
+          if (contextId != currentContextId) {
+            return;
+          }
           if (chat != null && listener.filterMessageSearchResultSource(chat)) {
             result.add(new TGFoundMessage(tdlib, chatList, chat, message, query));
           }
-        }
-        if (result.isEmpty() && !StringUtils.isEmpty(foundFileDownloads.nextOffset)) {
-          searchFileDownloads(currentContextId, chatList, query, foundFileDownloads.nextOffset, loadCount, isMore, runnable);
-          return;
-        }
-        messages = result.toArray(new TGFoundMessage[0]);
-        nextOffset = foundFileDownloads.nextOffset;
+          if (--pending[0] == 0) {
+            if (result.isEmpty() && !StringUtils.isEmpty(foundMessages.nextOffset)) {
+              searchLocalFileDownloads(currentContextId, chatList, query, foundMessages.nextOffset, loadCount, isMore, runnable);
+              return;
+            }
+            final TGFoundMessage[] resolvedMessages = result.toArray(new TGFoundMessage[0]);
+            final String nextOffset = StringUtils.isEmpty(foundMessages.nextOffset) ? null : LOCAL_DOWNLOADS_OFFSET_PREFIX + foundMessages.nextOffset;
+            tdlib.ui().post(() -> {
+              if (contextId == currentContextId) {
+                setMessages(currentContextId, query, loadCount, resolvedMessages, isMore, nextOffset);
+              }
+            });
+          }
+        });
       }
-      tdlib.ui().post(() -> {
-        if (contextId == currentContextId) {
-          setMessages(currentContextId, query, loadCount, messages, isMore, nextOffset);
-        }
-      });
     });
   }
 
@@ -1124,6 +1254,15 @@ public class SearchManager {
 
     final int oldMessagesCount = this.messageList != null ? this.messageList.size() : 0;
     final int addedMessagesCount = foundMessages != null ? foundMessages.length : 0;
+
+    // Cache the first page as soon as it arrives. The list can continue to
+    // paginate, but reopening the tab should not wait for the initial scan.
+    if (searchFileDownloads && !isMore && StringUtils.isEmpty(query) && foundMessages != null) {
+      downloadedMessagesCache = foundMessages.clone();
+      downloadedMessagesCacheNextOffset = nextOffset;
+      downloadedMessagesCacheTime = System.currentTimeMillis();
+    }
+
     final int newMessagesCount = isMore ? oldMessagesCount + addedMessagesCount : addedMessagesCount;
 
     if (!isMore) {
@@ -1154,6 +1293,11 @@ public class SearchManager {
     }
 
     if (StringUtils.isEmpty(nextOffset)) {
+      if (searchFileDownloads && StringUtils.isEmpty(query) && messageList != null) {
+        downloadedMessagesCache = messageList.messages.toArray(new TGFoundMessage[0]);
+        downloadedMessagesCacheNextOffset = null;
+        downloadedMessagesCacheTime = System.currentTimeMillis();
+      }
       onEndReached();
     }
   }
