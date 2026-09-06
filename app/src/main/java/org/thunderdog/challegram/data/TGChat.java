@@ -485,12 +485,12 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
 
   public boolean isPinned () {
     TdApi.ChatPosition position = getPosition();
-    return position != null && position.isPinned;
+    return (position != null && position.isPinned) || tdlib.isChatPinnedLocally(chatList, getChatId());
   }
 
   public boolean isPinnedOrSpecial () {
     TdApi.ChatPosition position = getPosition();
-    return position != null && (position.isPinned || position.source != null);
+    return (position != null && (position.isPinned || position.source != null)) || tdlib.isChatPinnedLocally(chatList, getChatId());
   }
 
   public TdApi.ChatSource getSource () {

@@ -430,6 +430,7 @@ public class SettingsController extends ViewController<Void> implements
         @Override
         public void onAnimationEnd () {
           headerCell.setIgnoreDrawEmojiStatus(false);
+          headerCell.setEmojiStatus(tdlib.myUser());
         }
 
         @Override

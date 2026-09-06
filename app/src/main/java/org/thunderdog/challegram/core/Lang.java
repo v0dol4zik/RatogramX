@@ -86,6 +86,7 @@ import tgx.td.Td;
 @SuppressWarnings(value = "SpellCheckingInspection")
 public class Lang {
   private static final int LANGUAGE_CODE_DEFAULT = 0x656e; // en
+  private static final Map<String, Resources> localizedResources = new ConcurrentHashMap<>();
 
   @Deprecated
   public static final boolean isRtl = false;
@@ -324,7 +325,7 @@ public class Lang {
         return string.value;
     }
     try {
-      return getAndroidString(resId);
+      return getAndroidString(languagePackInfo, resId);
     } catch (Resources.NotFoundException e) {
       Log.e("Resource not found (shitty modified lang pack?): %d %s", resId, getResourceEntryName(resId));
       return "";
@@ -332,13 +333,47 @@ public class Lang {
   }
 
   private static String getAndroidString (@StringRes int resId) throws Resources.NotFoundException {
-    // TODO non-current languagePackInfo
     return UI.getAppContext().getResources().getString(resId);
   }
 
+  private static String getAndroidString (@Nullable TdApi.LanguagePackInfo languagePackInfo, @StringRes int resId) throws Resources.NotFoundException {
+    return getAndroidResources(languagePackInfo).getString(resId);
+  }
+
   private static String getAndroidString (@StringRes int resId, Object... formatArgs) {
-    // TODO non-current languagePackInfo
     return UI.getAppContext().getResources().getString(resId, formatArgs);
+  }
+
+  private static String getAndroidString (@Nullable TdApi.LanguagePackInfo languagePackInfo, @StringRes int resId, Object... formatArgs) {
+    return getAndroidResources(languagePackInfo).getString(resId, formatArgs);
+  }
+
+  private static Resources getAndroidResources (@Nullable TdApi.LanguagePackInfo languagePackInfo) {
+    Context context = UI.getAppContext();
+    if (languagePackInfo == null) {
+      return context.getResources();
+    }
+    // Fork-specific keys are absent from Telegram language packs, so their XML fallback must follow the in-app language.
+    String languageCode = !StringUtils.isEmpty(languagePackInfo.id) && !languagePackInfo.id.startsWith("X") ? languagePackInfo.id
+      : !StringUtils.isEmpty(languagePackInfo.pluralCode) ? languagePackInfo.pluralCode
+      : languagePackInfo.baseLanguagePackId;
+    Locale locale = obtainLocale(languageCode);
+    String languageTag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ? locale.toLanguageTag() : locale.toString();
+    Resources cachedResources = localizedResources.get(languageTag);
+    if (cachedResources != null) {
+      return cachedResources;
+    }
+    Configuration configuration = new Configuration(context.getResources().getConfiguration());
+    Resources resources;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      configuration.setLocale(locale);
+      resources = context.createConfigurationContext(configuration).getResources();
+    } else {
+      configuration.locale = locale;
+      resources = new Resources(context.getAssets(), context.getResources().getDisplayMetrics(), configuration);
+    }
+    Resources existingResources = localizedResources.putIfAbsent(languageTag, resources);
+    return existingResources != null ? existingResources : resources;
   }
 
   private static final int FLAG_LOWERCASE = 1;
@@ -426,7 +461,7 @@ public class Lang {
     if (resId == 0)
       throw new Resources.NotFoundException("resId == 0");
     if (formatArgs == null || formatArgs.length == 0)
-      return getStringImpl(null, resId, allowCloud);
+      return getStringImpl(languagePackInfo, resId, allowCloud);
     final boolean hasSpanned = hasSpanned(formatArgs);
     if (allowCloud) {
       if (languagePackInfo == null)
@@ -443,16 +478,16 @@ public class Lang {
     }
     try {
       if (creator != null || flags != 0 || hasSpanned) {
-        String format = applyFlags(getAndroidString(resId), flags);
+        String format = applyFlags(getAndroidString(languagePackInfo, resId), flags);
         return formatString(format, hasSpanned, creator, formatArgs);
       } else {
-        return getAndroidString(resId, formatArgs);
+        return getAndroidString(languagePackInfo, resId, formatArgs);
       }
     } catch (Resources.NotFoundException e) {
       Log.e("Resource not found (shitty modified lang pack?): %d %s", resId, getResourceEntryName(resId));
       return "";
     } catch (Throwable t) {
-      String str = getAndroidString(resId);
+      String str = getAndroidString(languagePackInfo, resId);
       Log.e("Resource format is broken (shitty modified lang pack?): %s, format: %s", t, getResourceEntryName(resId), str);
       return str;
     }

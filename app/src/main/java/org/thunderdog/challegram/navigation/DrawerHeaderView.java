@@ -129,6 +129,10 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
       @Override
       public void onAnimationEnd () {
         emojiStatusHelper.setIgnoreDraw(false);
+        DisplayInfo activeDisplayInfo = displayInfoFuture != null ? displayInfoFuture : displayInfo;
+        if (activeDisplayInfo != null) {
+          activeDisplayInfo.refreshEmojiStatus();
+        }
         invalidate();
       }
 
@@ -352,12 +356,18 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
       setAvatar();
     }
 
+    private void refreshEmojiStatus () {
+      if (emojiStatusHelper != null) {
+        emojiStatusHelper.updateEmoji(account, this, R.drawable.baseline_premium_star_24, EmojiStatusHelper.emojiSizeToTextSize(24));
+      }
+    }
+
     private int trimmedWidth;
     private Text trimmedName, trimmedPhone;
 
     public void trim (int width) {
       int availWidth = width - contentLeft() * 3 - Screen.dp(24);
-      if (account.getUser() != null && account.getUser().isPremium) {
+      if (account.isPremium()) {
         availWidth -= Screen.dp(48);
       }
       if (availWidth <= 0) {

@@ -215,6 +215,10 @@ public class DisplayInformation {
     }
   }
 
+  static @Nullable TdApi.Sticker restoreEmojiStatusMetadata (String prefix, long customEmojiId) {
+    return EmojiStatusCache.restoreAll(customEmojiId, prefix);
+  }
+
   void storeEmojiStatusPath (long customEmojiId, @NonNull TdApi.Sticker sticker, boolean isThumbnail, String filePath) {
     // Called when emoji status file was loaded, it means only downloaded file path must be refreshed
     if (emojiStatusCache != null) {
