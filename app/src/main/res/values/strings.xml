@@ -5897,4 +5897,10 @@
   <string name="RestrictedContent">Restricted Content</string>
   <string name="SensitiveContent">Sensitive Content</string>
 
+  <string name="ForumTopic">Topic</string>
+  <string name="ForumTopicPinned">Pinned</string>
+  <string name="ForumTopicClosed">Closed</string>
+  <string name="ForumTopicsEmpty">No topics found</string>
+  <string name="QuoteSelectText">Select the part of the message to quote</string>
+
 </resources>

@@ -810,6 +810,13 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
         ids.append(R.id.btn_messageReply);
         strings.append(R.string.Reply);
         icons.append(R.drawable.baseline_reply_24);
+
+        TdApi.FormattedText quoteText = Td.textOrCaption(newestMessage.content);
+        if (!ChatId.isSecret(newestMessage.chatId) && !Td.isEmpty(quoteText) && Settings.instance().isPartialQuotesExperimentEnabled()) {
+          ids.append(R.id.btn_messageQuote);
+          strings.append(R.string.TextFormatQuote);
+          icons.append(R.drawable.baseline_format_quote_close_24);
+        }
       }
 
       if (msg.canBeForwarded() && isSent) {

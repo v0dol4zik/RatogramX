@@ -134,6 +134,7 @@ import me.vkryl.core.lambda.RunnableInt;
 import tgx.td.ChatId;
 import tgx.td.ChatPosition;
 import tgx.td.Td;
+import moe.kirao.mgx.MoexConfig;
 
 public class ChatsController extends TelegramViewController<ChatsController.Arguments> implements Menu,
   View.OnClickListener, View.OnLongClickListener, ChatsRecyclerView.LoadMoreCallback,
@@ -147,7 +148,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
   ForceTouchView.PreviewDelegate, LiveLocationHelper.Callback,
   BaseView.LongPressInterceptor, TdlibCache.UserStatusChangeListener,
   Settings.ChatListModeChangeListener, CounterChangeListener,
-  TdlibSettingsManager.PreferenceChangeListener, SelectDelegate, MoreDelegate, DateChangeListener, ChatFolderListener {
+  TdlibSettingsManager.PreferenceChangeListener, SelectDelegate, MoreDelegate, DateChangeListener, ChatFolderListener, MoexConfig.SettingsChangeListener {
 
   private static final int NO_CHAT_FOLDER_ID = 0;
 
@@ -156,7 +157,17 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
   private ChatFilter filter;
 
   public TdApi.Chat filter (TdApi.Chat chat) {
-    return chat != null && (filter == null || filter.accept(chat)) && ChatPosition.findPosition(chat, chatList()) != null ? chat : null;
+    if (chat == null || (filter != null && !filter.accept(chat))) {
+      return null;
+    }
+    TdApi.ChatPosition position = ChatPosition.findPosition(chat, chatList());
+    if (position == null) {
+      return null;
+    }
+    if (MoexConfig.hideProxySponsor && position.source instanceof TdApi.ChatSourceMtprotoProxy) {
+      return null;
+    }
+    return chat;
   }
 
   public @Nullable ChatFilter getFilter () {
@@ -462,7 +473,9 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
 
   public TdlibChatListSlice list () {
     if (list == null) {
-      this.list = tdlib.chatList(chatList()).slice(filter);
+      // Keep the source list unfiltered unless the user filter or sponsor hiding requires it.
+      Filter<TdApi.Chat> listFilter = filter == null && !MoexConfig.hideProxySponsor ? null : chat -> filter(chat) != null;
+      this.list = tdlib.chatList(chatList()).slice(listFilter);
     }
     return list;
   }
@@ -615,6 +628,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     TGLegacyManager.instance().addEmojiListener(this);
     tdlib.context().dateManager().addListener(this);
     tdlib.listeners().addChatFolderListener(chatFolderId(), this);
+    MoexConfig.instance().addSettingsListener(this);
 
     tdlib.awaitMyUserOrUnauthorizedState(() -> {
       executeOnUiThreadOptional(() -> {
@@ -627,6 +641,12 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     list.initializeList(this, this::displayChats, chatsView.getInitialLoadCount(), () ->
       runOnUiThreadOptional(() -> {
         this.listInitialized = true;
+        if (tdlib.canUseLocalPins(chatList())) {
+          List<Long> localPinned = tdlib.getLocalPinnedChats(chatList());
+          for (int i = localPinned.size() - 1; i >= 0; i--) {
+            list.bringToTop(localPinned.get(i), null, null);
+          }
+        }
         checkListState();
         if (!needAsynchronousAnimation()) {
           executeScheduledAnimation();
@@ -1262,7 +1282,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
   }
 
   private int canPinUnpinSelectedChats () {
-    return getActionMode(chat -> ChatPosition.isPinned(chat, chatList), null);
+    return getActionMode(chat -> tdlib.chatPinned(chatList(), chat.id), null);
   }
 
   private int canMuteUnmuteSelectedChats () {
@@ -1400,7 +1420,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       long lastChatId = 0;
       if (mode != ACTION_MODE_NONE) {
         for (int i = 0; i < selectedChats.size(); i++) {
-          if (mode == ACTION_MODE_MIXED && ChatPosition.isPinned(selectedChats.valueAt(i), chatList))
+          if (mode == ACTION_MODE_MIXED && tdlib.chatPinned(chatList(), selectedChats.keyAt(i)))
             continue;
           lastChatId = selectedChats.keyAt(i);
           if (ChatId.isSecret(lastChatId))
@@ -1418,7 +1438,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
         boolean isUnpin = mode == ACTION_MODE_ALL_ENABLED;
         int maxPinnedCount = chatList().getConstructor() == TdApi.ChatListMain.CONSTRUCTOR ? tdlib.pinnedChatsMaxCount() : tdlib.pinnedArchivedChatsMaxCount();
         int pinnedCloudCount = adapter.getPinnedChatCount(false), pinnedSecretCount = adapter.getPinnedChatCount(true);
-        if (!isUnpin && (pinnedCloudCount + cloudPinCount > maxPinnedCount || pinnedSecretCount + secretPinCount > maxPinnedCount)) {
+        if (!tdlib.canUseLocalPins(chatList()) && !isUnpin && (pinnedCloudCount + cloudPinCount > maxPinnedCount || pinnedSecretCount + secretPinCount > maxPinnedCount)) {
           CharSequence message = chatList().getConstructor() == TdApi.ChatListMain.CONSTRUCTOR ? Lang.pluralBold(R.string.PinTooMuchWarn, maxPinnedCount) : Lang.plural(R.string.ErrorPinnedChatsLimit, maxPinnedCount);
           context.tooltipManager().builder(view).controller(getParentOrSelf()).icon(R.drawable.baseline_error_24).show(tdlib, message);
           return;
@@ -1432,6 +1452,18 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
         }, null, new int[] {isUnpin ? R.drawable.deproko_baseline_pin_undo_24 : R.drawable.deproko_baseline_pin_24, R.drawable.baseline_cancel_24}, (v, optionId) -> {
           if (optionId == R.id.btn_pinUnpinChat) {
             if (isUnpin) {
+              if (tdlib.canUseLocalPins(chatList())) {
+                List<Long> localPinned = tdlib.getLocalPinnedChats(chatList());
+                for (int i = 0; i < selectedChats.size(); i++) {
+                  localPinned.remove(selectedChats.keyAt(i));
+                  if (ChatPosition.isPinned(selectedChats.valueAt(i), chatList)) {
+                    tdlib.send(new TdApi.ToggleChatIsPinned(chatList, selectedChats.keyAt(i), false), tdlib.typedOkHandler());
+                  }
+                }
+                tdlib.setLocalPinnedChats(chatList(), localPinned);
+                scheduleActivityRestart();
+                return true;
+              }
               int remainingCount = selectedChats.size();
               for (int i = 0; i < selectedChats.size(); i++) {
                 if (!ChatPosition.isPinned(selectedChats.valueAt(i), chatList)) {
@@ -1458,6 +1490,16 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
                 }
               }
             } else {
+              if (tdlib.canUseLocalPins(chatList())) {
+                List<Long> localPinned = tdlib.getLocalPinnedChats(chatList());
+                for (int i = 0; i < selectedChats.size(); i++) {
+                  TdApi.Chat chat = selectedChats.valueAt(i);
+                  if (!ChatPosition.isPinned(chat, chatList) && !localPinned.contains(chat.id)) localPinned.add(chat.id);
+                }
+                tdlib.setLocalPinnedChats(chatList(), localPinned);
+                scheduleActivityRestart();
+                return true;
+              }
               List<Long> pinnedChats = tdlib.getPinnedChats(chatList);
               TdApi.Chat[] chats = ArrayUtils.asArray(selectedChats, new TdApi.Chat[selectedChats.size()]);
               Td.sort(chats, chatList);
@@ -2087,7 +2129,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
 
   @Override
   protected boolean filterChatMessageSearchResult (TdApi.Chat chat) {
-    return chat != null && (filter == null || !filter.canFilterMessages() || filter.accept(chat)) && ChatPosition.findPosition(chat, chatList()) != null;
+    return filter(chat) != null && (filter == null || !filter.canFilterMessages() || filter.accept(chat));
   }
 
   @Override
@@ -2142,6 +2184,12 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
   }
 
   private void openChat (TdApi.Chat chat) {
+    if (pickerDelegate == null && tdlib.isForum(chat.id) && Settings.instance().isForumTopicsExperimentEnabled()) {
+      ForumTopicsController controller = new ForumTopicsController(context, tdlib);
+      controller.setArguments(chat.id);
+      context.navigation().navigateTo(controller);
+      return;
+    }
     int highlightMode;
     Object shareItem = pickerDelegate != null ? pickerDelegate.getShareItem() : null;
     TdlibUi.ChatOpenParameters params;
@@ -2746,9 +2794,20 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     tdlib.contacts().removeListener(this);
     tdlib.context().dateManager().removeListener(this);
     tdlib.listeners().removeChatFolderListener(chatFolderId(), this);
+    MoexConfig.instance().removeSettingsListener(this);
   }
 
   // Updates
+
+  @Override
+  public void onSettingsChanged (String key, Object newSettings, Object oldSettings) {
+    if (MoexConfig.KEY_HIDE_PROXY_SPONSOR.equals(key) && Boolean.TRUE.equals(newSettings) && listInitialized && adapter != null) {
+      list.removeMatching(chat -> {
+        TdApi.ChatPosition position = ChatPosition.findPosition(chat, chatList());
+        return position != null && position.source instanceof TdApi.ChatSourceMtprotoProxy;
+      });
+    }
+  }
 
   @Override
   public void onEmojiUpdated (boolean isPackSwitch) {

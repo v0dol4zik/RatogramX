@@ -277,6 +277,12 @@ public class Settings {
   public static final String KEY_ACCOUNT_INFO_SUFFIX_COUNTER = "counter_"; // counter
 
   public static final String KEY_ACCOUNT_INFO_SUFFIX_EMOJI_STATUS_PREFIX = "emoji_"; // emoji status
+  /** Device-only emoji status used by the local Premium experiment. */
+  public static final String KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS = "local_emoji_status";
+  public static final String KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_EXPIRATION = "local_emoji_status_expiration";
+  public static final String KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_USER_ID = "local_emoji_status_user_id";
+  public static final String KEY_ACCOUNT_INFO_SUFFIX_LOCAL_PINNED_MAIN = "local_pinned_main";
+  public static final String KEY_ACCOUNT_INFO_SUFFIX_LOCAL_PINNED_ARCHIVE = "local_pinned_archive";
   public static final String KEY_EMOJI_STATUS_SUFFIX_ID = "id";
   public static final String KEY_EMOJI_STATUS_SUFFIX_METADATA = "data";
   public static final String KEY_EMOJI_STATUS_SUFFIX_THUMBNAIL = "thumb";
@@ -434,6 +440,12 @@ public class Settings {
   public static final long EXPERIMENT_FLAG_SHOW_PEER_IDS = 1 << 2;
   public static final long EXPERIMENT_FLAG_NO_EDGE_TO_EDGE = 1 << 3;
   public static final long EXPERIMENT_FLAG_FORCE_ALTERNATIVE_PUSH_SERVICE = 1 << 4;
+  /** Enables the experimental forum topic list instead of opening the forum's message stream directly. */
+  public static final long EXPERIMENT_FLAG_FORUM_TOPICS = 1L << 5;
+  /** Enables selecting a partial message text when creating a quote. */
+  public static final long EXPERIMENT_FLAG_PARTIAL_QUOTES = 1L << 6;
+  /** Enables client-only Premium affordances without changing Telegram account state. */
+  public static final long EXPERIMENT_FLAG_LOCAL_PREMIUM = 1L << 7;
 
   public static final long REMOVED_EXPERIMENT_FLAG_ENABLE_FOLDERS = 1 << 1;
 
@@ -1407,6 +1419,42 @@ public class Settings {
   public boolean isExperimentEnabled (long key) {
     long experiments = getExperiments();
     return BitwiseUtils.hasAllFlags(experiments, EXPERIMENT_FLAG_ALLOW_EXPERIMENTS | key);
+  }
+
+  /**
+   * Returns whether the experimental forum topic list is enabled by the user.
+   * This is intentionally opt-in: the flag is not part of the default experiment set.
+   */
+  public boolean isForumTopicsExperimentEnabled () {
+    return isExperimentEnabled(EXPERIMENT_FLAG_FORUM_TOPICS);
+  }
+
+  public void setForumTopicsExperimentEnabled (boolean enabled) {
+    setExperimentEnabled(EXPERIMENT_FLAG_FORUM_TOPICS, enabled);
+  }
+
+  /**
+   * Returns whether partial-message quoting is enabled by the user.
+   * This is intentionally opt-in: the flag is not part of the default experiment set.
+   */
+  public boolean isPartialQuotesExperimentEnabled () {
+    return isExperimentEnabled(EXPERIMENT_FLAG_PARTIAL_QUOTES);
+  }
+
+  public void setPartialQuotesExperimentEnabled (boolean enabled) {
+    setExperimentEnabled(EXPERIMENT_FLAG_PARTIAL_QUOTES, enabled);
+  }
+
+  /**
+   * Returns whether the client-only Premium compatibility layer is enabled.
+   * It is gated by the global experiment switch and never changes server data.
+   */
+  public boolean isLocalPremiumExperimentEnabled () {
+    return isExperimentEnabled(EXPERIMENT_FLAG_LOCAL_PREMIUM);
+  }
+
+  public void setLocalPremiumExperimentEnabled (boolean enabled) {
+    setExperimentEnabled(EXPERIMENT_FLAG_LOCAL_PREMIUM, enabled);
   }
 
   public boolean setExperimentEnabled (long key, boolean enabled) {

@@ -36,6 +36,7 @@ import android.text.InputType;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.text.method.ArrowKeyMovementMethod;
 import android.text.style.ClickableSpan;
 import android.util.SparseIntArray;
 import android.util.TypedValue;
@@ -44,6 +45,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -200,6 +202,7 @@ import org.thunderdog.challegram.telegram.TGLegacyManager;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.telegram.TdlibAccount;
 import org.thunderdog.challegram.telegram.TdlibCache;
+import org.thunderdog.challegram.telegram.TdlibFilesManager;
 import org.thunderdog.challegram.telegram.TdlibManager;
 import org.thunderdog.challegram.telegram.TdlibSettingsManager;
 import org.thunderdog.challegram.telegram.TdlibUi;
@@ -637,6 +640,11 @@ public class MessagesController extends ViewController<MessagesController.Argume
         break;
       case MoexConfig.KEY_HIDE_SPONSORED_MESSAGES:
         manager.onHideSponsoredMessagesChanged((boolean) newSettings);
+        break;
+      case MoexConfig.KEY_CHANNEL_BOTTOM_BUTTON:
+        if (chat != null && tdlib.isChannel(chat.id)) {
+          updateBottomBar(true);
+        }
         break;
     }
   }
@@ -3226,7 +3234,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
         showBottomButton(BOTTOM_ACTION_FOLLOW, 0, isUpdate);
       } else {
         TdApi.SupergroupFullInfo info = tdlib.cache().supergroupFull(ChatId.toSupergroupId(chat.id));
-        if (info != null && info.linkedChatId != 0) {
+        int channelBottomButton = MoexConfig.instance().getChannelBottomButton();
+        boolean allowDiscuss = channelBottomButton != MoexConfig.CHANNEL_BOTTOM_BUTTON_MUTE;
+        if (allowDiscuss && info != null && info.linkedChatId != 0) {
           showBottomButton(BOTTOM_ACTION_DISCUSS, info.linkedChatId, isUpdate);
         } else {
           showBottomButton(BOTTOM_ACTION_TOGGLE_MUTE, 0, isUpdate);
@@ -5818,6 +5828,13 @@ public class MessagesController extends ViewController<MessagesController.Argume
           }
         }));
         return true;
+      } else if (id == R.id.btn_messageQuote) {
+        if (!Settings.instance().isPartialQuotesExperimentEnabled()) {
+          return true;
+        }
+        TdApi.Message message = selectedMessage.getNewestMessage();
+        showQuoteSelector(selectedMessage, message);
+        return true;
       } else if (id == R.id.btn_messageReplies) {
         cancelSheduledKeyboardOpeningAndHideAllKeyboards();
         selectedMessage.openMessageThread();
@@ -5926,7 +5943,12 @@ public class MessagesController extends ViewController<MessagesController.Argume
         }
         TdApi.File file = TD.getFile(selectedMessage);
         if (file != null && !file.local.isDownloadingActive && !file.local.isDownloadingCompleted) {
-          tdlib.files().downloadFile(file);
+          TdApi.Message message = selectedMessage.getMessage();
+          if (message != null && Td.isDocument(message.content)) {
+            tdlib.files().addFileToDownloads(file, message.chatId, message.id, TdlibFilesManager.PRIORITY_USER_REQUEST_DOWNLOAD, null);
+          } else {
+            tdlib.files().downloadFile(file);
+          }
         }
         return true;
       } else if (id == R.id.btn_pauseFile) {
@@ -5993,6 +6015,114 @@ public class MessagesController extends ViewController<MessagesController.Argume
       }
       return true;
     };
+  }
+
+  private void showQuoteSelector (TGMessage selectedMessage, TdApi.Message message) {
+    if (message == null || ChatId.isSecret(message.chatId)) {
+      return;
+    }
+    TdApi.FormattedText source = Td.textOrCaption(message.content);
+    if (Td.isEmpty(source)) {
+      return;
+    }
+
+    TextView quoteView = new TextView(context());
+    int horizontalPadding = Screen.dp(20f);
+    quoteView.setPadding(horizontalPadding, Screen.dp(14f), horizontalPadding, Screen.dp(14f));
+    quoteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17f);
+    quoteView.setTypeface(Fonts.getRobotoRegular());
+    quoteView.setTextColor(Theme.textAccentColor());
+    quoteView.setText(TD.toDisplayCharSequence(source), TextView.BufferType.SPANNABLE);
+    quoteView.setTextIsSelectable(true);
+    // Explicitly install the movement method: popup containers consume touch events,
+    // and relying on TextView's implicit setup leaves selection disabled on some ROMs.
+    quoteView.setMovementMethod(ArrowKeyMovementMethod.getInstance());
+    quoteView.setHighlightColor(Theme.fillingTextSelectionColor());
+    quoteView.setLongClickable(true);
+    quoteView.setFocusable(true);
+    quoteView.setFocusableInTouchMode(true);
+
+    ScrollView scrollView = new ScrollView(context());
+    scrollView.setFillViewport(true);
+    ViewSupport.setThemedBackground(scrollView, ColorId.background, this);
+    scrollView.addView(quoteView, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+    showPopup(Lang.getString(R.string.QuoteSelectText), false, 2, (popupLayout, optionsLayout) -> {
+      popupLayout.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+      optionsLayout.setHeader(Lang.getString(R.string.TextFormatQuote));
+      int previewHeight = Math.min(Screen.dp(240f), Math.max(Screen.dp(120f), Screen.currentActualHeight() / 3));
+      scrollView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, previewHeight));
+      optionsLayout.addView(scrollView);
+
+      View.OnClickListener actionListener = v -> {
+        if (v.getId() == R.id.btn_cancel) {
+          popupLayout.hideWindow(true);
+          return;
+        }
+        int start = quoteView.getSelectionStart();
+        int end = quoteView.getSelectionEnd();
+        TdApi.InputTextQuote quote = createMessageQuote(message, start, end);
+        if (quote == null) {
+          UI.showToast(R.string.QuoteSelectText, Toast.LENGTH_SHORT);
+          return;
+        }
+        popupLayout.hideWindow(true);
+        selectedMessage.getMessageProperties(message.id, properties -> runOnUiThreadOptional(() -> {
+          if (properties != null) {
+            showReply(new MessageWithProperties(message, properties), quote, 0, "", true, true);
+            if (inputView.isEmpty()) {
+              Keyboard.show(inputView);
+            }
+          }
+        }));
+      };
+
+      TextView quoteAction = OptionsLayout.genOptionView(context(), R.id.btn_messageQuote,
+        Lang.getString(R.string.TextFormatQuote), OptionColor.NORMAL, R.drawable.baseline_format_quote_close_24,
+        OptionColor.NORMAL, actionListener, getThemeListeners(), null);
+      RippleSupport.setTransparentSelector(quoteAction);
+      quoteAction.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(54f)));
+      optionsLayout.addView(quoteAction);
+
+      TextView cancelAction = OptionsLayout.genOptionView(context(), R.id.btn_cancel,
+        Lang.getString(R.string.Cancel), OptionColor.NORMAL, R.drawable.baseline_cancel_24,
+        OptionColor.NORMAL, actionListener, getThemeListeners(), null);
+      RippleSupport.setTransparentSelector(cancelAction);
+      cancelAction.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(54f)));
+      optionsLayout.addView(cancelAction);
+      return previewHeight + Screen.dp(156f);
+    }, null);
+  }
+
+  private @Nullable TdApi.InputTextQuote createMessageQuote (TdApi.Message message, int selectionStart, int selectionEnd) {
+    TdApi.FormattedText source = Td.textOrCaption(message.content);
+    if (Td.isEmpty(source) || selectionStart < 0 || selectionEnd <= selectionStart || selectionEnd > source.text.length()) {
+      return null;
+    }
+    int start = selectionStart;
+    int end = Math.min(selectionEnd, start + tdlib.options().messageReplyQuoteLengthMax);
+    if (end > start && end < source.text.length() && Character.isHighSurrogate(source.text.charAt(end - 1))) {
+      end--;
+    }
+    TdApi.FormattedText text = Td.substring(source, start, end);
+    if (text.entities != null && text.entities.length > 0) {
+      ArrayList<TdApi.TextEntity> allowed = new ArrayList<>(text.entities.length);
+      for (TdApi.TextEntity entity : text.entities) {
+        switch (entity.type.getConstructor()) {
+          case TdApi.TextEntityTypeBold.CONSTRUCTOR:
+          case TdApi.TextEntityTypeItalic.CONSTRUCTOR:
+          case TdApi.TextEntityTypeUnderline.CONSTRUCTOR:
+          case TdApi.TextEntityTypeStrikethrough.CONSTRUCTOR:
+          case TdApi.TextEntityTypeSpoiler.CONSTRUCTOR:
+          case TdApi.TextEntityTypeCustomEmoji.CONSTRUCTOR:
+          case TdApi.TextEntityTypeDateTime.CONSTRUCTOR:
+            allowed.add(entity);
+            break;
+        }
+      }
+      text.entities = allowed.toArray(new TdApi.TextEntity[0]);
+    }
+    return new TdApi.InputTextQuote(text, start);
   }
 
   // Action button

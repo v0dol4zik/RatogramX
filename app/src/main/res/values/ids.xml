@@ -1151,6 +1151,7 @@
   <item type="id" name="btn_messageCopy" />
   <item type="id" name="btn_messageCopyLink" />
   <item type="id" name="btn_messageReply" />
+  <item type="id" name="btn_messageQuote" />
   <item type="id" name="btn_messageReplies" />
   <item type="id" name="btn_messageReplyWithDice" />
   <item type="id" name="btn_messageDelete" />
@@ -1435,4 +1436,7 @@
   <item type="id" name="btn_playback_speed_1_2" />
   <item type="id" name="btn_playback_speed_1_5" />
   <item type="id" name="btn_playback_speed_2_0" />
+
+  <item type="id" name="controller_forumTopics" />
+  <item type="id" name="btn_forumTopic" />
 </resources>
