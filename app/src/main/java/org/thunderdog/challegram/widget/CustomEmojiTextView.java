@@ -91,6 +91,14 @@ public class CustomEmojiTextView extends EmojiTextView implements CustomEmojiSur
     mediaHolder.performDestroy();
   }
 
+  public void attach () {
+    mediaHolder.receiver.attach();
+  }
+
+  public void detach () {
+    mediaHolder.receiver.detach();
+  }
+
   private void drawEmojiOverlay (Canvas c) {
     Layout layout = getLayout();
     for (EmojiSpan span : mediaHolder.defaultLayerUsages()) {

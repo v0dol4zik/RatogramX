@@ -16,9 +16,13 @@ package org.thunderdog.challegram.widget;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Path;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.RelativeLayout;
@@ -33,6 +37,7 @@ import org.drinkless.tdlib.TdApi;
 import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.core.Lang;
+import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.data.TGStickerSetInfo;
 import org.thunderdog.challegram.loader.AvatarReceiver;
 import org.thunderdog.challegram.loader.ComplexReceiver;
@@ -44,6 +49,7 @@ import org.thunderdog.challegram.navigation.ViewController;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
+import org.thunderdog.challegram.tool.Drawables;
 import org.thunderdog.challegram.tool.Fonts;
 import org.thunderdog.challegram.tool.Paints;
 import org.thunderdog.challegram.tool.Screen;
@@ -52,6 +58,7 @@ import org.thunderdog.challegram.util.EmojiStatusHelper;
 import org.thunderdog.challegram.util.text.Highlight;
 import org.thunderdog.challegram.util.text.TextColorSets;
 
+import me.vkryl.core.ColorUtils;
 import me.vkryl.core.lambda.Destroyable;
 
 public class DoubleTextView extends RelativeLayout implements RtlCheckListener, Destroyable {
@@ -233,21 +240,69 @@ public class DoubleTextView extends RelativeLayout implements RtlCheckListener, 
   public void performDestroy () {
     receiver.performDestroy();
     emojiStatusHelper.performDestroy();
+    if (topicIconView != null) {
+      topicIconView.performDestroy();
+    }
   }
 
   public void attach () {
     receiver.attach();
     emojiStatusHelper.attach();
+    if (topicIconView != null) {
+      topicIconView.attach();
+    }
   }
 
   public void detach () {
     receiver.detach();
     emojiStatusHelper.detach();
+    if (topicIconView != null) {
+      topicIconView.detach();
+    }
   }
 
   private @Nullable TGStickerSetInfo stickerSetInfo;
   private @Nullable Path stickerSetContour;
   private boolean useAvatarReceiver;
+  private @Nullable CustomEmojiTextView topicIconView;
+
+  public void setForumTopicIcon (Tdlib tdlib, @Nullable TdApi.ForumTopicIcon icon) {
+    useAvatarReceiver = false;
+    stickerSetInfo = null;
+    receiver.getAvatarReceiver(0).clear();
+    receiver.getGifReceiver(0).clear();
+    receiver.getImageReceiver(0).clear();
+    if (topicIconView == null) {
+      topicIconView = new CustomEmojiTextView(getContext(), tdlib);
+      topicIconView.setGravity(Gravity.CENTER);
+      topicIconView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 28f);
+      RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(Screen.dp(48f), Screen.dp(48f));
+      params.addRule(RelativeLayout.CENTER_VERTICAL);
+      params.addRule(Lang.rtl() ? RelativeLayout.ALIGN_PARENT_RIGHT : RelativeLayout.ALIGN_PARENT_LEFT);
+      params.leftMargin = params.rightMargin = Screen.dp(12f);
+      addView(topicIconView, 0, params);
+    }
+    topicIconView.setVisibility(View.VISIBLE);
+    if (icon != null && icon.customEmojiId != 0) {
+      topicIconView.setBackground(null);
+      topicIconView.setText(TD.toCharSequence(new TdApi.FormattedText("*", new TdApi.TextEntity[] {
+        new TdApi.TextEntity(0, 1, new TdApi.TextEntityTypeCustomEmoji(icon.customEmojiId))
+      })));
+    } else {
+      GradientDrawable background = new GradientDrawable();
+      background.setShape(GradientDrawable.OVAL);
+      background.setColor(ColorUtils.color(255, icon != null ? icon.color : Theme.textAccentColor()));
+      topicIconView.setBackground(background);
+      topicIconView.setText("\u25c8");
+      topicIconView.setTextColor(Color.TRANSPARENT);
+      Drawable drawable = Drawables.get(getResources(), R.drawable.baseline_forum_24);
+      if (drawable != null) {
+        drawable = drawable.mutate();
+        drawable.setColorFilter(Paints.getColorFilter(Color.WHITE));
+        topicIconView.setCompoundDrawablesWithIntrinsicBounds(null, drawable, null, null);
+      }
+    }
+  }
 
   public void setStickerSet (@NonNull TGStickerSetInfo stickerSet, String highlight) {
     needPlaceholder = false;
@@ -293,6 +348,9 @@ public class DoubleTextView extends RelativeLayout implements RtlCheckListener, 
   }
 
   public void setChatAvatar (Tdlib tdlib, long chatId) {
+    if (topicIconView != null) {
+      topicIconView.setVisibility(View.GONE);
+    }
     useAvatarReceiver = true;
     receiver.getAvatarReceiver(0).requestChat(tdlib, chatId, AvatarReceiver.Options.SHOW_ONLINE);
     receiver.getGifReceiver(0).clear();

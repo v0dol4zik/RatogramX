@@ -67,6 +67,7 @@ import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
+import tgx.td.Td;
 
 public class EmojiStatusSelectorEmojiPage extends BottomSheetViewController.BottomSheetBaseRecyclerViewController<Void>
   implements BottomSheetViewController.BottomSheetBaseControllerPage, Menu, FactorAnimator.Target, EmojiLayout.Listener {
@@ -193,7 +194,12 @@ public class EmojiStatusSelectorEmojiPage extends BottomSheetViewController.Bott
 
   @Override
   public boolean onSetEmojiStatus (@Nullable View view, TGStickerObj sticker, TdApi.EmojiStatus emojiStatus) {
-    tdlib.send(new TdApi.SetEmojiStatus(emojiStatus), tdlib.typedOkHandler());
+    if (tdlib.hasPremium() && !tdlib.hasTelegramPremium()) {
+      tdlib.account().setLocalEmojiStatus(Td.customEmojiId(emojiStatus), emojiStatus.expirationDate, sticker.getSticker());
+    } else {
+      tdlib.account().setLocalEmojiStatus(0, 0, null);
+      tdlib.send(new TdApi.SetEmojiStatus(emojiStatus), tdlib.typedOkHandler());
+    }
     parent.hidePopupWindow(true);
     if (view == null) return true;
 

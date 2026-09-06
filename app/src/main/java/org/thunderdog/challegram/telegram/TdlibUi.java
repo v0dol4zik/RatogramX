@@ -104,6 +104,7 @@ import org.thunderdog.challegram.ui.EditProfileController;
 import org.thunderdog.challegram.ui.EditProxyController;
 import org.thunderdog.challegram.ui.EditRightsController;
 import org.thunderdog.challegram.ui.EditUsernameController;
+import org.thunderdog.challegram.ui.ForumTopicsController;
 import org.thunderdog.challegram.ui.InstantViewController;
 import org.thunderdog.challegram.ui.ListItem;
 import org.thunderdog.challegram.ui.MainController;
@@ -2138,6 +2139,36 @@ public class TdlibUi extends Handler {
         after.runWithLong(chat.id);
       }
       params.onDone();
+      return;
+    }
+
+    boolean needForumTopics = Settings.instance().isForumTopicsExperimentEnabled() && tdlib.isForum(chat.id) && messageThread == null && messageTopicId == null &&
+      !onlyScheduled && shareItem == null && voiceChatInvitation == null && filter == null && forceDraft == null &&
+      (params == null || (!params.highlightSet && StringUtils.isEmpty(params.searchQuery) && params.foundMessage == null));
+    if (needForumTopics) {
+      ViewController<?> currentController = navigation.getCurrentStackItem();
+      if (!(currentController instanceof ForumTopicsController) || currentController.getChatId() != chat.id) {
+        ForumTopicsController controller = new ForumTopicsController(context.context(), context.tdlib());
+        controller.setArguments(chat.id);
+        controller.getValue();
+        RecentChannelsTracker.onChatOpened(tdlib, chat.id);
+        if (navigation.isEmpty()) {
+          navigation.initController(controller);
+          MainController main = new MainController(context.context(), context.tdlib());
+          main.getValue();
+          navigation.getStack().insert(main, 0);
+        } else if (navigation.getStackSize() > 1 && (options & CHAT_OPTION_KEEP_STACK) == 0) {
+          navigation.setControllerAnimated(controller, true, true);
+        } else {
+          navigation.navigateTo(controller);
+        }
+      }
+      if (after != null) {
+        after.runWithLong(chat.id);
+      }
+      if (params != null) {
+        params.onDone();
+      }
       return;
     }
 
@@ -5719,9 +5750,23 @@ public class TdlibUi extends Handler {
       showPinUnpinConfirm(context, chatList, chatId, source, after);
       return true;
     } else if (actionId == R.id.btn_unpinChat) {
+      if (tdlib.isChatPinnedLocally(chatList, chatId)) {
+        List<Long> ids = tdlib.getLocalPinnedChats(chatList);
+        ids.remove(chatId);
+        tdlib.setLocalPinnedChats(chatList, ids);
+        context.scheduleActivityRestart();
+        return true;
+      }
       tdlib.client().send(new TdApi.ToggleChatIsPinned(chatList, chatId, false), tdlib.okHandler(after));
       return true;
     } else if (actionId == R.id.btn_pinChat) {
+      if (tdlib.canUseLocalPins(chatList)) {
+        List<Long> ids = tdlib.getLocalPinnedChats(chatList);
+        if (!ids.contains(chatId)) ids.add(chatId);
+        tdlib.setLocalPinnedChats(chatList, ids);
+        context.scheduleActivityRestart();
+        return true;
+      }
       tdlib.client().send(new TdApi.ToggleChatIsPinned(chatList, chatId, true), tdlib.okHandler(after));
       return true;
     } else if (actionId == R.id.btn_archiveUnarchiveChat) {
@@ -7574,7 +7619,7 @@ public class TdlibUi extends Handler {
         throw Td.unsupported(premiumLimitType);
     }
 
-    if (tdlib.hasPremium()) {
+    if (tdlib.hasTelegramPremium()) {
       callback.onPremiumLimitReached(effectiveLimit, effectiveLimit);
       return;
     }

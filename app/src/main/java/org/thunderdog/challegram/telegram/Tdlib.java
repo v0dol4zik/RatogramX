@@ -2566,6 +2566,12 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   }
 
   public boolean hasPremium () {
+    // Client-only status override, independently implemented from the AyuGram4A local Premium concept.
+    return hasTelegramPremium() || Settings.instance().isLocalPremiumExperimentEnabled();
+  }
+
+  /** Returns the Premium state reported by Telegram, without local experiment overrides. */
+  public boolean hasTelegramPremium () {
     TdApi.User user = cache().myUser();
     if (user != null) {
       return user.isPremium;
@@ -3570,7 +3576,41 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       return false;
     }
     TdApi.Chat chat = chat(chatId);
-    return ChatPosition.isPinned(chat, chatList);
+    return ChatPosition.isPinned(chat, chatList) || isChatPinnedLocally(chatList, chatId);
+  }
+
+  public boolean isLocalPremiumOnly () {
+    return Settings.instance().isLocalPremiumExperimentEnabled() && !hasTelegramPremium();
+  }
+
+  public boolean canUseLocalPins (@Nullable TdApi.ChatList chatList) {
+    return isLocalPremiumOnly() && (TD.isChatListMain(chatList) || TD.isChatListArchive(chatList));
+  }
+
+  private String localPinnedKey (TdApi.ChatList chatList) {
+    return Settings.accountInfoPrefix(accountId) + (TD.isChatListArchive(chatList) ? Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_PINNED_ARCHIVE : Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_PINNED_MAIN);
+  }
+
+  public boolean isChatPinnedLocally (TdApi.ChatList chatList, long chatId) {
+    if (!canUseLocalPins(chatList) || chatId == 0) return false;
+    long[] ids = Settings.instance().getLongArray(localPinnedKey(chatList));
+    if (ids != null) for (long id : ids) if (id == chatId) return true;
+    return false;
+  }
+
+  public @NonNull List<Long> getLocalPinnedChats (TdApi.ChatList chatList) {
+    if (!canUseLocalPins(chatList)) return new ArrayList<>();
+    long[] ids = Settings.instance().getLongArray(localPinnedKey(chatList));
+    List<Long> result = new ArrayList<>(ids != null ? ids.length : 0);
+    if (ids != null) for (long id : ids) if (id != 0) result.add(id);
+    return result;
+  }
+
+  public void setLocalPinnedChats (TdApi.ChatList chatList, @NonNull List<Long> chatIds) {
+    if (!canUseLocalPins(chatList)) return;
+    long[] ids = new long[chatIds.size()];
+    for (int i = 0; i < chatIds.size(); i++) ids[i] = chatIds.get(i);
+    Settings.instance().putLongArray(localPinnedKey(chatList), ids);
   }
 
   public @NonNull List<Long> getPinnedChats (final @Nullable TdApi.ChatList chatList) {
@@ -3590,9 +3630,13 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         for (TdApi.Chat chat : pinnedChats) {
           pinnedChatIds.add(chat.id);
         }
+        if (canUseLocalPins(chatList)) {
+          List<Long> local = getLocalPinnedChats(chatList);
+          for (int i = local.size() - 1; i >= 0; i--) if (!pinnedChatIds.contains(local.get(i))) pinnedChatIds.add(0, local.get(i));
+        }
         return pinnedChatIds;
       }
-      return new ArrayList<>();
+      return canUseLocalPins(chatList) ? getLocalPinnedChats(chatList) : new ArrayList<>();
     }
   }
 
@@ -3900,7 +3944,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   public boolean needUserAvatarPreviewAnimation (long userId) {
     if (userId != 0) {
       TdApi.User user = cache().user(userId);
-      return user != null && user.isPremium;
+      return user != null && (user.isPremium || isSelfUserId(userId) && hasPremium());
     }
     return false;
   }
@@ -3934,7 +3978,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         throw Td.unsupported(sender);
     }
     TdApi.User user = cache().user(userId);
-    return user != null && user.isPremium;
+    return user != null && (user.isPremium || isSelfUserId(userId) && hasPremium());
   }
 
   public String senderUsername (TdApi.MessageSender sender) {

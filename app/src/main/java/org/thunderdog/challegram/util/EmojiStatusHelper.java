@@ -92,6 +92,11 @@ public class EmojiStatusHelper implements Destroyable {
   }
 
   public void updateEmoji (TdlibAccount account, TextColorSet textColorSet, @DrawableRes int defaultStarIconId, int textSize) {
+    long localEmojiStatusId = account.getLocalEmojiStatusCustomEmojiId();
+    if (localEmojiStatusId != 0) {
+      updateLocalEmoji(account.tdlib(), localEmojiStatusId, textColorSet, defaultStarIconId, textSize);
+      return;
+    }
     TdApi.User user = account.getUser();
     if (user != null) {
       updateEmoji(account.tdlib(), user, textColorSet, defaultStarIconId, textSize);
@@ -109,6 +114,12 @@ public class EmojiStatusHelper implements Destroyable {
     emojiStatusDrawable = new EmojiStatusDrawable(parentView, sharedUsageId, isPremium, sticker, clickListenerToSet, textColorSet, defaultStarIconId, textSize);
     emojiStatusDrawable.ignoreDraw = ignoreDraw;
     invalidateEmojiStatusReceiver(null, null);
+  }
+
+  private void updateLocalEmoji (Tdlib tdlib, long customEmojiId, TextColorSet textColorSet, int defaultStarIconId, int textSize) {
+    emojiStatusDrawable = new EmojiStatusDrawable(sharedUsageId, tdlib, customEmojiId, true, clickListenerToSet, textColorSet, this::invalidateEmojiStatusReceiver, defaultStarIconId, textSize);
+    emojiStatusDrawable.ignoreDraw = ignoreDraw;
+    invalidateEmojiStatusReceiver(emojiStatusDrawable.emojiStatus, null);
   }
 
   public void updateEmoji (@Nullable TdApi.User user, TextColorSet textColorSet) {
@@ -130,8 +141,23 @@ public class EmojiStatusHelper implements Destroyable {
   }
 
   public void updateEmoji (Tdlib tdlib, @Nullable TdApi.User user, TextColorSet textColorSet, int defaultStarIconId, int textSize) {
-    if (user == null || !user.isPremium) {
+    if (user == null) {
       clear();
+      return;
+    }
+    if (tdlib != null && tdlib.isSelfUserId(user.id)) {
+      long localEmojiStatusId = tdlib.account().getLocalEmojiStatusCustomEmojiId();
+      if (localEmojiStatusId != 0) {
+        updateLocalEmoji(tdlib, localEmojiStatusId, textColorSet, defaultStarIconId, textSize);
+        return;
+      }
+    }
+    if (!user.isPremium) {
+      if (tdlib != null && tdlib.isSelfUserId(user.id) && tdlib.hasPremium()) {
+        updateEmojiWithoutTdlib(true, null, textColorSet, defaultStarIconId, textSize);
+      } else {
+        clear();
+      }
       return;
     }
     emojiStatusDrawable = new EmojiStatusDrawable(sharedUsageId, tdlib, user, clickListenerToSet, textColorSet, this::invalidateEmojiStatusReceiver, defaultStarIconId, textSize);
@@ -240,6 +266,12 @@ public class EmojiStatusHelper implements Destroyable {
   }
 
   public static EmojiStatusDrawable makeDrawable (String sharedUsageId, Tdlib tdlib, @Nullable TdApi.User user, TextColorSet textColorSet, Text.TextMediaListener textMediaListener) {
+    if (tdlib != null && user != null && tdlib.isSelfUserId(user.id)) {
+      long localEmojiStatusId = tdlib.account().getLocalEmojiStatusCustomEmojiId();
+      if (localEmojiStatusId != 0) {
+        return new EmojiStatusDrawable(sharedUsageId, tdlib, localEmojiStatusId, true, null, textColorSet, textMediaListener, R.drawable.baseline_premium_star_16, 15);
+      }
+    }
     return new EmojiStatusDrawable(sharedUsageId, tdlib, user, null, textColorSet, textMediaListener, R.drawable.baseline_premium_star_16, 15);
   }
 
@@ -263,6 +295,21 @@ public class EmojiStatusHelper implements Destroyable {
     private EmojiStatusDrawable (@Nullable String sharedUsageId, Tdlib tdlib, @Nullable TdApi.User user, @Nullable View.OnClickListener clickListener, @Nullable TextColorSet textColorSet, Text.TextMediaListener textMediaListener, int defaultStarIconId, int textSize) {
       this.emojiStatus = makeText(sharedUsageId, tdlib, user, clickListener, textColorSet, textMediaListener, textSize);
       this.needDrawEmojiStatus = user != null && user.isPremium;
+      this.textSize = textSize;
+      this.textColorSet = textColorSet;
+      this.textMediaListener = textMediaListener;
+      this.clickListener = clickListener;
+      this.starDrawable = emojiStatus == null && needDrawEmojiStatus ? Drawables.get(defaultStarIconId) : null;
+      this.preview = null;
+      this.imageReceiver = null;
+      this.gifReceiver = null;
+      this.needThemedColorFilter = false;
+      this.sticker = null;
+    }
+
+    private EmojiStatusDrawable (@Nullable String sharedUsageId, Tdlib tdlib, long customEmojiId, boolean isPremium, @Nullable View.OnClickListener clickListener, @Nullable TextColorSet textColorSet, Text.TextMediaListener textMediaListener, int defaultStarIconId, int textSize) {
+      this.emojiStatus = makeText(sharedUsageId, tdlib, customEmojiId, clickListener, textColorSet, textMediaListener, textSize);
+      this.needDrawEmojiStatus = isPremium;
       this.textSize = textSize;
       this.textColorSet = textColorSet;
       this.textMediaListener = textMediaListener;
@@ -490,6 +537,15 @@ public class EmojiStatusHelper implements Destroyable {
 
   private static @Nullable Text makeText (@Nullable String sharedUsageId, Tdlib tdlib, @Nullable TdApi.User user, View.OnClickListener clickListener, TextColorSet textColorSet, Text.TextMediaListener textMediaListener, int textSize) {
     TdApi.FormattedText text = makeEmojiText(user);
+    return makeText(sharedUsageId, tdlib, text, clickListener, textColorSet, textMediaListener, textSize);
+  }
+
+  private static @Nullable Text makeText (@Nullable String sharedUsageId, Tdlib tdlib, long customEmojiId, View.OnClickListener clickListener, TextColorSet textColorSet, Text.TextMediaListener textMediaListener, int textSize) {
+    TdApi.TextEntity emoji = new TdApi.TextEntity(0, 1, new TdApi.TextEntityTypeCustomEmoji(customEmojiId));
+    return makeText(sharedUsageId, tdlib, new TdApi.FormattedText(EMOJI, new TdApi.TextEntity[] {emoji}), clickListener, textColorSet, textMediaListener, textSize);
+  }
+
+  private static @Nullable Text makeText (@Nullable String sharedUsageId, Tdlib tdlib, @Nullable TdApi.FormattedText text, View.OnClickListener clickListener, TextColorSet textColorSet, Text.TextMediaListener textMediaListener, int textSize) {
     if (text == null) return null;
 
     Text result = new Text.Builder(tdlib, text, null, Screen.dp(1000), Paints.robotoStyleProvider(textSize), textColorSet, textMediaListener)

@@ -569,6 +569,10 @@ public class TdlibAccount implements Comparable<TdlibAccount>, TdlibProvider {
   }
 
   public boolean isPremium () {
+    return hasTelegramPremium() || Settings.instance().isLocalPremiumExperimentEnabled();
+  }
+
+  public boolean hasTelegramPremium () {
     TdApi.User user = getUser();
     if (user != null)
       return user.isPremium;
@@ -610,6 +614,10 @@ public class TdlibAccount implements Comparable<TdlibAccount>, TdlibProvider {
   }
 
   public long getEmojiStatusCustomEmojiId () {
+    long localEmojiStatusId = getLocalEmojiStatusCustomEmojiId();
+    if (localEmojiStatusId != 0) {
+      return localEmojiStatusId;
+    }
     TdApi.User user = getUser();
     if (user != null) {
       return Td.customEmojiId(user.emojiStatus);
@@ -619,6 +627,16 @@ public class TdlibAccount implements Comparable<TdlibAccount>, TdlibProvider {
   }
 
   public @Nullable TdApi.Sticker getEmojiStatusSticker () {
+    long localEmojiStatusId = getLocalEmojiStatusCustomEmojiId();
+    if (localEmojiStatusId != 0) {
+      TdlibEmojiManager.Entry entry = allowTdlib() ? tdlib().emoji().find(localEmojiStatusId) : null;
+      if (entry != null && !entry.isNotFound()) {
+        return entry.value;
+      }
+      DisplayInformation info = getDisplayInformation();
+      TdApi.Sticker sticker = DisplayInformation.restoreEmojiStatusMetadata(localEmojiStatusCachePrefix(), localEmojiStatusId);
+      return sticker != null ? sticker : info != null && info.getEmojiStatusCustomEmojiId() == localEmojiStatusId ? info.getEmojiStatusSticker() : null;
+    }
     TdApi.User user = getUser();
     if (user != null) {
       TdApi.EmojiStatus emojiStatus = user.emojiStatus;
@@ -633,6 +651,54 @@ public class TdlibAccount implements Comparable<TdlibAccount>, TdlibProvider {
     DisplayInformation info = getDisplayInformation();
     // sticker.sticker and sticker.thumbnail might both be null, if corresponding files were not loaded
     return info != null ? info.getEmojiStatusSticker() : null;
+  }
+
+  public long getLocalEmojiStatusCustomEmojiId () {
+    if (!Settings.instance().isLocalPremiumExperimentEnabled() || hasTelegramPremium() || knownUserId == 0) {
+      return 0;
+    }
+    String prefix = Settings.accountInfoPrefix(id);
+    long ownerUserId = Settings.instance().getLong(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_USER_ID, 0);
+    if (ownerUserId != knownUserId) {
+      clearLocalEmojiStatus();
+      return 0;
+    }
+    long expiration = Settings.instance().getLong(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_EXPIRATION, 0);
+    if (expiration != 0 && expiration <= System.currentTimeMillis() / 1000L) {
+      clearLocalEmojiStatus();
+      return 0;
+    }
+    return Settings.instance().getLong(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS, 0);
+  }
+
+  public void setLocalEmojiStatus (long customEmojiId, long expirationDate, @Nullable TdApi.Sticker sticker) {
+    String prefix = Settings.accountInfoPrefix(id);
+    if (customEmojiId == 0) {
+      clearLocalEmojiStatus();
+      return;
+    }
+    Settings.instance().pmc().putLong(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS, customEmojiId);
+    Settings.instance().pmc().putLong(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_USER_ID, knownUserId);
+    if (expirationDate > 0) {
+      Settings.instance().pmc().putLong(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_EXPIRATION, expirationDate);
+    } else {
+      Settings.instance().pmc().remove(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_EXPIRATION);
+    }
+    if (sticker != null) {
+      DisplayInformation.storeEmojiStatusMetadata(localEmojiStatusCachePrefix(), customEmojiId, sticker);
+    }
+  }
+
+  private String localEmojiStatusCachePrefix () {
+    return Settings.accountInfoPrefix(id) + "local_";
+  }
+
+  private void clearLocalEmojiStatus () {
+    String prefix = Settings.accountInfoPrefix(id);
+    Settings.instance().pmc().remove(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS);
+    Settings.instance().pmc().remove(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_EXPIRATION);
+    Settings.instance().pmc().remove(prefix + Settings.KEY_ACCOUNT_INFO_SUFFIX_LOCAL_EMOJI_STATUS_USER_ID);
+    DisplayInformation.storeEmojiStatusMetadata(localEmojiStatusCachePrefix(), 0, null);
   }
 
   public ImageFile getAvatarFile (boolean big) {

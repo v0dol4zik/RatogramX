@@ -1389,7 +1389,7 @@ public class EmojiStatusListController extends ViewController<EmojiLayout> imple
     final long emojiId = sticker.getCustomEmojiId();
     final int viewId = v.getId();
     if (viewId == R.id.btn_setEmojiStatus) {
-      tdlib.send(new TdApi.SetEmojiStatus(new TdApi.EmojiStatus(new TdApi.EmojiStatusTypeCustomEmoji(emojiId), 0)), tdlib.typedOkHandler());
+      applyEmojiStatus(sticker, emojiId, 0);
       stickerSmallView.onSetEmojiStatus(v, sticker, emojiId, 0);
       stickerSmallView.closePreviewIfNeeded();
     } else if (viewId == R.id.btn_setEmojiStatusTimed) {
@@ -1429,7 +1429,7 @@ public class EmojiStatusListController extends ViewController<EmojiLayout> imple
             context.showDateTimePicker(tdlib, Lang.getString(titleRes), todayRes, tomorrowRes, futureRes, millis -> {
               long expirationDate = millis / 1000L;
               stickerSmallView.onSetEmojiStatus(v, sticker, emojiId, expirationDate);
-              tdlib.send(new TdApi.SetEmojiStatus(new TdApi.EmojiStatus(new TdApi.EmojiStatusTypeCustomEmoji(emojiId), (int) expirationDate)), tdlib.typedOkHandler());
+              applyEmojiStatus(sticker, emojiId, expirationDate);
               stickerSmallView.closePreviewIfNeeded();
             }, null);
             return true;
@@ -1449,11 +1449,20 @@ public class EmojiStatusListController extends ViewController<EmojiLayout> imple
           }
           long expirationDate = System.currentTimeMillis() / 1000L + duration;
           stickerSmallView.onSetEmojiStatus(v, sticker, emojiId, expirationDate);
-          tdlib.send(new TdApi.SetEmojiStatus(new TdApi.EmojiStatus(new TdApi.EmojiStatusTypeCustomEmoji(emojiId), (int) expirationDate)), tdlib.typedOkHandler());
+          applyEmojiStatus(sticker, emojiId, expirationDate);
           stickerSmallView.closePreviewIfNeeded();
           return true;
         });
       }
+    }
+  }
+
+  private void applyEmojiStatus (@NonNull TGStickerObj sticker, long emojiId, long expirationDate) {
+    if (tdlib.hasPremium() && !tdlib.hasTelegramPremium()) {
+      tdlib.account().setLocalEmojiStatus(emojiId, expirationDate, sticker.getSticker());
+    } else {
+      tdlib.account().setLocalEmojiStatus(0, 0, null);
+      tdlib.send(new TdApi.SetEmojiStatus(new TdApi.EmojiStatus(new TdApi.EmojiStatusTypeCustomEmoji(emojiId), (int) expirationDate)), tdlib.typedOkHandler());
     }
   }
 }
