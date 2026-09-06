@@ -24,6 +24,21 @@ moeGramX:
 The `moe.kirao.mgx` package name is retained in parts of the source tree to
 make provenance visible and to reduce unnecessary churn.
 
+## AyuGram4A
+
+The experimental local Premium compatibility layer was independently
+implemented using AyuGram4A's Local Telegram Premium feature as a public
+design reference:
+
+- Project: <https://github.com/AyuGram/AyuGram4A>
+- Reference revision: `7013145676d36d82ee13c02a89f72097b7490dcd`
+- Feature author credited by the referenced source: Radolyn
+- Reference project license: GNU GPL version 2
+
+No AyuGram4A source code is copied into this implementation. The resulting
+feature is client-only and does not grant or emulate Telegram server
+permissions.
+
 ## TDLib and Telegram
 
 Telegram communication is implemented through TDLib and inherited Telegram X

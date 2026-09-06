@@ -19,6 +19,10 @@ plugins {
 
 val config = tgxConfig.config.get()
 val generateBaselineProfile = tgxConfig.generateBaselineProfile.get()
+val ratogramxDevPackage = providers.gradleProperty("ratogramxDevPackage")
+  .map(String::toBoolean)
+  .orElse(false)
+  .get()
 
 val generateThemes = tasks.register<GenerateThemesTask>("generateThemes") {
   group = "Setup"
@@ -223,8 +227,11 @@ android {
     val sourcesUrl = config.sourceCodeUrl.takeIf {
       it.isNotEmpty()
     } ?: tgxGit.remoteUrl
-    buildConfigString("REMOTE_URL", tgxGit.remoteUrl)
-    buildConfigString("COMMIT_URL", tgxGit.commitUrl)
+    // Ratogram X builds must link source and commit metadata to the RatogramX repository,
+    // even when the checkout also has upstream remotes configured.
+    val projectRemoteUrl = sourcesUrl.trimEnd('/')
+    buildConfigString("REMOTE_URL", projectRemoteUrl)
+    buildConfigString("COMMIT_URL", "$projectRemoteUrl/tree/${tgxGit.commitHashLong}")
     buildConfigString("COMMIT", tgxGit.commitHashShort)
     buildConfigString("COMMIT_FULL", tgxGit.commitHashLong)
     buildConfigLong("COMMIT_DATE", tgxGit.commitDate)
@@ -243,7 +250,7 @@ android {
       config.pullRequests.joinToString(", ") { "\"${it.commitLong}\"" }
     }}")
     buildConfigField("String[]", "PULL_REQUEST_URL", "{${
-      config.pullRequests.joinToString(", ") { "\"${tgxGit.remoteUrl}/pull/${it.id}/files/${it.commitLong}\"" }
+      config.pullRequests.joinToString(", ") { "\"$projectRemoteUrl/pull/${it.id}/files/${it.commitLong}\"" }
     }}")
     buildConfigField("String[]", "PULL_REQUEST_AUTHOR", "{${
       config.pullRequests.joinToString(", ") { "\"${it.author}\"" }
@@ -302,6 +309,21 @@ android {
 
     versionCode = config.applicationVersion
     versionName = "${config.majorVersion}.${minorVersion}"
+  }
+
+  if (ratogramxDevPackage) {
+    signingConfigs.getByName("debug").apply {
+      storeFile = File(System.getProperty("user.home"), ".android/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
+    buildTypes.getByName("debug").apply {
+      applicationIdSuffix = ".debug"
+      resValue("string", "AppName", "Ratogram X Dev")
+      buildConfigField("String", "PROJECT_NAME", "\"Ratogram X Dev\"")
+      signingConfig = signingConfigs.getByName("debug")
+    }
   }
 
   sourceSets.getByName("main") {
@@ -856,7 +878,7 @@ dependencies {
   compileOnly(libs.annotations.kotlin)
 }
 
-if (!config.isExperimentalBuild) {
+if (!config.isExperimentalBuild && !ratogramxDevPackage) {
   apply(plugin = libs.plugins.google.services.get().pluginId)
   if (config.isHuaweiBuild) {
     apply(plugin = libs.huawei.agconnect.get().group)
