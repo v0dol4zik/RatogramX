@@ -105,6 +105,8 @@
   <item name="btn_secureWindow" type="id" />
   <item name="btn_secureOnlySecretChats" type="id" />
   <item name="btn_confirmVoice" type="id" />
+  <item name="btn_exportSettings" type="id" />
+  <item name="btn_importSettings" type="id" />
   <item name="menu_btn_ghostMode" type="id" />
   <item name="btn_profileNote" type="id" />
   <item name="btn_profileNote_copy" type="id" />

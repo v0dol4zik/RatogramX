@@ -18,6 +18,7 @@ in development build metadata.
 - Optional screenshot and Recents-preview protection, globally or only while
   a secret chat is open.
 - Optional confirmation before calls and voice-message sends.
+- JSON export and import for Ratogram X settings without account data.
 
 ### Added
 

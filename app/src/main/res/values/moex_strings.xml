@@ -76,6 +76,11 @@
   <string name="ConfirmCall">Confirm calls</string>
   <string name="ConfirmVoice">Confirm voice messages</string>
   <string name="ConfirmVoiceQuestion">Send this voice message?</string>
+  <string name="ExportSettings">Export Ratogram settings</string>
+  <string name="ImportSettings">Import Ratogram settings</string>
+  <string name="SettingsExported">Ratogram settings exported</string>
+  <string name="SettingsImported">Imported %1$d settings</string>
+  <string name="SettingsImportFailed">Could not import settings</string>
   <string name="PhoneHidden">Phone hidden</string>
   <string name="showIdProfile">Show User ID in profiles</string>
   <string name="DisableSendAsButton">Channels</string>

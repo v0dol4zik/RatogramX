@@ -13,6 +13,8 @@ import org.thunderdog.challegram.unsorted.Settings;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import org.json.JSONException;
+import org.json.JSONObject;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import me.vkryl.core.reference.ReferenceList;
@@ -78,6 +80,27 @@ public class MoexConfig {
   public static final String KEY_SECURE_ONLY_SECRET_CHATS = "secure_only_secret_chats";
   public static final String KEY_CONFIRM_CALLS = "confirm_calls";
   public static final String KEY_CONFIRM_VOICE = "confirm_voice";
+
+  private static final String[] EXPORT_BOOLEAN_KEYS = {
+    KEY_DISABLE_CAMERA_BUTTON, KEY_DISABLE_RECORD_BUTTON, KEY_DISABLE_COMMANDS_BUTTON,
+    KEY_HIDE_STICKER_TIMESTAMP, KEY_ENABLE_FEATURES_BUTTON, KEY_HIDE_PHONE_NUMBER,
+    KEY_HIDE_PROFILE_MUSIC, KEY_HIDE_PROFILE_BIRTHDATE, KEY_HIDE_PROFILE_CHANNEL,
+    KEY_HIDE_SPONSORED_MESSAGES, KEY_SHOW_SEARCH_TABS, KEY_DISABLE_SEND_AS_BUTTON,
+    KEY_ROUNDED_STICKERS, KEY_INCREASE_RECENTS_COUNT, KEY_HIDE_MESSAGES_BADGE,
+    KEY_REMEMBER_SEND_OPTIONS, KEY_REMEMBER_SEND_OPTIONS_AUTHOR,
+    KEY_REMEMBER_SEND_OPTIONS_CAPTIONS, KEY_REMEMBER_SEND_OPTIONS_SOUND, KEY_SQUARE_AVATAR,
+    KEY_BLUR_DRAWER, KEY_TYPING_INSTEAD_CHOOSING, KEY_DISABLE_REACTIONS, KEY_HIDE_BOTTOM_BAR,
+    KEY_DARKEN_DRAWER, KEY_SILENT_MESSAGE, KEY_CHAT_QUICK_EDIT, KEY_CHAT_QUICK_FEATURED,
+    KEY_DISABLE_PROXY_ON_VPN, KEY_HIDE_PROXY_SPONSOR, KEY_AUTO_PAUSE_RESUME, KEY_GHOST_MODE,
+    KEY_FOLDER_TABS, KEY_SECURE_WINDOW, KEY_SECURE_ONLY_SECRET_CHATS, KEY_CONFIRM_CALLS,
+    KEY_CONFIRM_VOICE
+  };
+  private static final String[] EXPORT_INT_KEYS = {
+    KEY_DRAWER_ITEMS, KEY_CHANGE_SIZE_LIMIT, KEY_CHANGE_HEADER_TEXT, KEY_ROUND_VIDEOS,
+    KEY_AUTO_PAUSE_MEDIA_TYPES, KEY_GHOST_MODE_FLAGS, KEY_FOLDER_TABS_STYLE,
+    KEY_CHAT_SWIPE_ACTION, KEY_DOUBLE_TAP_ACTION, KEY_CHANNEL_BOTTOM_BUTTON
+  };
+  private static final String[] EXPORT_STRING_KEYS = {KEY_DOUBLE_TAP_REACTION};
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
   public static final int FOLDER_TABS_STYLE_ICONS = 1;
@@ -274,6 +297,136 @@ public class MoexConfig {
 
   public boolean containsKey (String key) {
     return config.contains(key);
+  }
+
+  /** Returns a portable JSON snapshot of Ratogram X settings only. */
+  public JSONObject exportToJson () throws JSONException {
+    JSONObject result = new JSONObject();
+    result.put("format", 1);
+    result.put("product", "Ratogram X");
+    JSONObject values = new JSONObject();
+    for (String key : EXPORT_BOOLEAN_KEYS) {
+      if (containsKey(key)) values.put(key, getBoolean(key, defaultBoolean(key)));
+    }
+    for (String key : EXPORT_INT_KEYS) {
+      if (containsKey(key)) values.put(key, getInt(key, defaultInt(key)));
+    }
+    for (String key : EXPORT_STRING_KEYS) {
+      if (containsKey(key)) values.put(key, getString(key, ""));
+    }
+    result.put("settings", values);
+    return result;
+  }
+
+  /** Imports a snapshot, ignoring unknown keys so newer files remain forward-compatible. */
+  public int importFromJson (@NonNull JSONObject root) throws JSONException {
+    JSONObject values = root.optJSONObject("settings");
+    if (values == null) values = root;
+    int changed = 0;
+    for (String key : EXPORT_BOOLEAN_KEYS) {
+      if (values.has(key)) {
+        Object raw = values.get(key);
+        if (!(raw instanceof Boolean)) throw new JSONException("Expected boolean for " + key);
+        boolean oldValue = getBoolean(key, defaultBoolean(key));
+        boolean newValue = (Boolean) raw;
+        if (oldValue != newValue || !containsKey(key)) {
+          putBoolean(key, newValue);
+          updateBooleanField(key, newValue);
+          notifyClientListeners(key, newValue, oldValue);
+          changed++;
+        }
+      }
+    }
+    for (String key : EXPORT_INT_KEYS) {
+      if (values.has(key)) {
+        Object raw = values.get(key);
+        if (!(raw instanceof Number)) throw new JSONException("Expected integer for " + key);
+        int value = ((Number) raw).intValue();
+        int oldValue = getInt(key, defaultInt(key));
+        if (key.equals(KEY_DRAWER_ITEMS)) value &= DRAWER_ITEMS_ALL;
+        else if (key.equals(KEY_AUTO_PAUSE_MEDIA_TYPES)) value &= AUTO_PAUSE_MEDIA_ALL;
+        else if (key.equals(KEY_GHOST_MODE_FLAGS)) value &= GHOST_MODE_ALL;
+        if (key.equals(KEY_CHANGE_SIZE_LIMIT) && (value < SIZE_LIMIT_800 || value > SIZE_LIMIT_2560)) value = SIZE_LIMIT_1280;
+        if (key.equals(KEY_FOLDER_TABS_STYLE) && (value < FOLDER_TABS_STYLE_UPSTREAM || value > FOLDER_TABS_STYLE_TEXT_ICONS)) value = FOLDER_TABS_STYLE_UPSTREAM;
+        if (key.equals(KEY_CHAT_SWIPE_ACTION) && (value < SWIPE_NONE || value > SWIPE_DELETE)) value = SWIPE_NONE;
+        if (key.equals(KEY_DOUBLE_TAP_ACTION) && (value < DOUBLE_TAP_NONE || value > DOUBLE_TAP_FORWARD)) value = DOUBLE_TAP_NONE;
+        if (key.equals(KEY_CHANNEL_BOTTOM_BUTTON) && (value < CHANNEL_BOTTOM_BUTTON_AUTO || value > CHANNEL_BOTTOM_BUTTON_MUTE)) value = CHANNEL_BOTTOM_BUTTON_AUTO;
+        if (oldValue != value || !containsKey(key)) {
+          putInt(key, value);
+          notifyClientListeners(key, value, oldValue);
+          changed++;
+        }
+      }
+    }
+    for (String key : EXPORT_STRING_KEYS) {
+      if (values.has(key)) {
+        Object raw = values.get(key);
+        if (!(raw instanceof String)) throw new JSONException("Expected string for " + key);
+        String value = (String) raw;
+        if (value.isEmpty()) value = DEFAULT_DOUBLE_TAP_REACTION;
+        String oldValue = getString(key, DEFAULT_DOUBLE_TAP_REACTION);
+        if (!value.equals(oldValue) || !containsKey(key)) {
+          putString(key, value);
+          notifyClientListeners(key, value, oldValue);
+          changed++;
+        }
+      }
+    }
+    return changed;
+  }
+
+
+  private static boolean defaultBoolean (@NonNull String key) {
+    return KEY_SHOW_SEARCH_TABS.equals(key) || KEY_TYPING_INSTEAD_CHOOSING.equals(key);
+  }
+
+  private static int defaultInt (@NonNull String key) {
+    if (KEY_DRAWER_ITEMS.equals(key)) return DRAWER_ITEMS_ALL;
+    if (KEY_CHANGE_SIZE_LIMIT.equals(key)) return SIZE_LIMIT_1280;
+    if (KEY_CHANGE_HEADER_TEXT.equals(key)) return HEADER_TEXT_MOEX;
+    if (KEY_FOLDER_TABS_STYLE.equals(key)) return FOLDER_TABS_STYLE_UPSTREAM;
+    if (KEY_CHAT_SWIPE_ACTION.equals(key)) return SWIPE_NONE;
+    if (KEY_DOUBLE_TAP_ACTION.equals(key)) return DOUBLE_TAP_NONE;
+    if (KEY_CHANNEL_BOTTOM_BUTTON.equals(key)) return CHANNEL_BOTTOM_BUTTON_AUTO;
+    if (KEY_GHOST_MODE_FLAGS.equals(key)) return GHOST_MODE_ALL;
+    return 0;
+  }
+
+  private static void updateBooleanField (@NonNull String key, boolean value) {
+    if (KEY_DISABLE_CAMERA_BUTTON.equals(key)) disableCameraButton = value;
+    else if (KEY_DISABLE_RECORD_BUTTON.equals(key)) disableRecordButton = value;
+    else if (KEY_DISABLE_COMMANDS_BUTTON.equals(key)) disableCommandsButton = value;
+    else if (KEY_HIDE_STICKER_TIMESTAMP.equals(key)) hideStickerTimestamp = value;
+    else if (KEY_ENABLE_FEATURES_BUTTON.equals(key)) enableTestFeatures = value;
+    else if (KEY_HIDE_PHONE_NUMBER.equals(key)) hidePhoneNumber = value;
+    else if (KEY_HIDE_PROFILE_MUSIC.equals(key)) hideProfileMusic = value;
+    else if (KEY_HIDE_PROFILE_BIRTHDATE.equals(key)) hideProfileBirthdate = value;
+    else if (KEY_HIDE_PROFILE_CHANNEL.equals(key)) hideProfileChannel = value;
+    else if (KEY_HIDE_SPONSORED_MESSAGES.equals(key)) hideSponsoredMessages = value;
+    else if (KEY_SHOW_SEARCH_TABS.equals(key)) showSearchTabs = value;
+    else if (KEY_DISABLE_SEND_AS_BUTTON.equals(key)) disableSendAsButton = value;
+    else if (KEY_ROUNDED_STICKERS.equals(key)) roundedStickers = value;
+    else if (KEY_INCREASE_RECENTS_COUNT.equals(key)) increaseRecents = value;
+    else if (KEY_HIDE_MESSAGES_BADGE.equals(key)) hideMessagesBadge = value;
+    else if (KEY_REMEMBER_SEND_OPTIONS.equals(key)) rememberOptions = value;
+    else if (KEY_SQUARE_AVATAR.equals(key)) squareAvatar = value;
+    else if (KEY_BLUR_DRAWER.equals(key)) blurDrawer = value;
+    else if (KEY_TYPING_INSTEAD_CHOOSING.equals(key)) typingInsteadChoosing = value;
+    else if (KEY_DISABLE_REACTIONS.equals(key)) disableReactions = value;
+    else if (KEY_HIDE_BOTTOM_BAR.equals(key)) hideBottomBar = value;
+    else if (KEY_DARKEN_DRAWER.equals(key)) darkenDrawer = value;
+    else if (KEY_SILENT_MESSAGE.equals(key)) silentMessage = value;
+    else if (KEY_CHAT_QUICK_EDIT.equals(key)) quickEdit = value;
+    else if (KEY_CHAT_QUICK_FEATURED.equals(key)) quickFeatured = value;
+    else if (KEY_DISABLE_PROXY_ON_VPN.equals(key)) disableProxyOnVpn = value;
+    else if (KEY_HIDE_PROXY_SPONSOR.equals(key)) hideProxySponsor = value;
+    else if (KEY_AUTO_PAUSE_RESUME.equals(key)) autoPauseResumeSystemPlayback = value;
+    else if (KEY_GHOST_MODE.equals(key)) ghostMode = value;
+    else if (KEY_FOLDER_TABS.equals(key)) folderTabs = value;
+    else if (KEY_SECURE_WINDOW.equals(key)) secureWindow = value;
+    else if (KEY_SECURE_ONLY_SECRET_CHATS.equals(key)) secureOnlySecretChats = value;
+    else if (KEY_CONFIRM_CALLS.equals(key)) confirmCalls = value;
+    else if (KEY_CONFIRM_VOICE.equals(key)) confirmVoice = value;
   }
 
   public LevelDB config () {

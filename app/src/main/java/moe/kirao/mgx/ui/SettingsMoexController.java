@@ -1,6 +1,8 @@
 package moe.kirao.mgx.ui;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.view.View;
 import android.widget.Toast;
 
@@ -10,6 +12,7 @@ import org.thunderdog.challegram.component.base.SettingView;
 import org.thunderdog.challegram.config.Config;
 import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.navigation.SettingsWrapBuilder;
+import org.thunderdog.challegram.navigation.ActivityResultHandler;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.telegram.TdlibUi;
 import org.thunderdog.challegram.theme.ColorId;
@@ -21,11 +24,18 @@ import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.v.CustomRecyclerView;
 
 import java.util.ArrayList;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+
+import org.json.JSONObject;
 
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
 
-public class SettingsMoexController extends RecyclerViewController<SettingsMoexController.Args> implements View.OnClickListener, View.OnLongClickListener {
+public class SettingsMoexController extends RecyclerViewController<SettingsMoexController.Args> implements View.OnClickListener, View.OnLongClickListener, ActivityResultHandler {
+  private static final int REQUEST_EXPORT_SETTINGS = 0x4d01;
+  private static final int REQUEST_IMPORT_SETTINGS = 0x4d02;
   public SettingsMoexController (Context context, Tdlib tdlib) {
     super(context, tdlib);
   }
@@ -83,6 +93,18 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     } else if (viewId == R.id.btn_MiscMoexSettings) {
       c.setArguments(new SettingsMoexController.Args(SettingsMoexController.CATEGORY_MISC));
       navigateTo(c);
+    } else if (viewId == R.id.btn_exportSettings) {
+      Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+      intent.setType("application/json");
+      intent.putExtra(Intent.EXTRA_TITLE, "ratogramx-settings.json");
+      context().putActivityResultHandler(REQUEST_EXPORT_SETTINGS, this);
+      context().startActivityForResult(intent, REQUEST_EXPORT_SETTINGS);
+    } else if (viewId == R.id.btn_importSettings) {
+      Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+      intent.setType("application/json");
+      intent.addCategory(Intent.CATEGORY_OPENABLE);
+      context().putActivityResultHandler(REQUEST_IMPORT_SETTINGS, this);
+      context().startActivityForResult(intent, REQUEST_IMPORT_SETTINGS);
     } else if (viewId == R.id.btn_ExperimentalMoexSettings) {
       c.setArguments(new SettingsMoexController.Args(SettingsMoexController.CATEGORY_EXPERIMENTAL));
       navigateTo(c);
@@ -839,6 +861,11 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_enableFeaturesButton, 0, R.string.EnableFeatures));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_exportSettings, R.drawable.baseline_import_export_24, R.string.ExportSettings));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR));
+        items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_importSettings, R.drawable.baseline_file_download_24, R.string.ImportSettings));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         break;
       case CATEGORY_EXPERIMENTAL:
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ExperimentalOptions));
@@ -905,5 +932,33 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     }
     adapter.setItems(items, false);
     recyclerView.setAdapter(adapter);
+  }
+
+  @Override
+  public void onActivityResult (int requestCode, int resultCode, Intent data) {
+    if (resultCode != android.app.Activity.RESULT_OK || data == null || data.getData() == null) return;
+    Uri uri = data.getData();
+    try {
+      if (requestCode == REQUEST_EXPORT_SETTINGS) {
+        try (OutputStream output = context().getContentResolver().openOutputStream(uri)) {
+          if (output == null) throw new IllegalStateException("Unable to open destination");
+          output.write(MoexConfig.instance().exportToJson().toString(2).getBytes(StandardCharsets.UTF_8));
+        }
+        UI.showToast(R.string.SettingsExported, Toast.LENGTH_SHORT);
+      } else if (requestCode == REQUEST_IMPORT_SETTINGS) {
+        StringBuilder text = new StringBuilder();
+        try (InputStream input = context().getContentResolver().openInputStream(uri)) {
+          if (input == null) throw new IllegalStateException("Unable to open source");
+          byte[] buffer = new byte[4096];
+          int count;
+          while ((count = input.read(buffer)) != -1) text.append(new String(buffer, 0, count, StandardCharsets.UTF_8));
+        }
+        int changed = MoexConfig.instance().importFromJson(new JSONObject(text.toString()));
+        adapter.notifyDataSetChanged();
+        UI.showToast(Lang.getString(R.string.SettingsImported, changed), Toast.LENGTH_SHORT);
+      }
+    } catch (Throwable t) {
+      UI.showToast(R.string.SettingsImportFailed, Toast.LENGTH_SHORT);
+    }
   }
 }

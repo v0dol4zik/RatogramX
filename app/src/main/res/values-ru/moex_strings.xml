@@ -71,6 +71,11 @@
   <string name="ConfirmCall">Подтверждать звонки</string>
   <string name="ConfirmVoice">Подтверждать голосовые сообщения</string>
   <string name="ConfirmVoiceQuestion">Отправить это голосовое сообщение?</string>
+  <string name="ExportSettings">Экспортировать настройки Ratogram</string>
+  <string name="ImportSettings">Импортировать настройки Ratogram</string>
+  <string name="SettingsExported">Настройки Ratogram экспортированы</string>
+  <string name="SettingsImported">Импортировано настроек: %1$d</string>
+  <string name="SettingsImportFailed">Не удалось импортировать настройки</string>
   <string name="PhoneHidden">Телефон скрыт</string>
   <string name="showIdProfile">Показывать ID в профиле</string>
   <string name="DisableSendAsButton">Каналы</string>
