@@ -102,6 +102,8 @@
   <item name="doubleTapCopy" type="id" />
   <item name="doubleTapTranslate" type="id" />
   <item name="doubleTapForward" type="id" />
+  <item name="btn_secureWindow" type="id" />
+  <item name="btn_secureOnlySecretChats" type="id" />
   <item name="menu_btn_ghostMode" type="id" />
   <item name="btn_profileNote" type="id" />
   <item name="btn_profileNote_copy" type="id" />

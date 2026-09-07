@@ -15,6 +15,8 @@ in development build metadata.
   mark read/unread, or delete with the existing confirmation flow.
 - Experimental configurable double-tap actions for text messages: reaction,
   reply, copy, translate, or forward.
+- Optional screenshot and Recents-preview protection, globally or only while
+  a secret chat is open.
 
 ### Added
 

@@ -63,6 +63,9 @@
   <string name="DoubleTapCopy">Копировать</string>
   <string name="DoubleTapTranslate">Перевести</string>
   <string name="DoubleTapForward">Переслать</string>
+  <string name="SecureWindow">Защищать приложение в списке недавних</string>
+  <string name="SecureWindowInfo">Запрещает скриншоты и скрывает превью приложения. Изменения применяются сразу.</string>
+  <string name="SecureOnlySecretChats">Только в секретных чатах</string>
   <string name="PhoneHidden">Телефон скрыт</string>
   <string name="showIdProfile">Показывать ID в профиле</string>
   <string name="DisableSendAsButton">Каналы</string>

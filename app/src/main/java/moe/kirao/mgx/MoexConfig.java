@@ -74,6 +74,8 @@ public class MoexConfig {
   public static final String KEY_CHAT_SWIPE_ACTION = "chat_swipe_action";
   public static final String KEY_DOUBLE_TAP_ACTION = "double_tap_action";
   public static final String KEY_DOUBLE_TAP_REACTION = "double_tap_reaction";
+  public static final String KEY_SECURE_WINDOW = "secure_window";
+  public static final String KEY_SECURE_ONLY_SECRET_CHATS = "secure_only_secret_chats";
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
   public static final int FOLDER_TABS_STYLE_ICONS = 1;
@@ -132,6 +134,8 @@ public class MoexConfig {
   public static final int CHANNEL_BOTTOM_BUTTON_MUTE = 2;
 
   public static boolean disableCameraButton = instance().getBoolean(KEY_DISABLE_CAMERA_BUTTON, false);
+  public static boolean secureWindow = instance().getBoolean(KEY_SECURE_WINDOW, false);
+  public static boolean secureOnlySecretChats = instance().getBoolean(KEY_SECURE_ONLY_SECRET_CHATS, false);
   public static boolean disableRecordButton = instance().getBoolean(KEY_DISABLE_RECORD_BUTTON, false);
   public static boolean disableCommandsButton = instance().getBoolean(KEY_DISABLE_COMMANDS_BUTTON, false);
   public static boolean disableSendAsButton = instance().getBoolean(KEY_DISABLE_SEND_AS_BUTTON, false);
@@ -457,6 +461,20 @@ public class MoexConfig {
 
   public void toggleDisableReactions () {
     putBoolean(KEY_DISABLE_REACTIONS, disableReactions ^= true);
+  }
+
+  public void toggleSecureWindow () {
+    boolean oldValue = secureWindow;
+    secureWindow = !secureWindow;
+    putBoolean(KEY_SECURE_WINDOW, secureWindow);
+    notifyClientListeners(KEY_SECURE_WINDOW, secureWindow, oldValue);
+  }
+
+  public void toggleSecureOnlySecretChats () {
+    boolean oldValue = secureOnlySecretChats;
+    secureOnlySecretChats = !secureOnlySecretChats;
+    putBoolean(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats);
+    notifyClientListeners(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats, oldValue);
   }
 
   public void toggleHideBottomBar () {

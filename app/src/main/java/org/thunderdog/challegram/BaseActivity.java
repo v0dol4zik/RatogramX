@@ -71,6 +71,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.drinkless.tdlib.TdApi;
 import org.drinkmore.Tracer;
+import moe.kirao.mgx.MoexConfig;
 import org.thunderdog.challegram.component.attach.MediaLayout;
 import org.thunderdog.challegram.component.base.ProgressWrap;
 import org.thunderdog.challegram.component.chat.InlineResultsWrap;
@@ -164,6 +165,7 @@ import me.vkryl.core.reference.ReferenceList;
 import me.vkryl.core.reference.ReferenceUtils;
 import nl.dionsegijn.konfetti.xml.KonfettiView;
 import tgx.app.RecaptchaProviderRegistry;
+import tgx.td.ChatId;
 
 @SuppressWarnings("deprecation")
 public abstract class BaseActivity extends FragmentActivity implements View.OnTouchListener, FactorAnimator.Target, Keyboard.OnStateChangeListener, ThemeChangeListener, SensorEventListener, TGPlayerController.TrackChangeListener, TGLegacyManager.EmojiLoadListener, Lang.Listener, Handler.Callback {
@@ -2847,6 +2849,9 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
     boolean disallowScreenshots = false;
     disallowScreenshots = (navigation.shouldDisallowScreenshots() || Passcode.instance().shouldDisallowScreenshots());
     if (tdlib != null && tdlib.messageViewer().needRestrictScreenshots()) {
+      disallowScreenshots = true;
+    }
+    if (MoexConfig.secureWindow && (!MoexConfig.secureOnlySecretChats || ChatId.isSecret(getCurrentChatId()))) {
       disallowScreenshots = true;
     }
     for (PopupLayout popupLayout : windows) {

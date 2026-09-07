@@ -183,6 +183,14 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       showChatSwipeActionOptions();
     } else if (viewId == R.id.btn_doubleTapAction) {
       showDoubleTapActionOptions();
+    } else if (viewId == R.id.btn_secureWindow) {
+      MoexConfig.instance().toggleSecureWindow();
+      adapter.updateValuedSettingById(viewId);
+      context().checkDisallowScreenshots();
+    } else if (viewId == R.id.btn_secureOnlySecretChats) {
+      MoexConfig.instance().toggleSecureOnlySecretChats();
+      adapter.updateValuedSettingById(viewId);
+      context().checkDisallowScreenshots();
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -567,6 +575,11 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
             : action == MoexConfig.DOUBLE_TAP_FORWARD ? R.string.DoubleTapForward
             : R.string.DoubleTapNone);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_secureWindow) {
+          view.getToggler().setRadioEnabled(MoexConfig.secureWindow, isUpdate);
+        } else if (itemId == R.id.btn_secureOnlySecretChats) {
+          view.getToggler().setRadioEnabled(MoexConfig.secureOnlySecretChats, isUpdate);
+          view.setEnabledAnimated(MoexConfig.secureWindow, isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
         } else if (itemId == R.id.btn_changeSizeLimit) {
@@ -707,6 +720,14 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         if (Config.EDGE_TO_EDGE_AVAILABLE) {
           items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.RightSwipeEdgeAnimationInfo));
         }
+
+        items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.SecureWindow));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_secureWindow, 0, R.string.SecureWindow));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_secureOnlySecretChats, 0, R.string.SecureOnlySecretChats));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.SecureWindowInfo));
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ProfileOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
