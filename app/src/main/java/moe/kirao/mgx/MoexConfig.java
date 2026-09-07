@@ -71,10 +71,17 @@ public class MoexConfig {
   /** Show Telegram chat folders as tabs above/below the chat list. */
   public static final String KEY_FOLDER_TABS = "folder_tabs";
   public static final String KEY_FOLDER_TABS_STYLE = "folder_tabs_style";
+  public static final String KEY_CHAT_SWIPE_ACTION = "chat_swipe_action";
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
   public static final int FOLDER_TABS_STYLE_ICONS = 1;
   public static final int FOLDER_TABS_STYLE_TEXT_ICONS = 2;
+  public static final int SWIPE_NONE = 0;
+  public static final int SWIPE_ARCHIVE = 1;
+  public static final int SWIPE_MUTE = 2;
+  public static final int SWIPE_PIN = 3;
+  public static final int SWIPE_READ = 4;
+  public static final int SWIPE_DELETE = 5;
 
   public static final int GHOST_NO_READ = 1;
   public static final int GHOST_NO_TYPING = 1 << 1;
@@ -520,6 +527,19 @@ public class MoexConfig {
   public int getFolderTabsStyle () {
     int value = getInt(KEY_FOLDER_TABS_STYLE, FOLDER_TABS_STYLE_UPSTREAM);
     return value >= FOLDER_TABS_STYLE_UPSTREAM && value <= FOLDER_TABS_STYLE_TEXT_ICONS ? value : FOLDER_TABS_STYLE_UPSTREAM;
+  }
+
+  public int getChatSwipeAction () {
+    int value = getInt(KEY_CHAT_SWIPE_ACTION, SWIPE_NONE);
+    return value >= SWIPE_NONE && value <= SWIPE_DELETE ? value : SWIPE_NONE;
+  }
+
+  public void setChatSwipeAction (int value) {
+    int oldValue = getChatSwipeAction();
+    if (value < SWIPE_NONE || value > SWIPE_DELETE) value = SWIPE_NONE;
+    if (oldValue == value) return;
+    if (value == SWIPE_NONE) remove(KEY_CHAT_SWIPE_ACTION); else putInt(KEY_CHAT_SWIPE_ACTION, value);
+    notifyClientListeners(KEY_CHAT_SWIPE_ACTION, value, oldValue);
   }
 
   public void setFolderTabsStyle (int value) {

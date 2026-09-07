@@ -88,6 +88,13 @@
   <item name="folderTabsStyleText" type="id" />
   <item name="folderTabsStyleIcons" type="id" />
   <item name="folderTabsStyleTextIcons" type="id" />
+  <item name="btn_chatSwipeAction" type="id" />
+  <item name="chatSwipeNone" type="id" />
+  <item name="chatSwipeArchive" type="id" />
+  <item name="chatSwipeMute" type="id" />
+  <item name="chatSwipePin" type="id" />
+  <item name="chatSwipeRead" type="id" />
+  <item name="chatSwipeDelete" type="id" />
   <item name="menu_btn_ghostMode" type="id" />
   <item name="btn_profileNote" type="id" />
   <item name="btn_profileNote_copy" type="id" />

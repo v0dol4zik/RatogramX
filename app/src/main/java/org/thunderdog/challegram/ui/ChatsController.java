@@ -98,6 +98,7 @@ import org.thunderdog.challegram.telegram.TdlibUi;
 import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
 import org.thunderdog.challegram.tool.Paints;
+import org.thunderdog.challegram.tool.Drawables;
 import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.UI;
@@ -136,6 +137,7 @@ import tgx.td.ChatId;
 import tgx.td.ChatPosition;
 import tgx.td.Td;
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.ChatUtils;
 import moe.kirao.mgx.utils.GhostModeUtils;
 
 public class ChatsController extends TelegramViewController<ChatsController.Arguments> implements Menu,
@@ -525,12 +527,21 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       public int getMovementFlags (@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
         if (viewHolder.getItemViewType() == ChatsAdapter.VIEW_TYPE_CHAT) {
           TGChat chat = ((ChatView) viewHolder.itemView).getChat();
-          if (chat != null && chat.isPinned() && adapter.canDragPinnedChats() && filter == null) {
-            int dragFlags = ItemTouchHelper.UP | ItemTouchHelper.DOWN;
-            return makeMovementFlags(dragFlags, 0);
+          if (chat != null) {
+            int dragFlags = chat.isPinned() && adapter.canDragPinnedChats() && filter == null
+              ? ItemTouchHelper.UP | ItemTouchHelper.DOWN : 0;
+            int swipeFlags = isChatSwipeEnabled() ? ItemTouchHelper.LEFT : 0;
+            if (dragFlags != 0 || swipeFlags != 0) {
+              return makeMovementFlags(dragFlags, swipeFlags);
+            }
           }
         }
         return 0;
+      }
+
+      @Override
+      public boolean isItemViewSwipeEnabled () {
+        return isChatSwipeEnabled();
       }
 
       @Override
@@ -602,7 +613,45 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       }
 
       @Override
-      public void onSwiped (@NonNull RecyclerView.ViewHolder viewHolder, int direction) { }
+      public void onSwiped (@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+        if (!(viewHolder.itemView instanceof ChatView)) return;
+        TGChat chat = ((ChatView) viewHolder.itemView).getChat();
+        TdApi.Chat tdChat = chat != null ? chat.getChat() : null;
+        if (tdChat == null) return;
+        long chatId = tdChat.id;
+        int action = MoexConfig.instance().getChatSwipeAction();
+        ChatUtils.performSwipeAction(ChatsController.this, tdlib, chatList(), tdChat, action, null);
+        // Dialog-based actions and non-destructive actions leave the row in place.
+        // Restore its binding after ItemTouchHelper's swipe animation; a later TDLib
+        // update will remove/reposition it when the action actually changes the list.
+        chatsView.post(() -> {
+          int restorePosition = adapter.findChatItemPosition(chatId);
+          if (restorePosition != RecyclerView.NO_POSITION && restorePosition < adapter.getItemCount()) {
+            adapter.notifyItemChanged(restorePosition);
+          }
+        });
+      }
+
+      @Override
+      public void onChildDraw (@NonNull Canvas c, @NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder,
+                               float dX, float dY, int actionState, boolean isCurrentlyActive) {
+        if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE && dX < 0f) {
+          int action = MoexConfig.instance().getChatSwipeAction();
+          int colorId = action == MoexConfig.SWIPE_DELETE ? ColorId.fillingNegative : ColorId.fillingPositive;
+          int icon = action == MoexConfig.SWIPE_DELETE ? R.drawable.baseline_delete_24
+            : action == MoexConfig.SWIPE_ARCHIVE ? R.drawable.baseline_archive_24
+            : action == MoexConfig.SWIPE_MUTE ? R.drawable.baseline_notifications_off_24
+            : action == MoexConfig.SWIPE_PIN ? R.drawable.deproko_baseline_pin_24
+            : R.drawable.baseline_check_24;
+          c.drawRect(viewHolder.itemView.getLeft(), viewHolder.itemView.getTop(),
+            viewHolder.itemView.getRight(), viewHolder.itemView.getBottom(), Paints.fillingPaint(Theme.getColor(colorId)));
+          android.graphics.drawable.Drawable drawable = Drawables.get(viewHolder.itemView.getResources(), icon);
+          int x = viewHolder.itemView.getRight() - Screen.dp(18f) - drawable.getMinimumWidth();
+          int y = viewHolder.itemView.getTop() + viewHolder.itemView.getHeight() / 2 - drawable.getMinimumHeight() / 2;
+          Drawables.draw(c, drawable, x, y, Paints.whitePorterDuffPaint());
+        }
+        super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
+      }
     });
     touchHelper.attachToRecyclerView(chatsView);
 
@@ -2842,6 +2891,12 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       });
     }
   }
+
+  private boolean isChatSwipeEnabled () {
+    return Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
+      && MoexConfig.instance().getChatSwipeAction() != MoexConfig.SWIPE_NONE;
+  }
+
 
   @Override
   public void onEmojiUpdated (boolean isPackSwitch) {

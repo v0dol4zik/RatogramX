@@ -52,6 +52,14 @@
   <string name="FolderTabsStyleText">Text only</string>
   <string name="FolderTabsStyleIcons">Icons only</string>
   <string name="FolderTabsStyleTextIcons">Text and icons</string>
+  <string name="ChatSwipeAction">Chat swipe action (Beta)</string>
+  <string name="ChatSwipeActionInfo">Swipe a chat to the left to perform an action. Delete always asks for confirmation.</string>
+  <string name="SwipeNone">Disabled</string>
+  <string name="SwipeArchive">Archive / unarchive</string>
+  <string name="SwipeMute">Mute / unmute</string>
+  <string name="SwipePin">Pin / unpin</string>
+  <string name="SwipeRead">Mark read / unread</string>
+  <string name="SwipeDelete">Delete</string>
   <string name="PhoneHidden">Phone hidden</string>
   <string name="showIdProfile">Show User ID in profiles</string>
   <string name="DisableSendAsButton">Channels</string>

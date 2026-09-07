@@ -11,6 +11,8 @@ in development build metadata.
 
 - Experimental chat-folder tabs with live folder updates, unread counters,
   optional text/icon styles, and an independent beta toggle.
+- Experimental configurable left-swipe actions for chats: archive, mute, pin,
+  mark read/unread, or delete with the existing confirmation flow.
 
 ### Added
 

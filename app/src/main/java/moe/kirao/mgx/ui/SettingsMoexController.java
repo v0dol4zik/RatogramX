@@ -132,6 +132,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
       adapter.updateValuedSettingById(R.id.btn_folderTabs);
       adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
+      adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
       adapter.updateValuedSettingById(R.id.btn_showIdProfile);
       updateGhostModeSettings();
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
@@ -177,6 +178,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(viewId);
     } else if (viewId == R.id.btn_folderTabsStyle) {
       showFolderTabsStyleOptions();
+    } else if (viewId == R.id.btn_chatSwipeAction) {
+      showChatSwipeActionOptions();
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -419,6 +422,28 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     }));
   }
 
+  private void showChatSwipeActionOptions () {
+    int selected = MoexConfig.instance().getChatSwipeAction();
+    showSettings(new SettingsWrapBuilder(R.id.btn_chatSwipeAction).setRawItems(new ListItem[] {
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeNone, 0, R.string.SwipeNone, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_NONE),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeArchive, 0, R.string.SwipeArchive, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_ARCHIVE),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeMute, 0, R.string.SwipeMute, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_MUTE),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipePin, 0, R.string.SwipePin, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_PIN),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeRead, 0, R.string.SwipeRead, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_READ),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeDelete, 0, R.string.SwipeDelete, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_DELETE)
+    }).setAllowResize(false).setIntDelegate((id, result) -> {
+      int resultId = result.get(R.id.btn_chatSwipeAction);
+      int action = resultId == R.id.chatSwipeArchive ? MoexConfig.SWIPE_ARCHIVE
+        : resultId == R.id.chatSwipeMute ? MoexConfig.SWIPE_MUTE
+        : resultId == R.id.chatSwipePin ? MoexConfig.SWIPE_PIN
+        : resultId == R.id.chatSwipeRead ? MoexConfig.SWIPE_READ
+        : resultId == R.id.chatSwipeDelete ? MoexConfig.SWIPE_DELETE
+        : MoexConfig.SWIPE_NONE;
+      MoexConfig.instance().setChatSwipeAction(action);
+      adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
+    }));
+  }
+
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     adapter = new SettingsAdapter(this) {
@@ -498,6 +523,15 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
             : style == MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS ? R.string.FolderTabsStyleTextIcons
             : R.string.FolderTabsStyleUpstream);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.folderTabs, isUpdate);
+        } else if (itemId == R.id.btn_chatSwipeAction) {
+          int action = MoexConfig.instance().getChatSwipeAction();
+          view.setData(action == MoexConfig.SWIPE_ARCHIVE ? R.string.SwipeArchive
+            : action == MoexConfig.SWIPE_MUTE ? R.string.SwipeMute
+            : action == MoexConfig.SWIPE_PIN ? R.string.SwipePin
+            : action == MoexConfig.SWIPE_READ ? R.string.SwipeRead
+            : action == MoexConfig.SWIPE_DELETE ? R.string.SwipeDelete
+            : R.string.SwipeNone);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
         } else if (itemId == R.id.btn_changeSizeLimit) {
@@ -752,6 +786,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_folderTabsStyle, 0, R.string.FolderTabsStyle));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.FolderTabsInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_chatSwipeAction, 0, R.string.ChatSwipeAction));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.ChatSwipeActionInfo));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalQuotes, 0, R.string.Experiment_PartialQuotes));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
