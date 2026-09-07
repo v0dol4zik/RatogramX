@@ -11,6 +11,8 @@ in development build metadata.
 
 ### Added
 
+- Experimental Ghost mode with independent controls for read receipts,
+  typing activity, and online presence.
 - Ratogram X branding, package identity, notification artwork, and launcher
   resources.
 - Runtime launcher icon selector with nine icon variants.

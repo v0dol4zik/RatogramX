@@ -144,6 +144,7 @@ import tgx.td.client.TdlibOptions;
 import tgx.td.data.MessageWithProperties;
 
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.GhostModeUtils;
 
 public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, DateChangeListener {
   @Override
@@ -284,7 +285,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       tdlib.updateParameters(client);
       if (Config.NEED_ONLINE) {
         if (tdlib.isOnline) {
-          client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(true)), tdlib.okHandler());
+          client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(!GhostModeUtils.shouldForceOffline())), tdlib.okHandler());
         }
       }
       tdlib.context.modifyClient(tdlib, client);
@@ -6629,9 +6630,18 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       this.isOnline = isOnline;
       Log.i("SetOnline accountId:%d -> %b", accountId, isOnline);
       if (Config.NEED_ONLINE) {
-        performOptional(client -> client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(isOnline)), okHandler()), null);
+        boolean effectiveOnline = !GhostModeUtils.shouldForceOffline() && isOnline;
+        performOptional(client -> client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(effectiveOnline)), okHandler()), null);
       }
       // cache().setPauseStatusRefreshers(!isOnline);
+    }
+  }
+
+  /** Re-applies the current online preference after a client-only privacy setting changes. */
+  public void refreshOnlineStatus () {
+    if (Config.NEED_ONLINE) {
+      boolean effectiveOnline = !GhostModeUtils.shouldForceOffline() && isOnline;
+      performOptional(client -> client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(effectiveOnline)), okHandler()), null);
     }
   }
 

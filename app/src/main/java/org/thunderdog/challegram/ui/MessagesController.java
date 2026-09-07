@@ -298,6 +298,7 @@ import tgx.td.ui.TdUi;
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.ui.MessageDetailsController;
 import moe.kirao.mgx.utils.SystemUtils;
+import moe.kirao.mgx.utils.GhostModeUtils;
 
 public class MessagesController extends ViewController<MessagesController.Arguments> implements
   Menu, Unlockable, View.OnClickListener,
@@ -10779,6 +10780,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   public void setChatAction (@TdApi.ChatAction.Constructors int action, boolean set, boolean force) {
     if (chat == null) {
+      return;
+    }
+    if (set && GhostModeUtils.shouldSuppressTyping()) {
       return;
     }
     if (actions == null) {

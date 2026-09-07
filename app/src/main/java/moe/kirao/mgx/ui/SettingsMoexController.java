@@ -23,6 +23,7 @@ import org.thunderdog.challegram.v.CustomRecyclerView;
 import java.util.ArrayList;
 
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.GhostModeUtils;
 
 public class SettingsMoexController extends RecyclerViewController<SettingsMoexController.Args> implements View.OnClickListener, View.OnLongClickListener {
   public SettingsMoexController (Context context, Tdlib tdlib) {
@@ -123,12 +124,17 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       Settings.instance().setExperimentEnabled(Settings.EXPERIMENT_FLAG_SHOW_PEER_IDS, adapter.toggleView(v));
     } else if (viewId == R.id.btn_experimentalAllow) {
       boolean hadLocalPremium = Settings.instance().isLocalPremiumExperimentEnabled();
+      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       Settings.instance().setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, adapter.toggleView(v));
       adapter.updateValuedSettingById(viewId);
       adapter.updateValuedSettingById(R.id.btn_experimentalForums);
       adapter.updateValuedSettingById(R.id.btn_experimentalQuotes);
       adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
       adapter.updateValuedSettingById(R.id.btn_showIdProfile);
+      updateGhostModeSettings();
+      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
+        tdlib.refreshOnlineStatus();
+      }
       if (hadLocalPremium != Settings.instance().isLocalPremiumExperimentEnabled()) {
         scheduleActivityRestart();
       }
@@ -143,6 +149,27 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(viewId);
       // Premium-dependent controllers cache their capability state; rebuild them immediately.
       scheduleActivityRestart();
+    } else if (viewId == R.id.btn_ghostMode) {
+      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
+      MoexConfig.instance().toggleGhostMode();
+      updateGhostModeSettings();
+      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
+        tdlib.refreshOnlineStatus();
+      }
+      UI.showToast(R.string.GhostModeEnabledToast, Toast.LENGTH_SHORT);
+    } else if (viewId == R.id.btn_ghostNoRead) {
+      MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_NO_READ);
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_ghostNoTyping) {
+      MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_NO_TYPING);
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_ghostOffline) {
+      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
+      MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_OFFLINE);
+      adapter.updateValuedSettingById(viewId);
+      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
+        tdlib.refreshOnlineStatus();
+      }
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -194,6 +221,13 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     } else if (viewId == R.id.btn_toggleEdgeAnimSide) {
       handleSettingClick(v, adapter);
     }
+  }
+
+  private void updateGhostModeSettings () {
+    adapter.updateValuedSettingById(R.id.btn_ghostMode);
+    adapter.updateValuedSettingById(R.id.btn_ghostNoRead);
+    adapter.updateValuedSettingById(R.id.btn_ghostNoTyping);
+    adapter.updateValuedSettingById(R.id.btn_ghostOffline);
   }
 
   @Override
@@ -416,6 +450,19 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         } else if (itemId == R.id.btn_experimentalLocalPremium) {
           view.getToggler().setRadioEnabled(Settings.instance().isLocalPremiumExperimentEnabled(), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_ghostMode) {
+          boolean experimentsAllowed = Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS);
+          view.getToggler().setRadioEnabled(MoexConfig.ghostMode, isUpdate);
+          view.setEnabledAnimated(experimentsAllowed, isUpdate);
+        } else if (itemId == R.id.btn_ghostNoRead) {
+          view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_NO_READ), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
+        } else if (itemId == R.id.btn_ghostNoTyping) {
+          view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_NO_TYPING), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
+        } else if (itemId == R.id.btn_ghostOffline) {
+          view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_OFFLINE), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
         } else if (itemId == R.id.btn_changeSizeLimit) {
@@ -594,6 +641,18 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hideBottomBar, 0, R.string.HideBottomBar));
         break;
       case CATEGORY_CHATS:
+        items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.GhostMode));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_ghostMode, 0, R.string.GhostMode));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_ghostNoRead, 0, R.string.GhostNoRead));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_ghostNoTyping, 0, R.string.GhostNoTyping));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_ghostOffline, 0, R.string.GhostOffline));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.GhostModeInfo));
+
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ChannelOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_channelBottomButton, 0, R.string.ChannelBottomButton));

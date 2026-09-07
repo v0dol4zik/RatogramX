@@ -66,6 +66,13 @@ public class MoexConfig {
   public static final String KEY_HIDE_PROXY_SPONSOR = "hide_proxy_sponsor";
   public static final String KEY_AUTO_PAUSE_MEDIA_TYPES = "auto_pause_media_types";
   public static final String KEY_AUTO_PAUSE_RESUME = "auto_pause_resume_system_playback";
+  public static final String KEY_GHOST_MODE = "ghost_mode";
+  public static final String KEY_GHOST_MODE_FLAGS = "ghost_mode_flags";
+
+  public static final int GHOST_NO_READ = 1;
+  public static final int GHOST_NO_TYPING = 1 << 1;
+  public static final int GHOST_OFFLINE = 1 << 2;
+  public static final int GHOST_MODE_ALL = GHOST_NO_READ | GHOST_NO_TYPING | GHOST_OFFLINE;
 
   public static final int START_WITH_FRONT = 0;
   public static final int START_WITH_REAR = 1;
@@ -129,6 +136,7 @@ public class MoexConfig {
   public static boolean disableProxyOnVpn = instance().getBoolean(KEY_DISABLE_PROXY_ON_VPN, false);
   public static boolean hideProxySponsor = instance().getBoolean(KEY_HIDE_PROXY_SPONSOR, false);
   public static boolean autoPauseResumeSystemPlayback = instance().getBoolean(KEY_AUTO_PAUSE_RESUME, false);
+  public static boolean ghostMode = instance().getBoolean(KEY_GHOST_MODE, false);
 
   private MoexConfig () {
     File configDir = new File(UI.getAppContext().getFilesDir(), "moexconf");
@@ -485,6 +493,33 @@ public class MoexConfig {
   public void toggleHideProxySponsor () {
     putBoolean(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor ^= true);
     notifyClientListeners(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor, !hideProxySponsor);
+  }
+
+  public void toggleGhostMode () {
+    boolean oldValue = ghostMode;
+    ghostMode = !ghostMode;
+    putBoolean(KEY_GHOST_MODE, ghostMode);
+    notifyClientListeners(KEY_GHOST_MODE, ghostMode, oldValue);
+  }
+
+  public int getGhostModeFlags () {
+    return getInt(KEY_GHOST_MODE_FLAGS, GHOST_MODE_ALL) & GHOST_MODE_ALL;
+  }
+
+  public boolean isGhostModeFlagEnabled (int flag) {
+    return (getGhostModeFlags() & flag) != 0;
+  }
+
+  public void setGhostModeFlags (int flags) {
+    int oldFlags = getGhostModeFlags();
+    flags &= GHOST_MODE_ALL;
+    if (flags == oldFlags) return;
+    putInt(KEY_GHOST_MODE_FLAGS, flags);
+    notifyClientListeners(KEY_GHOST_MODE_FLAGS, flags, oldFlags);
+  }
+
+  public void toggleGhostModeFlag (int flag) {
+    setGhostModeFlags(getGhostModeFlags() ^ (flag & GHOST_MODE_ALL));
   }
 
   public static boolean shouldBypassProxyForVpn () {

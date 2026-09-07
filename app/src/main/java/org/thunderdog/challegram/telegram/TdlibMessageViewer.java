@@ -45,6 +45,7 @@ import me.vkryl.core.lambda.RunnableBool;
 import me.vkryl.core.reference.ReferenceList;
 import tgx.td.ChatId;
 import tgx.td.Td;
+import moe.kirao.mgx.utils.GhostModeUtils;
 
 public class TdlibMessageViewer {
   private static final long TRACK_MESSAGE_TIMEOUT_MS = 1000;
@@ -766,7 +767,21 @@ public class TdlibMessageViewer {
 
     private void viewMessagesImpl (long chatId, long[] messageIds, TdApi.MessageSource messageSource, boolean forceRead, @Nullable RunnableBool after) {
       if (messageIds.length > 0) {
-        context.tdlib.send(new TdApi.ViewMessages(chatId, messageIds, messageSource, forceRead), (ok, error) -> {
+        // TDLib treats chat-history sources as read-bearing even when forceRead is
+        // false. Use a non-history source in Ghost mode so media/view counters
+        // are still updated without advancing the server read marker.
+        TdApi.MessageSource effectiveSource = messageSource;
+        if (GhostModeUtils.shouldSuppressRead()) {
+          switch (messageSource.getConstructor()) {
+            case TdApi.MessageSourceChatHistory.CONSTRUCTOR:
+            case TdApi.MessageSourceMessageThreadHistory.CONSTRUCTOR:
+            case TdApi.MessageSourceForumTopicHistory.CONSTRUCTOR:
+              effectiveSource = new TdApi.MessageSourceOther();
+              break;
+          }
+        }
+        context.tdlib.send(new TdApi.ViewMessages(chatId, messageIds, effectiveSource,
+          GhostModeUtils.shouldSuppressRead() ? false : forceRead), (ok, error) -> {
           if (after != null) {
             after.runWithBool(error == null);
           }

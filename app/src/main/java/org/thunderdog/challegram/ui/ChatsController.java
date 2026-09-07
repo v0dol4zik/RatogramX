@@ -60,6 +60,7 @@ import org.thunderdog.challegram.helper.LiveLocationHelper;
 import org.thunderdog.challegram.navigation.BackHeaderButton;
 import org.thunderdog.challegram.navigation.ContentFrameLayout;
 import org.thunderdog.challegram.navigation.HeaderView;
+import org.thunderdog.challegram.navigation.HeaderButton;
 import org.thunderdog.challegram.navigation.Menu;
 import org.thunderdog.challegram.navigation.MoreDelegate;
 import org.thunderdog.challegram.navigation.NavigationController;
@@ -135,6 +136,7 @@ import tgx.td.ChatId;
 import tgx.td.ChatPosition;
 import tgx.td.Td;
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.GhostModeUtils;
 
 public class ChatsController extends TelegramViewController<ChatsController.Arguments> implements Menu,
   View.OnClickListener, View.OnLongClickListener, ChatsRecyclerView.LoadMoreCallback,
@@ -1183,6 +1185,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     }
     updateNetworkStatus(tdlib.connectionState());
     updateSelectButtons();
+    updateGhostModeButton();
   }
 
   @Override
@@ -1191,6 +1194,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       if (isBaseController()) {
         header.addLockButton(menu);
       }
+      addGhostModeButton(header, menu);
       header.addSearchButton(menu, this);
     } else if (id == R.id.menu_archive) {
       header.addButton(menu, R.id.menu_btn_settings, R.drawable.baseline_settings_24, 49f, this, getHeaderIconColorId());
@@ -1226,6 +1230,25 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       if (value) totalButtonsCount++;
 
       header.addMoreButton(menu, this, getSelectHeaderIconColorId());
+    }
+  }
+
+  private void addGhostModeButton (HeaderView header, LinearLayout menu) {
+    boolean experimentsAllowed = Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS);
+    HeaderButton button = header.addButton(menu, R.id.menu_btn_ghostMode, R.drawable.baseline_ghost_24, 49f, this, getHeaderIconColorId());
+    button.setVisibility(experimentsAllowed ? View.VISIBLE : View.GONE);
+    button.setAlpha(GhostModeUtils.shouldSuppressRead() || GhostModeUtils.shouldSuppressTyping() || GhostModeUtils.shouldForceOffline() ? 1f : .55f);
+  }
+
+  private void updateGhostModeButton () {
+    NavigationController navigation = getParentOrSelf().navigationController();
+    HeaderView headerView = navigation != null ? navigation.getHeaderView() : null;
+    if (headerView != null) {
+      boolean experimentsAllowed = Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS);
+      headerView.updateButton(R.id.menu_passcode, R.id.menu_btn_ghostMode,
+        experimentsAllowed ? View.VISIBLE : View.GONE, R.drawable.baseline_ghost_24);
+      headerView.updateButton(R.id.menu_passcode, R.id.menu_btn_ghostMode, button ->
+        button.setAlpha(GhostModeUtils.shouldSuppressRead() || GhostModeUtils.shouldSuppressTyping() || GhostModeUtils.shouldForceOffline() ? 1f : .55f));
     }
   }
 
@@ -1296,7 +1319,15 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
 
   @Override
   public void onMenuItemPressed (int id, View view) {
-    if (id == R.id.menu_btn_search) {
+    if (id == R.id.menu_btn_ghostMode) {
+      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
+      MoexConfig.instance().toggleGhostMode();
+      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
+        tdlib.refreshOnlineStatus();
+      }
+      updateGhostModeButton();
+      UI.showToast(R.string.GhostModeEnabledToast, Toast.LENGTH_SHORT);
+    } else if (id == R.id.menu_btn_search) {
       openSearchMode();
     } else if (id == R.id.menu_btn_settings) {
       if (isArchiveChatList()) {
@@ -2801,6 +2832,9 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
 
   @Override
   public void onSettingsChanged (String key, Object newSettings, Object oldSettings) {
+    if (MoexConfig.KEY_GHOST_MODE.equals(key) || MoexConfig.KEY_GHOST_MODE_FLAGS.equals(key)) {
+      runOnUiThreadOptional(this::updateGhostModeButton);
+    }
     if (MoexConfig.KEY_HIDE_PROXY_SPONSOR.equals(key) && Boolean.TRUE.equals(newSettings) && listInitialized && adapter != null) {
       list.removeMatching(chat -> {
         TdApi.ChatPosition position = ChatPosition.findPosition(chat, chatList());

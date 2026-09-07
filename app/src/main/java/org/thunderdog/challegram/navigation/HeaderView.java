@@ -713,6 +713,15 @@ public class HeaderView extends FrameLayoutFix implements View.OnClickListener, 
 
   @Override
   public boolean onLongClick (View v) {
+    if (v.getId() == R.id.menu_btn_ghostMode) {
+      if (navigation == null || (!navigation.isDestroyed() && !navigation.isAnimating())) {
+        ViewController<?> item = stack.getCurrent();
+        if (item instanceof Menu) {
+          ((Menu) item).onMenuItemPressed(v.getId(), v);
+          return true;
+        }
+      }
+    }
     if (v.getTag() != null && v.getTag() instanceof String) {
       String text = (String) v.getTag();
       if (!StringUtils.isEmpty(text)) {

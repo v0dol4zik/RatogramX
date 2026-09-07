@@ -39,6 +39,12 @@
   <string name="Experiment_PartialQuotesInfo">Select a part of another user\'s message when creating a quote. This feature is in beta and may not work correctly.</string>
   <string name="Experiment_LocalPremium">Local Telegram Premium (Beta)</string>
   <string name="Experiment_LocalPremiumInfo">Enables Premium-only client interface and local checks on this device. The app restarts this screen after changing the switch so cached UI is refreshed. Telegram server permissions and limits are unchanged; some actions may still fail. Independently implemented from the AyuGram4A concept by Radolyn: https://github.com/AyuGram/AyuGram4A</string>
+  <string name="GhostMode">Ghost mode (Beta)</string>
+  <string name="GhostModeInfo">Hide read receipts, typing activity, and your online status. This is an experimental client-only feature; Telegram may still receive activity in some flows.</string>
+  <string name="GhostNoRead">Hide read receipts</string>
+  <string name="GhostNoTyping">Hide typing activity</string>
+  <string name="GhostOffline">Appear offline</string>
+  <string name="GhostModeEnabledToast">Ghost mode settings applied</string>
   <string name="PhoneHidden">Phone hidden</string>
   <string name="showIdProfile">Show User ID in profiles</string>
   <string name="DisableSendAsButton">Channels</string>

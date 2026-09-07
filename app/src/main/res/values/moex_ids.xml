@@ -78,6 +78,11 @@
   <item name="btn_experimentalForums" type="id" />
   <item name="btn_experimentalQuotes" type="id" />
   <item name="btn_experimentalLocalPremium" type="id" />
+  <item name="btn_ghostMode" type="id" />
+  <item name="btn_ghostNoRead" type="id" />
+  <item name="btn_ghostNoTyping" type="id" />
+  <item name="btn_ghostOffline" type="id" />
+  <item name="menu_btn_ghostMode" type="id" />
   <item name="btn_profileNote" type="id" />
   <item name="btn_profileNote_copy" type="id" />
   <item name="btn_profileNote_edit" type="id" />
