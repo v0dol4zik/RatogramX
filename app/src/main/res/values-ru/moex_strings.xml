@@ -40,6 +40,13 @@
   <string name="GhostNoTyping">Скрывать статус набора текста</string>
   <string name="GhostOffline">Показываться офлайн</string>
   <string name="GhostModeEnabledToast">Настройки режима призрака применены</string>
+  <string name="FolderTabs">Папки чатов как вкладки (бета)</string>
+  <string name="FolderTabsInfo">Показывать папки Telegram отдельными вкладками над списком чатов. Эта бета-функция может работать некорректно.</string>
+  <string name="FolderTabsStyle">Вид вкладок папок</string>
+  <string name="FolderTabsStyleUpstream">По умолчанию Telegram X</string>
+  <string name="FolderTabsStyleText">Только текст</string>
+  <string name="FolderTabsStyleIcons">Только иконки</string>
+  <string name="FolderTabsStyleTextIcons">Текст и иконки</string>
   <string name="PhoneHidden">Телефон скрыт</string>
   <string name="showIdProfile">Показывать ID в профиле</string>
   <string name="DisableSendAsButton">Каналы</string>

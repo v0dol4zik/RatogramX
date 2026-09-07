@@ -198,6 +198,13 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
       toggleHeaderView.setTitle(getCustomTitleName(), false);
     } else if (key.equals(MoexConfig.KEY_SHOW_SEARCH_TABS)) {
       setGlobalSearchTabsEnabled((Boolean) newSettings);
+    } else if (key.equals(MoexConfig.KEY_FOLDER_TABS) || key.equals(MoexConfig.KEY_FOLDER_TABS_STYLE)) {
+      // Folder tabs are an opt-in Ratogram X experiment layered over Telegram X's
+      // existing folder pager. Rebuild the pager immediately when toggled.
+      updatePagerSections(true);
+      checkTabs();
+      checkMenu();
+      checkMargins();
     }
   }
 
@@ -1018,6 +1025,12 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   @Override
   public void onPrepareToShow () {
     super.onPrepareToShow();
+    boolean shouldShowFolderTabs = MoexConfig.folderTabs
+      && Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
+      && Settings.instance().chatFoldersEnabled();
+    if (shouldShowFolderTabs != !pagerChatLists.isEmpty()) {
+      updatePagerSections(true);
+    }
     if (needUpdatePagerSections) {
       needUpdatePagerSections = false;
       updatePagerSections(true);
@@ -1952,7 +1965,10 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   private @Filter int globalFilter = FILTER_NONE;
 
   private boolean hasFolders () {
-    return Settings.instance().chatFoldersEnabled() && !pagerChatLists.isEmpty();
+    return MoexConfig.folderTabs
+      && Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
+      && Settings.instance().chatFoldersEnabled()
+      && !pagerChatLists.isEmpty();
   }
 
   @Override
@@ -2933,7 +2949,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
     boolean hasFolders = hasFolders();
     boolean displayTabsAtBottom = displayTabsAtBottom();
     headerCell.getTopView().setAnimateItemChanges(!Settings.instance().needReduceMotion());
-    headerCell.getTopView().setShowLabelOnActiveOnly(hasFolders && tdlib.settings().chatFolderStyle() == ChatFolderStyle.ICON_WITH_LABEL_ON_ACTIVE_FOLDER);
+    headerCell.getTopView().setShowLabelOnActiveOnly(hasFolders && getFolderTabsStyle() == ChatFolderStyle.ICON_WITH_LABEL_ON_ACTIVE_FOLDER);
     headerCell.getTopView().setUseDarkBackground(displayTabsAtBottom);
     headerCell.getTopView().setDrawSelectionAtTop(displayTabsAtBottom);
     headerCell.getTopView().setSlideOffDirection(displayTabsAtBottom ? ViewPagerTopView.SLIDE_OFF_DIRECTION_TOP : ViewPagerTopView.SLIDE_OFF_DIRECTION_BOTTOM);
@@ -3034,7 +3050,8 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   }
 
   private void initPagerSections () {
-    if (Settings.instance().chatFoldersEnabled()) {
+    if (MoexConfig.folderTabs && Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
+      && Settings.instance().chatFoldersEnabled()) {
       updatePagerSections(true);
     }
   }
@@ -3051,6 +3068,21 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
 
   private void updatePagerSections (TdApi.ChatFolderInfo[] chatFolders, int mainChatListPosition, int archiveChatListPosition) {
     boolean oldHasFolders = hasFolders();
+    if (!MoexConfig.folderTabs || !Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
+      || !Settings.instance().chatFoldersEnabled()) {
+      this.pagerSections = Collections.emptyList();
+      this.pagerChatLists = Collections.emptyList();
+      this.chatFolderInfos = null;
+      notifyPagerItemPositionsChanged();
+      ViewPager pager = getViewPager();
+      if (pager != null) onPageSelected(pager.getCurrentItem());
+      if (oldHasFolders && pagerWrap != null) {
+        checkTabs();
+        checkMenu();
+        checkMargins();
+      }
+      return;
+    }
     List<TdApi.ChatList> chatLists;
     List<ViewPagerTopView.Item> sections;
     if (chatFolders.length > 0 || tdlib.settings().isChatListEnabled(ChatPosition.CHAT_LIST_ARCHIVE)) {
@@ -3070,7 +3102,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
       } else {
         archiveChatListPosition = NO_POSITION;
       }
-      @ChatFolderStyle int chatFolderStyle = tdlib.settings().chatFolderStyle();
+      @ChatFolderStyle int chatFolderStyle = getFolderTabsStyle();
       chatLists = new ArrayList<>(chatListCount);
       sections = new ArrayList<>(chatListCount);
       int chatFolderIndex = 0;
@@ -3490,6 +3522,19 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
         return false;
       default:
         throw new IllegalArgumentException("chatFolderStyle = " + chatFolderStyle);
+    }
+  }
+
+  private @ChatFolderStyle int getFolderTabsStyle () {
+    switch (MoexConfig.instance().getFolderTabsStyle()) {
+      case MoexConfig.FOLDER_TABS_STYLE_TEXT:
+        return ChatFolderStyle.LABEL_ONLY;
+      case MoexConfig.FOLDER_TABS_STYLE_ICONS:
+        return ChatFolderStyle.ICON_ONLY;
+      case MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS:
+        return ChatFolderStyle.LABEL_AND_ICON;
+      default:
+        return tdlib.settings().chatFolderStyle();
     }
   }
 

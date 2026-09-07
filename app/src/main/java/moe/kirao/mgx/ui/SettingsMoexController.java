@@ -130,6 +130,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_experimentalForums);
       adapter.updateValuedSettingById(R.id.btn_experimentalQuotes);
       adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
+      adapter.updateValuedSettingById(R.id.btn_folderTabs);
+      adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
       adapter.updateValuedSettingById(R.id.btn_showIdProfile);
       updateGhostModeSettings();
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
@@ -170,6 +172,11 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
         tdlib.refreshOnlineStatus();
       }
+    } else if (viewId == R.id.btn_folderTabs) {
+      MoexConfig.instance().toggleFolderTabs();
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_folderTabsStyle) {
+      showFolderTabsStyleOptions();
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -394,6 +401,24 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     }));
   }
 
+  private void showFolderTabsStyleOptions () {
+    int selected = MoexConfig.instance().getFolderTabsStyle();
+    showSettings(new SettingsWrapBuilder(R.id.btn_folderTabsStyle).setRawItems(new ListItem[] {
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.folderTabsStyleUpstream, 0, R.string.FolderTabsStyleUpstream, R.id.btn_folderTabsStyle, selected == MoexConfig.FOLDER_TABS_STYLE_UPSTREAM),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.folderTabsStyleText, 0, R.string.FolderTabsStyleText, R.id.btn_folderTabsStyle, selected == MoexConfig.FOLDER_TABS_STYLE_TEXT),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.folderTabsStyleIcons, 0, R.string.FolderTabsStyleIcons, R.id.btn_folderTabsStyle, selected == MoexConfig.FOLDER_TABS_STYLE_ICONS),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.folderTabsStyleTextIcons, 0, R.string.FolderTabsStyleTextIcons, R.id.btn_folderTabsStyle, selected == MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS)
+    }).setAllowResize(false).setIntDelegate((id, result) -> {
+      int resultId = result.get(R.id.btn_folderTabsStyle);
+      int style = resultId == R.id.folderTabsStyleText ? MoexConfig.FOLDER_TABS_STYLE_TEXT
+        : resultId == R.id.folderTabsStyleIcons ? MoexConfig.FOLDER_TABS_STYLE_ICONS
+        : resultId == R.id.folderTabsStyleTextIcons ? MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS
+        : MoexConfig.FOLDER_TABS_STYLE_UPSTREAM;
+      MoexConfig.instance().setFolderTabsStyle(style);
+      adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
+    }));
+  }
+
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     adapter = new SettingsAdapter(this) {
@@ -438,7 +463,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
           view.getToggler().setRadioEnabled(MoexConfig.enableTestFeatures, isUpdate);
         } else if (itemId == R.id.btn_showIdProfile) {
           view.getToggler().setRadioEnabled(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_SHOW_PEER_IDS), isUpdate);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.folderTabs, isUpdate);
         } else if (itemId == R.id.btn_experimentalAllow) {
           view.getToggler().setRadioEnabled(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_experimentalForums) {
@@ -463,6 +488,16 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         } else if (itemId == R.id.btn_ghostOffline) {
           view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_OFFLINE), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
+        } else if (itemId == R.id.btn_folderTabs) {
+          view.getToggler().setRadioEnabled(MoexConfig.folderTabs, isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_folderTabsStyle) {
+          int style = MoexConfig.instance().getFolderTabsStyle();
+          view.setData(style == MoexConfig.FOLDER_TABS_STYLE_TEXT ? R.string.FolderTabsStyleText
+            : style == MoexConfig.FOLDER_TABS_STYLE_ICONS ? R.string.FolderTabsStyleIcons
+            : style == MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS ? R.string.FolderTabsStyleTextIcons
+            : R.string.FolderTabsStyleUpstream);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.folderTabs, isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
         } else if (itemId == R.id.btn_changeSizeLimit) {
@@ -711,6 +746,12 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalForums, 0, R.string.Experiment_Forums));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_ForumsInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_folderTabs, 0, R.string.FolderTabs));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_folderTabsStyle, 0, R.string.FolderTabsStyle));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.FolderTabsInfo));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalQuotes, 0, R.string.Experiment_PartialQuotes));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));

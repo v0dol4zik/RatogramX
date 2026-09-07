@@ -68,6 +68,13 @@ public class MoexConfig {
   public static final String KEY_AUTO_PAUSE_RESUME = "auto_pause_resume_system_playback";
   public static final String KEY_GHOST_MODE = "ghost_mode";
   public static final String KEY_GHOST_MODE_FLAGS = "ghost_mode_flags";
+  /** Show Telegram chat folders as tabs above/below the chat list. */
+  public static final String KEY_FOLDER_TABS = "folder_tabs";
+  public static final String KEY_FOLDER_TABS_STYLE = "folder_tabs_style";
+  public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
+  public static final int FOLDER_TABS_STYLE_TEXT = 0;
+  public static final int FOLDER_TABS_STYLE_ICONS = 1;
+  public static final int FOLDER_TABS_STYLE_TEXT_ICONS = 2;
 
   public static final int GHOST_NO_READ = 1;
   public static final int GHOST_NO_TYPING = 1 << 1;
@@ -137,6 +144,7 @@ public class MoexConfig {
   public static boolean hideProxySponsor = instance().getBoolean(KEY_HIDE_PROXY_SPONSOR, false);
   public static boolean autoPauseResumeSystemPlayback = instance().getBoolean(KEY_AUTO_PAUSE_RESUME, false);
   public static boolean ghostMode = instance().getBoolean(KEY_GHOST_MODE, false);
+  public static boolean folderTabs = instance().getBoolean(KEY_FOLDER_TABS, false);
 
   private MoexConfig () {
     File configDir = new File(UI.getAppContext().getFilesDir(), "moexconf");
@@ -500,6 +508,26 @@ public class MoexConfig {
     ghostMode = !ghostMode;
     putBoolean(KEY_GHOST_MODE, ghostMode);
     notifyClientListeners(KEY_GHOST_MODE, ghostMode, oldValue);
+  }
+
+  public void toggleFolderTabs () {
+    boolean oldValue = folderTabs;
+    folderTabs = !folderTabs;
+    putBoolean(KEY_FOLDER_TABS, folderTabs);
+    notifyClientListeners(KEY_FOLDER_TABS, folderTabs, oldValue);
+  }
+
+  public int getFolderTabsStyle () {
+    int value = getInt(KEY_FOLDER_TABS_STYLE, FOLDER_TABS_STYLE_UPSTREAM);
+    return value >= FOLDER_TABS_STYLE_UPSTREAM && value <= FOLDER_TABS_STYLE_TEXT_ICONS ? value : FOLDER_TABS_STYLE_UPSTREAM;
+  }
+
+  public void setFolderTabsStyle (int value) {
+    int oldValue = getFolderTabsStyle();
+    if (value < FOLDER_TABS_STYLE_UPSTREAM || value > FOLDER_TABS_STYLE_TEXT_ICONS) value = FOLDER_TABS_STYLE_UPSTREAM;
+    if (oldValue == value) return;
+    if (value == FOLDER_TABS_STYLE_UPSTREAM) remove(KEY_FOLDER_TABS_STYLE); else putInt(KEY_FOLDER_TABS_STYLE, value);
+    notifyClientListeners(KEY_FOLDER_TABS_STYLE, value, oldValue);
   }
 
   public int getGhostModeFlags () {

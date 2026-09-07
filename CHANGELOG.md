@@ -9,6 +9,9 @@ in development build metadata.
 
 ## [Unreleased]
 
+- Experimental chat-folder tabs with live folder updates, unread counters,
+  optional text/icon styles, and an independent beta toggle.
+
 ### Added
 
 - Experimental Ghost mode with independent controls for read receipts,
