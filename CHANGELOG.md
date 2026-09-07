@@ -33,6 +33,8 @@ in development build metadata.
 - Integrated and adapted selected GPL-3.0 functionality from moeGramX on top
   of Telegram X `0.28.11.1806`.
 - Updated app and session icon presentation for Ratogram X.
+- Updated the Telegram X base to `0.28.11.1807` and hardened the ARM64
+  libvpx build against stale cross-ABI objects in native checkouts.
 
 ### Documentation
 

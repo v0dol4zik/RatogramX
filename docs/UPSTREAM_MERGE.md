@@ -59,3 +59,10 @@ TDLib checkout remain outside the merge commit.
 Conflict markers and staged whitespace errors were checked before the merge
 commit. Java compilation and the ARM64 development assemble are run after the
 merge commit because both depend on the relocated AndroidX Media worktrees.
+
+The Gradle libvpx task now keeps generated objects under an isolated build
+prefix and explicitly publishes the archive produced for the selected ABI.
+This prevents stale objects or archives left in a libvpx checkout from being
+resolved through Make's VPATH. The 1807 ARM64 development APK was assembled
+successfully after verifying representative archive members as AArch64 ELF
+objects.

@@ -108,6 +108,11 @@ abstract class BuildLibvpxTask : BuildNativeLibraryTask() {
     ))
     val cppFlags = cFlags.joinToString(" ")
     val env = mapOf(
+      // Keep generated objects in the isolated build directory. The libvpx
+      // source checkout may contain stale .o/.d files from another ABI;
+      // without a build prefix GNU make can discover those through VPATH and
+      // silently reuse (for example) 32-bit ARM objects for an ARM64 build.
+      "BUILD_PFX" to "obj${File.separator}",
       "CFLAGS" to cppFlags,
       "CPPFLAGS" to cppFlags,
       "CXXFLAGS" to "$cppFlags -std=c++17",
@@ -218,7 +223,7 @@ abstract class BuildLibvpxTask : BuildNativeLibraryTask() {
 
     // set CONFIG_LIBYUV to 1
     val configHeader = requireFile(
-      build.resolve("vpx_config.h")
+      build.resolve("obj/vpx_config.h")
     )
     val contents = configHeader.readText().replace(
       Regex("(?<=^#define CONFIG_LIBYUV )(\\d+)", RegexOption.MULTILINE)
@@ -243,5 +248,16 @@ abstract class BuildLibvpxTask : BuildNativeLibraryTask() {
         )
       )
     )
+
+    // The generated install map uses a relative `libvpx.a` prerequisite. With
+    // VPATH pointing at the source checkout, a stale source-tree archive can
+    // be selected instead of the freshly built `obj/libvpx.a`. Copy the
+    // architecture-specific archive explicitly so the published output always
+    // matches the current toolchain/ABI.
+    fs.copy {
+      from(build.resolve("obj/libvpx.a"))
+      into(output.resolve("lib"))
+      rename { "libvpx.a" }
+    }
   }
 }
