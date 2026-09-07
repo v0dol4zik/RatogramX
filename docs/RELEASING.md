@@ -31,6 +31,17 @@ This checklist applies to public Ratogram X APK releases.
 
 ## Publish
 
+For a payload reproducibility check, compare a clean rebuild with the
+published APK. The helper excludes only `META-INF/` signature entries:
+
+```bash
+reproducible-builds/verify.sh published.apk rebuilt.apk
+```
+
+Set `REPRO_BUILD=1` to perform the rebuild in the pinned Ubuntu/JDK Docker
+image. Publish the resulting SHA-256 checksum beside each APK; signatures
+remain verified separately with `apksigner verify --print-certs`.
+
 - Tag the exact source commit used for the binaries.
 - Create a GitHub Release from that tag.
 - Attach APKs to the release instead of committing them to Git.

@@ -34,6 +34,11 @@
   <string name="Experiment_PartialQuotesInfo">Выбирать часть сообщения другого пользователя при создании цитаты. Функция находится в бета-версии и может работать некорректно.</string>
   <string name="Experiment_LocalPremium">Локальный Telegram Premium (бета)</string>
   <string name="Experiment_LocalPremiumInfo">Включает Premium-интерфейс и локальные проверки только на этом устройстве. После изменения переключателя экран приложения перезапускается для обновления кэшированного интерфейса. Серверные права и лимиты Telegram не меняются, поэтому отдельные действия всё равно могут завершиться ошибкой. Реализовано независимо по концепции AyuGram4A от Radolyn: https://github.com/AyuGram/AyuGram4A</string>
+  <string name="Experiment_MessageHistory">История сообщений (бета)</string>
+  <string name="Experiment_MessageHistoryInfo">Хранит текст сообщений до редактирования или удаления до 7 дней на этом устройстве. Медиа и сообщения каналов исключены. Это экспериментальная функция, чувствительная к приватности.</string>
+  <string name="ViewMessageHistory">Открыть сохранённую историю</string>
+  <string name="MessageDeletedLabel">Удалённое сообщение</string>
+  <string name="MessageEditHistory">История правок</string>
   <string name="GhostMode">Режим призрака (бета)</string>
   <string name="GhostModeInfo">Скрывает уведомления о прочтении, статус набора текста и статус «в сети». Это экспериментальная функция только на устройстве; в отдельных сценариях Telegram всё ещё может получить сведения об активности.</string>
   <string name="GhostNoRead">Скрывать уведомления о прочтении</string>

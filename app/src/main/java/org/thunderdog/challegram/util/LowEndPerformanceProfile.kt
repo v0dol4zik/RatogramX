@@ -60,20 +60,21 @@ object LowEndPerformanceProfile {
     val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
       ?: return Runtime.getRuntime().availableProcessors() <= 4
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && activityManager.isLowRamDevice) {
-      return true
-    }
-    if (activityManager.memoryClass <= LOW_MEMORY_CLASS_MIB) {
-      return true
-    }
-
     val memoryInfo = ActivityManager.MemoryInfo()
     activityManager.getMemoryInfo(memoryInfo)
-    if (memoryInfo.totalMem in 1..LOW_TOTAL_MEMORY_BYTES) {
-      return true
-    }
+    return evaluate(
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && activityManager.isLowRamDevice,
+      activityManager.memoryClass,
+      memoryInfo.totalMem,
+      Runtime.getRuntime().availableProcessors()
+    )
+  }
 
-    return Runtime.getRuntime().availableProcessors() <= 4 &&
-      memoryInfo.totalMem in 1..LIMITED_CPU_TOTAL_MEMORY_BYTES
+  /** Pure threshold logic kept separate so it can be verified on the JVM. */
+  @JvmStatic
+  fun evaluate(isLowRam: Boolean, memoryClassMiB: Int, totalMemBytes: Long, cpus: Int): Boolean {
+    if (isLowRam || memoryClassMiB <= LOW_MEMORY_CLASS_MIB) return true
+    if (totalMemBytes in 1..LOW_TOTAL_MEMORY_BYTES) return true
+    return cpus <= 4 && totalMemBytes in 1..LIMITED_CPU_TOTAL_MEMORY_BYTES
   }
 }

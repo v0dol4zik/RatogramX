@@ -862,6 +862,7 @@ if (generateBaselineProfile) {
 }
 
 dependencies {
+  testImplementation("junit:junit:4.13.2")
   sinceNougatImplementation(libs.androidx.profileinstaller)
   flavorImplementation(
     libs.androidx.tracing.legacy,

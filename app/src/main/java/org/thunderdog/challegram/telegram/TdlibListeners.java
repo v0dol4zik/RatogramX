@@ -33,6 +33,7 @@ import me.vkryl.core.reference.ReferenceList;
 import me.vkryl.core.reference.ReferenceLongMap;
 import me.vkryl.core.reference.ReferenceMap;
 import tgx.td.Td;
+import moe.kirao.mgx.utils.MessageHistoryStore;
 
 public class TdlibListeners {
   private final Tdlib tdlib;
@@ -674,6 +675,7 @@ public class TdlibListeners {
     List<TdApi.Message> messages = pendingMessages.get(update.chatId + "_" + update.messageId);
     if (messages != null) {
       for (TdApi.Message message : messages) {
+        if (MessageHistoryStore.isEnabled()) MessageHistoryStore.instance().recordPrevious(tdlib, message, "edited");
         message.content = update.newContent;
       }
     }
@@ -705,6 +707,7 @@ public class TdlibListeners {
     List<TdApi.Message> messages = pendingMessages.get(update.chatId + "_" + update.messageId);
     if (messages != null) {
       for (TdApi.Message message : messages) {
+        if (MessageHistoryStore.isEnabled()) MessageHistoryStore.instance().recordPrevious(tdlib, message, "edited");
         message.editDate = update.editDate;
         message.replyMarkup = update.replyMarkup;
       }
@@ -887,6 +890,17 @@ public class TdlibListeners {
   // updateDeleteMessages
 
   void updateMessagesDeleted (TdApi.UpdateDeleteMessages update) {
+    List<TdApi.Message> messages;
+    for (long messageId : update.messageIds) {
+      messages = pendingMessages.get(update.chatId + "_" + messageId);
+      if (messages != null && !messages.isEmpty()) {
+        for (TdApi.Message message : messages) {
+          if (MessageHistoryStore.isEnabled()) MessageHistoryStore.instance().recordPrevious(tdlib, message, "deleted");
+        }
+      } else {
+        if (MessageHistoryStore.isEnabled()) MessageHistoryStore.instance().markDeleted(tdlib, update.chatId, messageId);
+      }
+    }
     runMessageUpdate(update.chatId, listener ->
       listener.onMessagesDeleted(update.chatId, update.messageIds)
     );

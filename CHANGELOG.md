@@ -24,6 +24,10 @@ in development build metadata.
   baseline-profile verification.
 - Low-end first-run profile now avoids drawer blur and warms Ratogram settings
   off the first UI frame.
+- Experimental seven-day, size-limited local history for edited and deleted
+  text messages in private chats and groups.
+- Added JVM coverage for low-end thresholds, Ratogram bit masks, ghost flags,
+  and the downloaded-file search predicate.
 
 ### Added
 

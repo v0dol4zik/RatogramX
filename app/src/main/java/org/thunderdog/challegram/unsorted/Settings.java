@@ -446,6 +446,8 @@ public class Settings {
   public static final long EXPERIMENT_FLAG_PARTIAL_QUOTES = 1L << 6;
   /** Enables client-only Premium affordances without changing Telegram account state. */
   public static final long EXPERIMENT_FLAG_LOCAL_PREMIUM = 1L << 7;
+  /** Keeps a short-lived local journal of edited and deleted message text. */
+  public static final long EXPERIMENT_FLAG_MESSAGE_HISTORY = 1L << 8;
 
   public static final long REMOVED_EXPERIMENT_FLAG_ENABLE_FOLDERS = 1 << 1;
 
@@ -1455,6 +1457,14 @@ public class Settings {
 
   public void setLocalPremiumExperimentEnabled (boolean enabled) {
     setExperimentEnabled(EXPERIMENT_FLAG_LOCAL_PREMIUM, enabled);
+  }
+
+  public boolean isMessageHistoryExperimentEnabled () {
+    return isExperimentEnabled(EXPERIMENT_FLAG_MESSAGE_HISTORY);
+  }
+
+  public void setMessageHistoryExperimentEnabled (boolean enabled) {
+    setExperimentEnabled(EXPERIMENT_FLAG_MESSAGE_HISTORY, enabled);
   }
 
   public boolean setExperimentEnabled (long key, boolean enabled) {

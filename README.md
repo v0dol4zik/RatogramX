@@ -54,9 +54,16 @@ The full project lineage and attribution notes are documented in
 
 ## Screenshots
 
-The existing images in [`images/screenshots`](images/screenshots) originate
-from the Telegram X source tree and are retained as upstream documentation.
-Ratogram X-specific screenshots will be added before the first public release.
+The repository includes neutral Ratogram X interface previews in
+[`images/screenshots/ratogramx`](images/screenshots/ratogramx). They contain no
+real accounts or conversations and will be replaced with release-candidate
+captures before the first public release.
+
+![Search and downloads](images/screenshots/ratogramx/01.png)
+![Folder tabs](images/screenshots/ratogramx/02.png)
+![Ratogram settings](images/screenshots/ratogramx/03.png)
+![Profile](images/screenshots/ratogramx/04.png)
+![Navigation drawer](images/screenshots/ratogramx/05.png)
 
 ## Downloads
 

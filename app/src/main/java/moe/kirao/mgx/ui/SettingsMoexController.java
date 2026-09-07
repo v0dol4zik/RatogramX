@@ -35,6 +35,7 @@ import org.json.JSONObject;
 
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.MessageHistoryStore;
 
 public class SettingsMoexController extends RecyclerViewController<SettingsMoexController.Args> implements View.OnClickListener, View.OnLongClickListener, ActivityResultHandler {
   private static final int REQUEST_EXPORT_SETTINGS = 0x4d01;
@@ -174,6 +175,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_experimentalForums);
       adapter.updateValuedSettingById(R.id.btn_experimentalQuotes);
       adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
+      adapter.updateValuedSettingById(R.id.btn_experimentalMessageHistory);
       adapter.updateValuedSettingById(R.id.btn_folderTabs);
       adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
       adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
@@ -197,6 +199,13 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(viewId);
       // Premium-dependent controllers cache their capability state; rebuild them immediately.
       scheduleActivityRestart();
+    } else if (viewId == R.id.btn_experimentalMessageHistory) {
+      Settings.instance().setMessageHistoryExperimentEnabled(adapter.toggleView(v));
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_messageHistoryView) {
+      TextController controller = new TextController(context, tdlib);
+      controller.setArguments(TextController.Arguments.fromRawText(Lang.getString(R.string.MessageEditHistory), MessageHistoryStore.instance().dump(), "text/plain"));
+      navigateTo(controller);
     } else if (viewId == R.id.btn_ghostMode) {
       boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       MoexConfig.instance().toggleGhostMode();
@@ -583,6 +592,9 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         } else if (itemId == R.id.btn_experimentalLocalPremium) {
           view.getToggler().setRadioEnabled(Settings.instance().isLocalPremiumExperimentEnabled(), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_experimentalMessageHistory) {
+          view.getToggler().setRadioEnabled(Settings.instance().isMessageHistoryExperimentEnabled(), isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_ghostMode) {
           boolean experimentsAllowed = Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS);
           view.getToggler().setRadioEnabled(MoexConfig.ghostMode, isUpdate);
@@ -924,6 +936,12 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalLocalPremium, 0, R.string.Experiment_LocalPremium));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_LocalPremiumInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalMessageHistory, 0, R.string.Experiment_MessageHistory));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_messageHistoryView, 0, R.string.ViewMessageHistory));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_MessageHistoryInfo));
         break;
       default:
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.MoexAbout));

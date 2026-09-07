@@ -29,6 +29,7 @@ import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.UI;
+import moe.kirao.mgx.utils.DownloadedFilePredicate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1202,7 +1203,7 @@ public class SearchManager {
       final List<TdApi.Message> downloadedMessages = new ArrayList<>(foundMessages.messages.length);
       for (TdApi.Message message : foundMessages.messages) {
         TdApi.File file = TD.getFile(message);
-        if (file != null && file.local != null && file.local.isDownloadingCompleted) {
+        if (DownloadedFilePredicate.isDownloaded(file)) {
           downloadedMessages.add(message);
         }
       }

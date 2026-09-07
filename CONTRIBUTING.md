@@ -48,6 +48,12 @@ git diff --check
 JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleLatestArm64Debug
 ```
 
+For JVM unit tests, run:
+
+```bash
+JAVA_HOME=/path/to/jdk-21 ./gradlew :app:testLatestArm64DebugUnitTest
+```
+
 Test the affected flow on a real device or emulator. Mention anything that
 could not be tested in the pull request.
 

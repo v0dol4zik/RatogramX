@@ -78,6 +78,8 @@
   <item name="btn_experimentalForums" type="id" />
   <item name="btn_experimentalQuotes" type="id" />
   <item name="btn_experimentalLocalPremium" type="id" />
+  <item name="btn_experimentalMessageHistory" type="id" />
+  <item name="btn_messageHistoryView" type="id" />
   <item name="btn_ghostMode" type="id" />
   <item name="btn_ghostNoRead" type="id" />
   <item name="btn_ghostNoTyping" type="id" />
