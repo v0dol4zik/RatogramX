@@ -76,6 +76,8 @@ public class MoexConfig {
   public static final String KEY_DOUBLE_TAP_REACTION = "double_tap_reaction";
   public static final String KEY_SECURE_WINDOW = "secure_window";
   public static final String KEY_SECURE_ONLY_SECRET_CHATS = "secure_only_secret_chats";
+  public static final String KEY_CONFIRM_CALLS = "confirm_calls";
+  public static final String KEY_CONFIRM_VOICE = "confirm_voice";
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
   public static final int FOLDER_TABS_STYLE_ICONS = 1;
@@ -136,6 +138,8 @@ public class MoexConfig {
   public static boolean disableCameraButton = instance().getBoolean(KEY_DISABLE_CAMERA_BUTTON, false);
   public static boolean secureWindow = instance().getBoolean(KEY_SECURE_WINDOW, false);
   public static boolean secureOnlySecretChats = instance().getBoolean(KEY_SECURE_ONLY_SECRET_CHATS, false);
+  public static boolean confirmCalls = instance().getBoolean(KEY_CONFIRM_CALLS, false);
+  public static boolean confirmVoice = instance().getBoolean(KEY_CONFIRM_VOICE, false);
   public static boolean disableRecordButton = instance().getBoolean(KEY_DISABLE_RECORD_BUTTON, false);
   public static boolean disableCommandsButton = instance().getBoolean(KEY_DISABLE_COMMANDS_BUTTON, false);
   public static boolean disableSendAsButton = instance().getBoolean(KEY_DISABLE_SEND_AS_BUTTON, false);
@@ -475,6 +479,20 @@ public class MoexConfig {
     secureOnlySecretChats = !secureOnlySecretChats;
     putBoolean(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats);
     notifyClientListeners(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats, oldValue);
+  }
+
+  public void toggleConfirmCalls () {
+    boolean oldValue = confirmCalls;
+    confirmCalls = !confirmCalls;
+    putBoolean(KEY_CONFIRM_CALLS, confirmCalls);
+    notifyClientListeners(KEY_CONFIRM_CALLS, confirmCalls, oldValue);
+  }
+
+  public void toggleConfirmVoice () {
+    boolean oldValue = confirmVoice;
+    confirmVoice = !confirmVoice;
+    putBoolean(KEY_CONFIRM_VOICE, confirmVoice);
+    notifyClientListeners(KEY_CONFIRM_VOICE, confirmVoice, oldValue);
   }
 
   public void toggleHideBottomBar () {

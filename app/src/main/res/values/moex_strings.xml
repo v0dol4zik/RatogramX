@@ -71,6 +71,11 @@
   <string name="SecureWindow">Protect app in recent apps</string>
   <string name="SecureWindowInfo">Prevents screenshots and hides the app preview. Changes apply immediately.</string>
   <string name="SecureOnlySecretChats">Only in secret chats</string>
+  <string name="ConfirmActions">Confirm actions</string>
+  <string name="ConfirmActionsInfo">Ask before starting a call or sending a voice message.</string>
+  <string name="ConfirmCall">Confirm calls</string>
+  <string name="ConfirmVoice">Confirm voice messages</string>
+  <string name="ConfirmVoiceQuestion">Send this voice message?</string>
   <string name="PhoneHidden">Phone hidden</string>
   <string name="showIdProfile">Show User ID in profiles</string>
   <string name="DisableSendAsButton">Channels</string>

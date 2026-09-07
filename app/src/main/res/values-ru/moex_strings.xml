@@ -66,6 +66,11 @@
   <string name="SecureWindow">Защищать приложение в списке недавних</string>
   <string name="SecureWindowInfo">Запрещает скриншоты и скрывает превью приложения. Изменения применяются сразу.</string>
   <string name="SecureOnlySecretChats">Только в секретных чатах</string>
+  <string name="ConfirmActions">Подтверждение действий</string>
+  <string name="ConfirmActionsInfo">Спрашивать перед звонком или отправкой голосового сообщения.</string>
+  <string name="ConfirmCall">Подтверждать звонки</string>
+  <string name="ConfirmVoice">Подтверждать голосовые сообщения</string>
+  <string name="ConfirmVoiceQuestion">Отправить это голосовое сообщение?</string>
   <string name="PhoneHidden">Телефон скрыт</string>
   <string name="showIdProfile">Показывать ID в профиле</string>
   <string name="DisableSendAsButton">Каналы</string>

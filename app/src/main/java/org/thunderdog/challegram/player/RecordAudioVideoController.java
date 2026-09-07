@@ -63,6 +63,7 @@ import org.thunderdog.challegram.ui.MessagesController;
 import org.thunderdog.challegram.ui.camera.CameraControlButton;
 import org.thunderdog.challegram.ui.camera.CameraController;
 import org.thunderdog.challegram.unsorted.Settings;
+import moe.kirao.mgx.MoexConfig;
 import org.thunderdog.challegram.util.HapticMenuHelper;
 import org.thunderdog.challegram.widget.CircleFrameLayout;
 import org.thunderdog.challegram.widget.NoScrollTextView;
@@ -503,7 +504,7 @@ public class RecordAudioVideoController implements
           if (recordMode == RECORD_MODE_VIDEO_EDIT) {
             sendVideo(Td.newSendOptions());
           } else if (recordMode == RECORD_MODE_AUDIO_EDIT) {
-            sendAudio(Td.newSendOptions());
+            sendAudioWithConfirmation(Td.newSendOptions());
           }
         }
       });
@@ -1125,7 +1126,7 @@ public class RecordAudioVideoController implements
     sendHelper = tdlib.ui()
       .createSimpleHapticMenu(targetController, targetChatId, () -> editFactor == 1f, null, null, null, (sendOptions, disableMarkdown) -> {
         if (recordMode == RECORD_MODE_AUDIO_EDIT) {
-          sendAudio(sendOptions);
+          sendAudioWithConfirmation(sendOptions);
         } else {
           sendVideo(sendOptions);
         }
@@ -1440,7 +1441,7 @@ public class RecordAudioVideoController implements
         } else if (finalFactor == 1f && roundCloseMode == CLOSE_MODE_PREVIEW_SCHEDULE) {
           sendVideo(Td.newSendOptions());
         } else if (finalFactor == 1f && voiceCloseMode == CLOSE_MODE_PREVIEW_SCHEDULE) {
-          sendAudio(Td.newSendOptions());
+          sendAudioWithConfirmation(Td.newSendOptions());
         }
         break;
       }
@@ -1984,6 +1985,21 @@ public class RecordAudioVideoController implements
     if (recordMode == RECORD_MODE_AUDIO_EDIT) {
       closeAudioEditMode(initialSendOptions);
     }
+  }
+
+  private void sendAudioWithConfirmation (@NonNull TdApi.MessageSendOptions initialSendOptions) {
+    if (!MoexConfig.confirmVoice) {
+      sendAudio(initialSendOptions);
+      return;
+    }
+    targetController.showOptions(Lang.getString(R.string.ConfirmVoiceQuestion),
+      new int[] {R.id.btn_send, R.id.btn_cancel},
+      new String[] {Lang.getString(R.string.Send), Lang.getString(R.string.Cancel)}, null,
+      new int[] {R.drawable.baseline_send_24, R.drawable.baseline_cancel_24},
+      (itemView, id) -> {
+        if (id == R.id.btn_send) sendAudio(initialSendOptions);
+        return true;
+      });
   }
 
   private void closeAudioEditMode (TdApi.MessageSendOptions initialSendOptions) {

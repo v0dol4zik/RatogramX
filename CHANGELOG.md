@@ -17,6 +17,7 @@ in development build metadata.
   reply, copy, translate, or forward.
 - Optional screenshot and Recents-preview protection, globally or only while
   a secret chat is open.
+- Optional confirmation before calls and voice-message sends.
 
 ### Added
 

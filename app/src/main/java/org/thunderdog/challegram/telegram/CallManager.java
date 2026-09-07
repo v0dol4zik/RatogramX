@@ -42,6 +42,7 @@ import org.thunderdog.challegram.tool.Intents;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.ui.CallController;
 import org.thunderdog.challegram.unsorted.Settings;
+import moe.kirao.mgx.MoexConfig;
 import org.thunderdog.challegram.voip.VoIP;
 import org.thunderdog.challegram.voip.VoIPServerConfig;
 import org.thunderdog.challegram.voip.gui.CallSettings;
@@ -339,7 +340,7 @@ debugCall id:long debug:string = Ok;
   }
 
   public void makeCall (final ViewController<?> context,final long userId, @Nullable TdApi.UserFullInfo userFull) {
-    makeCall(context, userId, userFull, Settings.instance().needOutboundCallsPrompt());
+    makeCall(context, userId, userFull, MoexConfig.confirmCalls || Settings.instance().needOutboundCallsPrompt());
   }
 
   public void makeCall (final ViewController<?> context, final long userId, @Nullable TdApi.UserFullInfo userFull, final boolean needPrompt) {

@@ -191,6 +191,12 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       MoexConfig.instance().toggleSecureOnlySecretChats();
       adapter.updateValuedSettingById(viewId);
       context().checkDisallowScreenshots();
+    } else if (viewId == R.id.btn_confirmCalls) {
+      MoexConfig.instance().toggleConfirmCalls();
+      adapter.updateValuedSettingById(viewId);
+    } else if (viewId == R.id.btn_confirmVoice) {
+      MoexConfig.instance().toggleConfirmVoice();
+      adapter.updateValuedSettingById(viewId);
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -580,6 +586,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         } else if (itemId == R.id.btn_secureOnlySecretChats) {
           view.getToggler().setRadioEnabled(MoexConfig.secureOnlySecretChats, isUpdate);
           view.setEnabledAnimated(MoexConfig.secureWindow, isUpdate);
+        } else if (itemId == R.id.btn_confirmCalls) {
+          view.getToggler().setRadioEnabled(MoexConfig.confirmCalls, isUpdate);
+        } else if (itemId == R.id.btn_confirmVoice) {
+          view.getToggler().setRadioEnabled(MoexConfig.confirmVoice, isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
         } else if (itemId == R.id.btn_changeSizeLimit) {
@@ -728,6 +738,13 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_secureOnlySecretChats, 0, R.string.SecureOnlySecretChats));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.SecureWindowInfo));
+        items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ConfirmActions));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_confirmCalls, 0, R.string.ConfirmCall));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_confirmVoice, 0, R.string.ConfirmVoice));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.ConfirmActionsInfo));
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ProfileOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
