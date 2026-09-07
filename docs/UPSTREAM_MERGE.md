@@ -37,3 +37,25 @@ Upstream moves AndroidX Media into app/thirdparty, updates FFmpeg/libvpx/Opus
 and replaces native shell scripts with Gradle tasks. The Ratogram ARM64
 setup wrapper must be adapted. Conflicts and validation will be recorded
 here during integration.
+
+### Resolved conflicts
+
+- `README.md`: retained Ratogram X branding, build instructions, notices, and
+  release guidance while incorporating the upstream version context.
+- `scripts/private/build-ffmpeg-impl.sh` and `scripts/private/build-vpx-impl.sh`:
+  retained the Ratogram-compatible legacy wrappers; upstream's new Gradle
+  native tasks remain the canonical path for 1807.
+- `scripts/setup-arm64-dev.sh`: changed the wrapper to invoke the upstream
+  Gradle tasks for Opus, AndroidX Media, libvpx, and FFmpeg.
+
+### Submodules
+
+The 1807 revisions for FFmpeg, libvpx, Opus, and AndroidX Media were checked
+out. Local generated native build directories and the pre-existing modified
+TDLib checkout remain outside the merge commit.
+
+### Validation
+
+Conflict markers and staged whitespace errors were checked before the merge
+commit. Java compilation and the ARM64 development assemble are run after the
+merge commit because both depend on the relocated AndroidX Media worktrees.

@@ -1,17 +1,7 @@
 #!/bin/bash
-set -e
-
-TARGET_FLAVORS="${FLAVORS:-latest}"
-TARGET_ABIS="${ABIS:-arm64-v8a}"
-
-# shellcheck source=set-env.sh
-source "$(pwd)/scripts/set-env.sh"
-export FLAVORS="$TARGET_FLAVORS"
-export ABIS="$TARGET_ABIS"
-
-patch-opus-impl.sh
-patch-androidx-media-impl.sh
-build-vpx-impl.sh
-build-ffmpeg-impl.sh
-
-echo "ARM64 development dependencies are ready for: ${FLAVORS}"
+set -euo pipefail
+cd "$(dirname "$0")/.."
+# Upstream 1807 builds out of tree; dependencies must be initialized first.
+exec ./gradlew :app:patchOpus :app:patchJetpackMediaLatest \
+  :app:buildLibvpxLatestArm64 :app:buildFfmpegLatestArm64 \
+  -PratogramxDevPackage=true --max-workers=2 "$@"
