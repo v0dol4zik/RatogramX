@@ -7,6 +7,7 @@ import android.view.View;
 import android.widget.Toast;
 
 import org.thunderdog.challegram.R;
+import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.component.base.SettingView;
 import org.thunderdog.challegram.config.Config;
@@ -20,10 +21,12 @@ import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.ui.ListItem;
 import org.thunderdog.challegram.ui.RecyclerViewController;
 import org.thunderdog.challegram.ui.SettingsAdapter;
+import org.thunderdog.challegram.ui.TextController;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.v.CustomRecyclerView;
 
 import java.util.ArrayList;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -105,6 +108,25 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       intent.addCategory(Intent.CATEGORY_OPENABLE);
       context().putActivityResultHandler(REQUEST_IMPORT_SETTINGS, this);
       context().startActivityForResult(intent, REQUEST_IMPORT_SETTINGS);
+    } else if (viewId == R.id.btn_sendCrashReport) {
+      Log.getLogFiles(result -> UI.post(() -> {
+        File latestCrash = null;
+        if (result != null) {
+          for (File file : result.files) {
+            if (file.getName().startsWith(Log.CRASH_PREFIX)) {
+              latestCrash = file;
+              break;
+            }
+          }
+        }
+        if (latestCrash == null) {
+          UI.showToast(R.string.NoCrashReport, Toast.LENGTH_SHORT);
+        } else if (!isDestroyed()) {
+          TextController controller = new TextController(context, tdlib);
+          controller.setArguments(TextController.Arguments.fromFile(Lang.getString(R.string.SendCrashReport), latestCrash.getPath(), "text/plain"));
+          navigateTo(controller);
+        }
+      }));
     } else if (viewId == R.id.btn_ExperimentalMoexSettings) {
       c.setArguments(new SettingsMoexController.Args(SettingsMoexController.CATEGORY_EXPERIMENTAL));
       navigateTo(c);
@@ -907,6 +929,9 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.MoexAbout));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, Lang.getMarkdownString(this, R.string.MoexAboutText), false));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_sendCrashReport, R.drawable.baseline_bug_report_24, R.string.SendCrashReport));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.MoexCategories));

@@ -19,6 +19,7 @@ in development build metadata.
   a secret chat is open.
 - Optional confirmation before calls and voice-message sends.
 - JSON export and import for Ratogram X settings without account data.
+- Local access to the latest on-device crash report from Ratogram X settings.
 
 ### Added
 
