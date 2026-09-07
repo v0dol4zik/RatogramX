@@ -14,6 +14,10 @@ obj
 
 /builds
 
+# Locally provisioned native source trees (large and generated outside Git).
+/app/jni/third_party/ffmpeg/
+/app/jni/third_party/libvpx/
+
 /captures
 /local.properties
 /keystore.properties

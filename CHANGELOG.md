@@ -20,6 +20,8 @@ in development build metadata.
 - Optional confirmation before calls and voice-message sends.
 - JSON export and import for Ratogram X settings without account data.
 - Local access to the latest on-device crash report from Ratogram X settings.
+- Documented native dependency scope, ignored local source trees, and
+  baseline-profile verification.
 
 ### Added
 

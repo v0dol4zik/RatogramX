@@ -22,6 +22,12 @@ This checklist applies to public Ratogram X APK releases.
 - Test login, messaging, calls, notifications, media, search, profile flows,
   app icon switching, and upgrade from the previous release.
 - Run `git diff --check` and the repository hygiene script.
+- For profile-enabled variants, pass `-PgenerateBaselineProfile=true`, run
+  the baseline-profile producer on a representative device, and verify the
+  APK contains `baseline-prof.txt` with
+  `unzip -l app.apk | grep baseline`.
+- Native dependency scope and local source-tree handling are documented in
+  `docs/NATIVE_DEPENDENCIES.md`.
 
 ## Publish
 
