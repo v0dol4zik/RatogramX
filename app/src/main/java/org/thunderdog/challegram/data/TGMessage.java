@@ -5190,6 +5190,23 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     return !isSponsoredMessage() && !isEventLog() && !Td.isEmpty(messageAvailableReactions) && !MoexConfig.disableReactions && (tdlib.hasPremium() || Td.hasNonPremiumReactions(messageAvailableReactions));
   }
 
+  public boolean performDoubleTapReaction (@NonNull String reactionString) {
+    TdApi.ReactionType reactionType = TD.toReactionType(reactionString);
+    TGReaction reaction = tdlib.getReaction(reactionType);
+    if (reaction == null || !canSendReaction(reactionType)) return false;
+    boolean hasReaction = messageReactions.hasReaction(reactionType);
+    if (Config.DISABLE_ANONYMOUS_NON_OWNER_REACTIONS && !hasReaction && tdlib.isAnonymousAdminNonCreator(msg.chatId)) {
+      showContentHint(findCurrentView(), null, R.string.error_ANONYMOUS_REACTIONS_DISABLED);
+      return true;
+    }
+    if (!Config.PROTECT_ANONYMOUS_REACTIONS || hasReaction || !canGetAddedReactions() || messagesController().callNonAnonymousProtection(getId() + reaction.hashCode(), null)) {
+      if (messageReactions.toggleReaction(reactionType, false, false, handler(findCurrentView(), null, () -> {}))) {
+        scheduleSetReactionAnimation(new NextReactionAnimation(reaction, NextReactionAnimation.TYPE_QUICK));
+      }
+    }
+    return true;
+  }
+
   public boolean canBeSaved () {
     return msg.canBeSaved;
   }

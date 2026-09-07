@@ -13,6 +13,8 @@ in development build metadata.
   optional text/icon styles, and an independent beta toggle.
 - Experimental configurable left-swipe actions for chats: archive, mute, pin,
   mark read/unread, or delete with the existing confirmation flow.
+- Experimental configurable double-tap actions for text messages: reaction,
+  reply, copy, translate, or forward.
 
 ### Added
 

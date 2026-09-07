@@ -72,6 +72,8 @@ public class MoexConfig {
   public static final String KEY_FOLDER_TABS = "folder_tabs";
   public static final String KEY_FOLDER_TABS_STYLE = "folder_tabs_style";
   public static final String KEY_CHAT_SWIPE_ACTION = "chat_swipe_action";
+  public static final String KEY_DOUBLE_TAP_ACTION = "double_tap_action";
+  public static final String KEY_DOUBLE_TAP_REACTION = "double_tap_reaction";
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
   public static final int FOLDER_TABS_STYLE_ICONS = 1;
@@ -82,6 +84,13 @@ public class MoexConfig {
   public static final int SWIPE_PIN = 3;
   public static final int SWIPE_READ = 4;
   public static final int SWIPE_DELETE = 5;
+  public static final int DOUBLE_TAP_NONE = 0;
+  public static final int DOUBLE_TAP_REACTION = 1;
+  public static final int DOUBLE_TAP_REPLY = 2;
+  public static final int DOUBLE_TAP_COPY = 3;
+  public static final int DOUBLE_TAP_TRANSLATE = 4;
+  public static final int DOUBLE_TAP_FORWARD = 5;
+  public static final String DEFAULT_DOUBLE_TAP_REACTION = "❤";
 
   public static final int GHOST_NO_READ = 1;
   public static final int GHOST_NO_TYPING = 1 << 1;
@@ -540,6 +549,33 @@ public class MoexConfig {
     if (oldValue == value) return;
     if (value == SWIPE_NONE) remove(KEY_CHAT_SWIPE_ACTION); else putInt(KEY_CHAT_SWIPE_ACTION, value);
     notifyClientListeners(KEY_CHAT_SWIPE_ACTION, value, oldValue);
+  }
+
+  public int getDoubleTapAction () {
+    int value = getInt(KEY_DOUBLE_TAP_ACTION, DOUBLE_TAP_NONE);
+    return value >= DOUBLE_TAP_NONE && value <= DOUBLE_TAP_FORWARD ? value : DOUBLE_TAP_NONE;
+  }
+
+  @NonNull
+  public String getDoubleTapReaction () {
+    String value = getString(KEY_DOUBLE_TAP_REACTION, DEFAULT_DOUBLE_TAP_REACTION);
+    return value == null || value.isEmpty() ? DEFAULT_DOUBLE_TAP_REACTION : value;
+  }
+
+  public void setDoubleTapAction (int value) {
+    int oldValue = getDoubleTapAction();
+    if (value < DOUBLE_TAP_NONE || value > DOUBLE_TAP_FORWARD) value = DOUBLE_TAP_NONE;
+    if (oldValue == value) return;
+    if (value == DOUBLE_TAP_NONE) remove(KEY_DOUBLE_TAP_ACTION); else putInt(KEY_DOUBLE_TAP_ACTION, value);
+    notifyClientListeners(KEY_DOUBLE_TAP_ACTION, value, oldValue);
+  }
+
+  public void setDoubleTapReaction (@NonNull String value) {
+    if (value.isEmpty()) value = DEFAULT_DOUBLE_TAP_REACTION;
+    String oldValue = getDoubleTapReaction();
+    if (oldValue.equals(value)) return;
+    putString(KEY_DOUBLE_TAP_REACTION, value);
+    notifyClientListeners(KEY_DOUBLE_TAP_REACTION, value, oldValue);
   }
 
   public void setFolderTabsStyle (int value) {

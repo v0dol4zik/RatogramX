@@ -55,6 +55,14 @@
   <string name="SwipePin">Закрепить / открепить</string>
   <string name="SwipeRead">Отметить прочитанным / непрочитанным</string>
   <string name="SwipeDelete">Удалить</string>
+  <string name="DoubleTapAction">Действие двойного тапа (бета)</string>
+  <string name="DoubleTapActionInfo">Двойной тап по текстовому сообщению выполняет выбранное действие.</string>
+  <string name="DoubleTapNone">Отключено</string>
+  <string name="DoubleTapReaction">Реакция %s</string>
+  <string name="DoubleTapReply">Ответить</string>
+  <string name="DoubleTapCopy">Копировать</string>
+  <string name="DoubleTapTranslate">Перевести</string>
+  <string name="DoubleTapForward">Переслать</string>
   <string name="PhoneHidden">Телефон скрыт</string>
   <string name="showIdProfile">Показывать ID в профиле</string>
   <string name="DisableSendAsButton">Каналы</string>

@@ -12619,6 +12619,36 @@ public class MessagesController extends ViewController<MessagesController.Argume
     message.stopTranslated();
   }
 
+  public boolean performDoubleTapAction (@NonNull TGMessage message, int action) {
+    switch (action) {
+      case MoexConfig.DOUBLE_TAP_REACTION:
+        return message.performDoubleTapReaction(MoexConfig.instance().getDoubleTapReaction());
+      case MoexConfig.DOUBLE_TAP_REPLY: {
+        TdApi.Message current = message.getNewestMessage();
+        message.getMessageProperties(current.id, properties -> runOnUiThreadOptional(() -> {
+          if (properties != null) showReply(new MessageWithProperties(current, properties), null, 0, "", true, true);
+        }));
+        return true;
+      }
+      case MoexConfig.DOUBLE_TAP_COPY: {
+        if (!message.canBeSaved()) return false;
+        TdApi.FormattedText text = Td.textOrCaption(message.getNewestMessage().content);
+        if (text != null) UI.copyText(TD.toCopyText(text), R.string.CopiedText);
+        return true;
+      }
+      case MoexConfig.DOUBLE_TAP_TRANSLATE:
+        if (!message.isTranslatable()) return false;
+        startTranslateMessages(message);
+        return true;
+      case MoexConfig.DOUBLE_TAP_FORWARD:
+        if (!message.canBeForwarded()) return false;
+        shareMessages(message.getAllMessages(), false);
+        return true;
+      default:
+        return false;
+    }
+  }
+
   /**/
 
   private boolean textInputHasSelection;

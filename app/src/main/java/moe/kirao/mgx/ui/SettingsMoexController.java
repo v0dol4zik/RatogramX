@@ -133,6 +133,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_folderTabs);
       adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
       adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
+      adapter.updateValuedSettingById(R.id.btn_doubleTapAction);
       adapter.updateValuedSettingById(R.id.btn_showIdProfile);
       updateGhostModeSettings();
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
@@ -180,6 +181,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       showFolderTabsStyleOptions();
     } else if (viewId == R.id.btn_chatSwipeAction) {
       showChatSwipeActionOptions();
+    } else if (viewId == R.id.btn_doubleTapAction) {
+      showDoubleTapActionOptions();
     } else if (viewId == R.id.btn_hideMessagesBadge) {
       MoexConfig.instance().toggleHideMessagesBadge();
       adapter.updateValuedSettingById(viewId);
@@ -444,6 +447,28 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     }));
   }
 
+  private void showDoubleTapActionOptions () {
+    int selected = MoexConfig.instance().getDoubleTapAction();
+    showSettings(new SettingsWrapBuilder(R.id.btn_doubleTapAction).setRawItems(new ListItem[] {
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapNone, 0, R.string.DoubleTapNone, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_NONE),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapReaction, 0, Lang.getString(R.string.DoubleTapReaction, MoexConfig.instance().getDoubleTapReaction()), R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_REACTION),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapReply, 0, R.string.DoubleTapReply, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_REPLY),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapCopy, 0, R.string.DoubleTapCopy, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_COPY),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapTranslate, 0, R.string.DoubleTapTranslate, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_TRANSLATE),
+      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapForward, 0, R.string.DoubleTapForward, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_FORWARD)
+    }).setAllowResize(false).setIntDelegate((id, result) -> {
+      int resultId = result.get(R.id.btn_doubleTapAction);
+      int action = resultId == R.id.doubleTapReaction ? MoexConfig.DOUBLE_TAP_REACTION
+        : resultId == R.id.doubleTapReply ? MoexConfig.DOUBLE_TAP_REPLY
+        : resultId == R.id.doubleTapCopy ? MoexConfig.DOUBLE_TAP_COPY
+        : resultId == R.id.doubleTapTranslate ? MoexConfig.DOUBLE_TAP_TRANSLATE
+        : resultId == R.id.doubleTapForward ? MoexConfig.DOUBLE_TAP_FORWARD
+        : MoexConfig.DOUBLE_TAP_NONE;
+      MoexConfig.instance().setDoubleTapAction(action);
+      adapter.updateValuedSettingById(R.id.btn_doubleTapAction);
+    }));
+  }
+
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     adapter = new SettingsAdapter(this) {
@@ -531,6 +556,16 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
             : action == MoexConfig.SWIPE_READ ? R.string.SwipeRead
             : action == MoexConfig.SWIPE_DELETE ? R.string.SwipeDelete
             : R.string.SwipeNone);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_doubleTapAction) {
+          int action = MoexConfig.instance().getDoubleTapAction();
+          if (action == MoexConfig.DOUBLE_TAP_REACTION) {
+            view.setData(Lang.getString(R.string.DoubleTapReaction, MoexConfig.instance().getDoubleTapReaction()));
+          } else view.setData(action == MoexConfig.DOUBLE_TAP_REPLY ? R.string.DoubleTapReply
+            : action == MoexConfig.DOUBLE_TAP_COPY ? R.string.DoubleTapCopy
+            : action == MoexConfig.DOUBLE_TAP_TRANSLATE ? R.string.DoubleTapTranslate
+            : action == MoexConfig.DOUBLE_TAP_FORWARD ? R.string.DoubleTapForward
+            : R.string.DoubleTapNone);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_hideMessagesBadge) {
           view.getToggler().setRadioEnabled(MoexConfig.hideMessagesBadge, isUpdate);
@@ -790,6 +825,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_chatSwipeAction, 0, R.string.ChatSwipeAction));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.ChatSwipeActionInfo));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_doubleTapAction, 0, R.string.DoubleTapAction));
+        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.DoubleTapActionInfo));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalQuotes, 0, R.string.Experiment_PartialQuotes));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));

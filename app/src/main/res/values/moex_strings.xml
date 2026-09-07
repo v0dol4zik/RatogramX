@@ -60,6 +60,14 @@
   <string name="SwipePin">Pin / unpin</string>
   <string name="SwipeRead">Mark read / unread</string>
   <string name="SwipeDelete">Delete</string>
+  <string name="DoubleTapAction">Double-tap action (Beta)</string>
+  <string name="DoubleTapActionInfo">Double-tap a text message to perform the selected action.</string>
+  <string name="DoubleTapNone">Disabled</string>
+  <string name="DoubleTapReaction">React with %s</string>
+  <string name="DoubleTapReply">Reply</string>
+  <string name="DoubleTapCopy">Copy</string>
+  <string name="DoubleTapTranslate">Translate</string>
+  <string name="DoubleTapForward">Forward</string>
   <string name="PhoneHidden">Phone hidden</string>
   <string name="showIdProfile">Show User ID in profiles</string>
   <string name="DisableSendAsButton">Channels</string>

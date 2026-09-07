@@ -95,6 +95,13 @@
   <item name="chatSwipePin" type="id" />
   <item name="chatSwipeRead" type="id" />
   <item name="chatSwipeDelete" type="id" />
+  <item name="btn_doubleTapAction" type="id" />
+  <item name="doubleTapNone" type="id" />
+  <item name="doubleTapReaction" type="id" />
+  <item name="doubleTapReply" type="id" />
+  <item name="doubleTapCopy" type="id" />
+  <item name="doubleTapTranslate" type="id" />
+  <item name="doubleTapForward" type="id" />
   <item name="menu_btn_ghostMode" type="id" />
   <item name="btn_profileNote" type="id" />
   <item name="btn_profileNote_copy" type="id" />
