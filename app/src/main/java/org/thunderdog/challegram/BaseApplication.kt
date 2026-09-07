@@ -25,6 +25,8 @@ import org.thunderdog.challegram.telegram.TdlibNotificationUtils
 import org.thunderdog.challegram.tool.UI
 import org.thunderdog.challegram.unsorted.Settings
 import org.thunderdog.challegram.util.LowEndPerformanceProfile
+import moe.kirao.mgx.MoexConfig
+import org.thunderdog.challegram.core.Background
 import tgx.bridge.DeviceTokenRetriever
 import tgx.bridge.DeviceTokenRetrieverFactory
 import tgx.bridge.PushManagerBridge
@@ -59,6 +61,7 @@ class BaseApplication : TgxApplication(), Configuration.Provider {
     )
 
     UI.initApp(applicationContext)
+    Background.instance().post { MoexConfig.instance() }
     LowEndPerformanceProfile.applyInitialDefaults(applicationContext)
 
     if (!BuildConfig.EXPERIMENTAL) {

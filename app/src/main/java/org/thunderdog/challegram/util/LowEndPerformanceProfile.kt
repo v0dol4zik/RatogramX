@@ -13,6 +13,8 @@ import android.content.Context
 import android.os.Build
 import org.thunderdog.challegram.Log
 import org.thunderdog.challegram.unsorted.Settings
+import moe.kirao.mgx.MoexConfig
+import org.thunderdog.challegram.core.Background
 
 /**
  * Selects conservative first-run defaults on devices where animated media and
@@ -23,7 +25,7 @@ import org.thunderdog.challegram.unsorted.Settings
  */
 object LowEndPerformanceProfile {
   private const val PROFILE_VERSION_KEY = "ratogramx_low_end_profile_version"
-  private const val PROFILE_VERSION = 1
+  private const val PROFILE_VERSION = 2
   private const val LOW_MEMORY_CLASS_MIB = 192
   private const val LOW_TOTAL_MEMORY_BYTES = 3L * 1024L * 1024L * 1024L
   private const val LIMITED_CPU_TOTAL_MEMORY_BYTES = 4L * 1024L * 1024L * 1024L
@@ -40,6 +42,13 @@ object LowEndPerformanceProfile {
       settings.setReduceMotion(true)
       settings.setNewSetting(Settings.SETTING_FLAG_LIMIT_STICKERS_FPS, true)
       settings.setNewSetting(Settings.SETTING_FLAG_NO_ANIMATED_STICKERS_LOOP, true)
+      Background.instance().post {
+        val moex = MoexConfig.instance()
+        if (!moex.containsKey(MoexConfig.KEY_BLUR_DRAWER)) {
+          moex.putBoolean(MoexConfig.KEY_BLUR_DRAWER, false)
+          MoexConfig.blurDrawer = false
+        }
+      }
       Log.i("Applied Ratogram X low-end performance defaults")
     }
 

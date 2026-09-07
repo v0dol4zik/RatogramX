@@ -22,6 +22,8 @@ in development build metadata.
 - Local access to the latest on-device crash report from Ratogram X settings.
 - Documented native dependency scope, ignored local source trees, and
   baseline-profile verification.
+- Low-end first-run profile now avoids drawer blur and warms Ratogram settings
+  off the first UI frame.
 
 ### Added
 

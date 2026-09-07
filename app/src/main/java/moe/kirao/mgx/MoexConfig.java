@@ -15,7 +15,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import org.json.JSONException;
 import org.json.JSONObject;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import me.vkryl.core.reference.ReferenceList;
 import me.vkryl.leveldb.LevelDB;
@@ -24,7 +23,6 @@ import moe.kirao.mgx.utils.SystemUtils;
 public class MoexConfig {
 
   private static final int VERSION = 1;
-  private static final AtomicBoolean hasInstance = new AtomicBoolean(false);
   private static volatile MoexConfig instance;
   private final LevelDB config;
   private static final String KEY_VERSION = "version";
@@ -230,14 +228,12 @@ public class MoexConfig {
   public static MoexConfig instance () {
     if (instance == null) {
       synchronized (MoexConfig.class) {
-        if (instance == null) {
-          if (hasInstance.getAndSet(true)) throw new AssertionError();
-          instance = new MoexConfig();
-        }
+        if (instance == null) instance = new MoexConfig();
       }
     }
     return instance;
   }
+
 
   public LevelDB edit () {
     return config.edit();
