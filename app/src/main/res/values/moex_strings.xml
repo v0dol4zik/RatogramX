@@ -51,7 +51,7 @@
   <string name="GhostOffline">Appear offline</string>
   <string name="GhostModeEnabledToast">Ghost mode settings applied</string>
   <string name="FolderTabs">Chat folders as tabs (Beta)</string>
-  <string name="FolderTabsInfo">Show Telegram chat folders as tabs above the chat list. This beta feature may not work correctly.</string>
+  <string name="FolderTabsInfo">Changes how Telegram X\'s standard chat folder tabs are displayed. This beta feature may not work correctly.</string>
   <string name="FolderTabsStyle">Folder tabs style</string>
   <string name="FolderTabsStyleUpstream">Telegram X default</string>
   <string name="FolderTabsStyleText">Text only</string>

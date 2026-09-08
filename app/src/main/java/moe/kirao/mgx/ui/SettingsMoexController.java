@@ -176,7 +176,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_experimentalQuotes);
       adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
       adapter.updateValuedSettingById(R.id.btn_experimentalMessageHistory);
-      adapter.updateValuedSettingById(R.id.btn_folderTabs);
       adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
       adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
       adapter.updateValuedSettingById(R.id.btn_doubleTapAction);
@@ -227,9 +226,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
         tdlib.refreshOnlineStatus();
       }
-    } else if (viewId == R.id.btn_folderTabs) {
-      MoexConfig.instance().toggleFolderTabs();
-      adapter.updateValuedSettingById(viewId);
     } else if (viewId == R.id.btn_folderTabsStyle) {
       showFolderTabsStyleOptions();
     } else if (viewId == R.id.btn_chatSwipeAction) {
@@ -580,7 +576,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
           view.getToggler().setRadioEnabled(MoexConfig.enableTestFeatures, isUpdate);
         } else if (itemId == R.id.btn_showIdProfile) {
           view.getToggler().setRadioEnabled(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_SHOW_PEER_IDS), isUpdate);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.folderTabs, isUpdate);
         } else if (itemId == R.id.btn_experimentalAllow) {
           view.getToggler().setRadioEnabled(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_experimentalForums) {
@@ -608,16 +603,13 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         } else if (itemId == R.id.btn_ghostOffline) {
           view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_OFFLINE), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
-        } else if (itemId == R.id.btn_folderTabs) {
-          view.getToggler().setRadioEnabled(MoexConfig.folderTabs, isUpdate);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
         } else if (itemId == R.id.btn_folderTabsStyle) {
           int style = MoexConfig.instance().getFolderTabsStyle();
           view.setData(style == MoexConfig.FOLDER_TABS_STYLE_TEXT ? R.string.FolderTabsStyleText
             : style == MoexConfig.FOLDER_TABS_STYLE_ICONS ? R.string.FolderTabsStyleIcons
             : style == MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS ? R.string.FolderTabsStyleTextIcons
             : R.string.FolderTabsStyleUpstream);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.folderTabs, isUpdate);
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && Settings.instance().chatFoldersEnabled(), isUpdate);
         } else if (itemId == R.id.btn_chatSwipeAction) {
           int action = MoexConfig.instance().getChatSwipeAction();
           view.setData(action == MoexConfig.SWIPE_ARCHIVE ? R.string.SwipeArchive
@@ -915,8 +907,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_ForumsInfo));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
-        items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_folderTabs, 0, R.string.FolderTabs));
-        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_folderTabsStyle, 0, R.string.FolderTabsStyle));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.FolderTabsInfo));

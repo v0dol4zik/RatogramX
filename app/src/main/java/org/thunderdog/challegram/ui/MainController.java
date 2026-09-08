@@ -198,9 +198,8 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
       toggleHeaderView.setTitle(getCustomTitleName(), false);
     } else if (key.equals(MoexConfig.KEY_SHOW_SEARCH_TABS)) {
       setGlobalSearchTabsEnabled((Boolean) newSettings);
-    } else if (key.equals(MoexConfig.KEY_FOLDER_TABS) || key.equals(MoexConfig.KEY_FOLDER_TABS_STYLE)) {
-      // Folder tabs are an opt-in Ratogram X experiment layered over Telegram X's
-      // existing folder pager. Rebuild the pager immediately when toggled.
+    } else if (key.equals(MoexConfig.KEY_FOLDER_TABS_STYLE)) {
+      // Keep Telegram X's native folder pager and only override its presentation.
       updatePagerSections(true);
       checkTabs();
       checkMenu();
@@ -1025,9 +1024,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   @Override
   public void onPrepareToShow () {
     super.onPrepareToShow();
-    boolean shouldShowFolderTabs = MoexConfig.folderTabs
-      && Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
-      && Settings.instance().chatFoldersEnabled();
+    boolean shouldShowFolderTabs = Settings.instance().chatFoldersEnabled();
     if (shouldShowFolderTabs != !pagerChatLists.isEmpty()) {
       updatePagerSections(true);
     }
@@ -1965,9 +1962,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   private @Filter int globalFilter = FILTER_NONE;
 
   private boolean hasFolders () {
-    return MoexConfig.folderTabs
-      && Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
-      && Settings.instance().chatFoldersEnabled()
+    return Settings.instance().chatFoldersEnabled()
       && !pagerChatLists.isEmpty();
   }
 
@@ -3050,8 +3045,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   }
 
   private void initPagerSections () {
-    if (MoexConfig.folderTabs && Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
-      && Settings.instance().chatFoldersEnabled()) {
+    if (Settings.instance().chatFoldersEnabled()) {
       updatePagerSections(true);
     }
   }
@@ -3068,8 +3062,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
 
   private void updatePagerSections (TdApi.ChatFolderInfo[] chatFolders, int mainChatListPosition, int archiveChatListPosition) {
     boolean oldHasFolders = hasFolders();
-    if (!MoexConfig.folderTabs || !Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)
-      || !Settings.instance().chatFoldersEnabled()) {
+    if (!Settings.instance().chatFoldersEnabled()) {
       this.pagerSections = Collections.emptyList();
       this.pagerChatLists = Collections.emptyList();
       this.chatFolderInfos = null;
@@ -3400,7 +3393,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
     private void dispatchCounter (TdApi.ChatList chatList, TdlibCounter counter) {
       long itemId = getPagerItemId(chatList);
       int positionToUpdate = getPagerItemPosition(itemId);
-      if (positionToUpdate != NO_POSITION) {
+      if (positionToUpdate >= 0 && positionToUpdate < pagerSections.size()) {
         ViewPagerTopView.Item pagerSection = pagerSections.get(positionToUpdate);
         if (pagerSection.counter != null) {
           updateCounter(chatList, pagerSection.counter, counter, isFocused());
@@ -3410,7 +3403,8 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
   }
 
   private void updatePagerCounters () {
-    for (int i = 0; i < pagerSections.size(); i++) {
+    int count = Math.min(pagerSections.size(), pagerChatLists.size());
+    for (int i = 0; i < count; i++) {
       TdApi.ChatList chatList = pagerChatLists.get(i);
       ViewPagerTopView.Item section = pagerSections.get(i);
       if (section.counter != null) {

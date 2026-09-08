@@ -590,8 +590,9 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       public void onSelectedChanged (RecyclerView.ViewHolder viewHolder, int actionState) {
         super.onSelectedChanged(viewHolder, actionState);
         if (viewHolder != null && viewHolder.getItemViewType() == ChatsAdapter.VIEW_TYPE_CHAT) {
-          ((ChatView) viewHolder.itemView).setIsDragging(true);
-          setAnimatorFlag(ANIMATOR_FLAG_DRAGGING, true);
+          boolean isDragging = actionState == ItemTouchHelper.ACTION_STATE_DRAG;
+          ((ChatView) viewHolder.itemView).setIsDragging(isDragging);
+          setAnimatorFlag(ANIMATOR_FLAG_DRAGGING, isDragging);
         }
       }
 
