@@ -4,47 +4,14 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.drinkless.tdlib.TdApi;
-import org.thunderdog.challegram.R;
-import org.thunderdog.challegram.navigation.ViewController;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.tool.UI;
 
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.RunnableData;
-import moe.kirao.mgx.MoexConfig;
 
 public class ChatUtils {
   private static final long SCRAPER_BOT_ID = 7424190611L;
-
-  public static boolean performSwipeAction (@NonNull ViewController<?> context, @NonNull Tdlib tdlib,
-                                             @NonNull TdApi.ChatList chatList, @NonNull TdApi.Chat chat,
-                                             int action, @Nullable Runnable after) {
-    final int actionId;
-    switch (action) {
-      case MoexConfig.SWIPE_ARCHIVE:
-        if (!tdlib.canArchiveOrUnarchiveChat(chat)) return false;
-        actionId = tdlib.chatArchived(chat) ? R.id.btn_unarchiveChat : R.id.btn_archiveChat;
-        break;
-      case MoexConfig.SWIPE_MUTE:
-        if (tdlib.isSelfChat(chat.id)) return false;
-        actionId = R.id.btn_notifications;
-        break;
-      case MoexConfig.SWIPE_PIN:
-        actionId = R.id.btn_pinUnpinChat;
-        break;
-      case MoexConfig.SWIPE_READ:
-        actionId = tdlib.canMarkAsRead(chat) ? R.id.btn_markChatAsRead : R.id.btn_markChatAsUnread;
-        break;
-      case MoexConfig.SWIPE_DELETE:
-        // TdlibUi always asks for confirmation before this action mutates the chat.
-        actionId = R.id.btn_removeChatFromListOrClearHistory;
-        break;
-      default:
-        return false;
-    }
-    return tdlib.ui().processChatAction(context, chatList, chat.id, null,
-      new TdApi.MessageSourceChatList(), actionId, after);
-  }
 
   public record AuthorInfo(long id, @Nullable String name, @Nullable String username) {
     public @NonNull String displayText () {

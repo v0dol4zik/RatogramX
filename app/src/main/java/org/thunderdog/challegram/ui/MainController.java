@@ -3391,6 +3391,12 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
     }
 
     private void dispatchCounter (TdApi.ChatList chatList, TdlibCounter counter) {
+      // Counter callbacks can race with folder updates.  The callback may arrive
+      // after updatePagerSections() replaced the lists, so never index into an
+      // empty/stale snapshot (this used to crash on Collections$EmptyList.get).
+      if (chatList == null || counter == null || pagerChatLists.isEmpty() || pagerSections.isEmpty()) {
+        return;
+      }
       long itemId = getPagerItemId(chatList);
       int positionToUpdate = getPagerItemPosition(itemId);
       if (positionToUpdate >= 0 && positionToUpdate < pagerSections.size()) {

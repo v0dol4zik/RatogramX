@@ -1419,6 +1419,7 @@ public abstract class TelegramViewController<T> extends ViewController<T> {
   public void destroy () {
     super.destroy();
     if (chatSearchManager != null) {
+      chatSearchManager.destroy();
       TGLegacyManager.instance().removeEmojiListener(chatSearchAdapter);
       if (chatSearchSwipeListener != null) {
         chatSearchView.removeOnItemTouchListener(chatSearchSwipeListener);

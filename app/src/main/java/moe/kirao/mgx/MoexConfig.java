@@ -13,6 +13,8 @@ import org.thunderdog.challegram.unsorted.Settings;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.List;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -68,12 +70,7 @@ public class MoexConfig {
   public static final String KEY_AUTO_PAUSE_RESUME = "auto_pause_resume_system_playback";
   public static final String KEY_GHOST_MODE = "ghost_mode";
   public static final String KEY_GHOST_MODE_FLAGS = "ghost_mode_flags";
-  /** Show Telegram chat folders as tabs above/below the chat list. */
-  public static final String KEY_FOLDER_TABS = "folder_tabs";
   public static final String KEY_FOLDER_TABS_STYLE = "folder_tabs_style";
-  public static final String KEY_CHAT_SWIPE_ACTION = "chat_swipe_action";
-  public static final String KEY_DOUBLE_TAP_ACTION = "double_tap_action";
-  public static final String KEY_DOUBLE_TAP_REACTION = "double_tap_reaction";
   public static final String KEY_SECURE_WINDOW = "secure_window";
   public static final String KEY_SECURE_ONLY_SECRET_CHATS = "secure_only_secret_chats";
   public static final String KEY_CONFIRM_CALLS = "confirm_calls";
@@ -90,33 +87,18 @@ public class MoexConfig {
     KEY_BLUR_DRAWER, KEY_TYPING_INSTEAD_CHOOSING, KEY_DISABLE_REACTIONS, KEY_HIDE_BOTTOM_BAR,
     KEY_DARKEN_DRAWER, KEY_SILENT_MESSAGE, KEY_CHAT_QUICK_EDIT, KEY_CHAT_QUICK_FEATURED,
     KEY_DISABLE_PROXY_ON_VPN, KEY_HIDE_PROXY_SPONSOR, KEY_AUTO_PAUSE_RESUME, KEY_GHOST_MODE,
-    KEY_FOLDER_TABS, KEY_SECURE_WINDOW, KEY_SECURE_ONLY_SECRET_CHATS, KEY_CONFIRM_CALLS,
+    KEY_SECURE_WINDOW, KEY_SECURE_ONLY_SECRET_CHATS, KEY_CONFIRM_CALLS,
     KEY_CONFIRM_VOICE
   };
   private static final String[] EXPORT_INT_KEYS = {
     KEY_DRAWER_ITEMS, KEY_CHANGE_SIZE_LIMIT, KEY_CHANGE_HEADER_TEXT, KEY_ROUND_VIDEOS,
     KEY_AUTO_PAUSE_MEDIA_TYPES, KEY_GHOST_MODE_FLAGS, KEY_FOLDER_TABS_STYLE,
-    KEY_CHAT_SWIPE_ACTION, KEY_DOUBLE_TAP_ACTION, KEY_CHANNEL_BOTTOM_BUTTON
+    KEY_CHANNEL_BOTTOM_BUTTON
   };
-  private static final String[] EXPORT_STRING_KEYS = {KEY_DOUBLE_TAP_REACTION};
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
   public static final int FOLDER_TABS_STYLE_ICONS = 1;
   public static final int FOLDER_TABS_STYLE_TEXT_ICONS = 2;
-  public static final int SWIPE_NONE = 0;
-  public static final int SWIPE_ARCHIVE = 1;
-  public static final int SWIPE_MUTE = 2;
-  public static final int SWIPE_PIN = 3;
-  public static final int SWIPE_READ = 4;
-  public static final int SWIPE_DELETE = 5;
-  public static final int DOUBLE_TAP_NONE = 0;
-  public static final int DOUBLE_TAP_REACTION = 1;
-  public static final int DOUBLE_TAP_REPLY = 2;
-  public static final int DOUBLE_TAP_COPY = 3;
-  public static final int DOUBLE_TAP_TRANSLATE = 4;
-  public static final int DOUBLE_TAP_FORWARD = 5;
-  public static final String DEFAULT_DOUBLE_TAP_REACTION = "❤";
-
   public static final int GHOST_NO_READ = 1;
   public static final int GHOST_NO_TYPING = 1 << 1;
   public static final int GHOST_OFFLINE = 1 << 2;
@@ -189,7 +171,6 @@ public class MoexConfig {
   public static boolean hideProxySponsor = instance().getBoolean(KEY_HIDE_PROXY_SPONSOR, false);
   public static boolean autoPauseResumeSystemPlayback = instance().getBoolean(KEY_AUTO_PAUSE_RESUME, false);
   public static boolean ghostMode = instance().getBoolean(KEY_GHOST_MODE, false);
-  public static boolean folderTabs = instance().getBoolean(KEY_FOLDER_TABS, false);
 
   private MoexConfig () {
     File configDir = new File(UI.getAppContext().getFilesDir(), "moexconf");
@@ -307,9 +288,6 @@ public class MoexConfig {
     for (String key : EXPORT_INT_KEYS) {
       if (containsKey(key)) values.put(key, getInt(key, defaultInt(key)));
     }
-    for (String key : EXPORT_STRING_KEYS) {
-      if (containsKey(key)) values.put(key, getString(key, ""));
-    }
     result.put("settings", values);
     return result;
   }
@@ -344,25 +322,9 @@ public class MoexConfig {
         else if (key.equals(KEY_GHOST_MODE_FLAGS)) value &= GHOST_MODE_ALL;
         if (key.equals(KEY_CHANGE_SIZE_LIMIT) && (value < SIZE_LIMIT_800 || value > SIZE_LIMIT_2560)) value = SIZE_LIMIT_1280;
         if (key.equals(KEY_FOLDER_TABS_STYLE) && (value < FOLDER_TABS_STYLE_UPSTREAM || value > FOLDER_TABS_STYLE_TEXT_ICONS)) value = FOLDER_TABS_STYLE_UPSTREAM;
-        if (key.equals(KEY_CHAT_SWIPE_ACTION) && (value < SWIPE_NONE || value > SWIPE_DELETE)) value = SWIPE_NONE;
-        if (key.equals(KEY_DOUBLE_TAP_ACTION) && (value < DOUBLE_TAP_NONE || value > DOUBLE_TAP_FORWARD)) value = DOUBLE_TAP_NONE;
         if (key.equals(KEY_CHANNEL_BOTTOM_BUTTON) && (value < CHANNEL_BOTTOM_BUTTON_AUTO || value > CHANNEL_BOTTOM_BUTTON_MUTE)) value = CHANNEL_BOTTOM_BUTTON_AUTO;
         if (oldValue != value || !containsKey(key)) {
           putInt(key, value);
-          notifyClientListeners(key, value, oldValue);
-          changed++;
-        }
-      }
-    }
-    for (String key : EXPORT_STRING_KEYS) {
-      if (values.has(key)) {
-        Object raw = values.get(key);
-        if (!(raw instanceof String)) throw new JSONException("Expected string for " + key);
-        String value = (String) raw;
-        if (value.isEmpty()) value = DEFAULT_DOUBLE_TAP_REACTION;
-        String oldValue = getString(key, DEFAULT_DOUBLE_TAP_REACTION);
-        if (!value.equals(oldValue) || !containsKey(key)) {
-          putString(key, value);
           notifyClientListeners(key, value, oldValue);
           changed++;
         }
@@ -381,8 +343,6 @@ public class MoexConfig {
     if (KEY_CHANGE_SIZE_LIMIT.equals(key)) return SIZE_LIMIT_1280;
     if (KEY_CHANGE_HEADER_TEXT.equals(key)) return HEADER_TEXT_MOEX;
     if (KEY_FOLDER_TABS_STYLE.equals(key)) return FOLDER_TABS_STYLE_UPSTREAM;
-    if (KEY_CHAT_SWIPE_ACTION.equals(key)) return SWIPE_NONE;
-    if (KEY_DOUBLE_TAP_ACTION.equals(key)) return DOUBLE_TAP_NONE;
     if (KEY_CHANNEL_BOTTOM_BUTTON.equals(key)) return CHANNEL_BOTTOM_BUTTON_AUTO;
     if (KEY_GHOST_MODE_FLAGS.equals(key)) return GHOST_MODE_ALL;
     return 0;
@@ -418,7 +378,6 @@ public class MoexConfig {
     else if (KEY_HIDE_PROXY_SPONSOR.equals(key)) hideProxySponsor = value;
     else if (KEY_AUTO_PAUSE_RESUME.equals(key)) autoPauseResumeSystemPlayback = value;
     else if (KEY_GHOST_MODE.equals(key)) ghostMode = value;
-    else if (KEY_FOLDER_TABS.equals(key)) folderTabs = value;
     else if (KEY_SECURE_WINDOW.equals(key)) secureWindow = value;
     else if (KEY_SECURE_ONLY_SECRET_CHATS.equals(key)) secureOnlySecretChats = value;
     else if (KEY_CONFIRM_CALLS.equals(key)) confirmCalls = value;
@@ -435,95 +394,99 @@ public class MoexConfig {
 
   private ReferenceList<SettingsChangeListener> settingsListeners;
 
-  public void addSettingsListener (SettingsChangeListener listener) {
+  public synchronized void addSettingsListener (SettingsChangeListener listener) {
     if (settingsListeners == null)
       settingsListeners = new ReferenceList<>();
     settingsListeners.add(listener);
   }
 
-  public void removeSettingsListener (SettingsChangeListener listener) {
+  public synchronized void removeSettingsListener (SettingsChangeListener listener) {
     if (settingsListeners != null) {
       settingsListeners.remove(listener);
     }
   }
 
   private void notifyClientListeners (String key, Object newSettings, Object oldSettings) {
-    if (settingsListeners != null) {
-      for (SettingsChangeListener listener : settingsListeners) {
-        listener.onSettingsChanged(key, newSettings, oldSettings);
+    List<SettingsChangeListener> listeners;
+    synchronized (this) {
+      listeners = settingsListeners == null ? null : new ArrayList<>();
+      if (listeners != null) {
+        for (SettingsChangeListener listener : settingsListeners) listeners.add(listener);
+      }
+    }
+    if (listeners != null) {
+      for (SettingsChangeListener listener : listeners) {
+        UI.post(() -> listener.onSettingsChanged(key, newSettings, oldSettings));
       }
     }
   }
 
+  /** Updates the persisted value, runtime cache and observers in one order. */
+  private void setBooleanValue (@NonNull String key, boolean oldValue, boolean newValue) {
+    if (oldValue == newValue) return;
+    putBoolean(key, newValue);
+    updateBooleanField(key, newValue);
+    notifyClientListeners(key, newValue, oldValue);
+  }
+
   public void toggleDisableCameraButton () {
-    notifyClientListeners(KEY_DISABLE_CAMERA_BUTTON, !disableCameraButton, disableCameraButton);
-    putBoolean(KEY_DISABLE_CAMERA_BUTTON, disableCameraButton ^= true);
+    setBooleanValue(KEY_DISABLE_CAMERA_BUTTON, disableCameraButton, !disableCameraButton);
   }
 
   public void toggleDisableRecordButton () {
-    notifyClientListeners(KEY_DISABLE_RECORD_BUTTON, !disableRecordButton, disableRecordButton);
-    putBoolean(KEY_DISABLE_RECORD_BUTTON, disableRecordButton ^= true);
+    setBooleanValue(KEY_DISABLE_RECORD_BUTTON, disableRecordButton, !disableRecordButton);
   }
 
   public void toggleDisableCommandsButton () {
-    notifyClientListeners(KEY_DISABLE_COMMANDS_BUTTON, !disableCommandsButton, disableCommandsButton);
-    putBoolean(KEY_DISABLE_COMMANDS_BUTTON, disableCommandsButton ^= true);
+    setBooleanValue(KEY_DISABLE_COMMANDS_BUTTON, disableCommandsButton, !disableCommandsButton);
   }
 
   public void toggleDisableStickerTimestamp () {
-    putBoolean(KEY_HIDE_STICKER_TIMESTAMP, hideStickerTimestamp ^= true);
+    setBooleanValue(KEY_HIDE_STICKER_TIMESTAMP, hideStickerTimestamp, !hideStickerTimestamp);
   }
 
   public void toggleEnableFeaturesButton () {
-    putBoolean(KEY_ENABLE_FEATURES_BUTTON, enableTestFeatures ^= true);
+    setBooleanValue(KEY_ENABLE_FEATURES_BUTTON, enableTestFeatures, !enableTestFeatures);
   }
 
   public void toggleHidePhoneNumber () {
-    putBoolean(KEY_HIDE_PHONE_NUMBER, hidePhoneNumber ^= true);
-    notifyClientListeners(KEY_HIDE_PHONE_NUMBER, !hidePhoneNumber, hidePhoneNumber);
+    setBooleanValue(KEY_HIDE_PHONE_NUMBER, hidePhoneNumber, !hidePhoneNumber);
   }
 
   public void toggleHideProfileMusic () {
-    putBoolean(KEY_HIDE_PROFILE_MUSIC, hideProfileMusic ^= true);
-    notifyClientListeners(KEY_HIDE_PROFILE_MUSIC, hideProfileMusic, !hideProfileMusic);
+    setBooleanValue(KEY_HIDE_PROFILE_MUSIC, hideProfileMusic, !hideProfileMusic);
   }
 
   public void toggleHideProfileBirthdate () {
-    putBoolean(KEY_HIDE_PROFILE_BIRTHDATE, hideProfileBirthdate ^= true);
-    notifyClientListeners(KEY_HIDE_PROFILE_BIRTHDATE, hideProfileBirthdate, !hideProfileBirthdate);
+    setBooleanValue(KEY_HIDE_PROFILE_BIRTHDATE, hideProfileBirthdate, !hideProfileBirthdate);
   }
 
   public void toggleHideProfileChannel () {
-    putBoolean(KEY_HIDE_PROFILE_CHANNEL, hideProfileChannel ^= true);
-    notifyClientListeners(KEY_HIDE_PROFILE_CHANNEL, hideProfileChannel, !hideProfileChannel);
+    setBooleanValue(KEY_HIDE_PROFILE_CHANNEL, hideProfileChannel, !hideProfileChannel);
   }
 
   public void toggleHideSponsoredMessages () {
-    putBoolean(KEY_HIDE_SPONSORED_MESSAGES, hideSponsoredMessages ^= true);
-    notifyClientListeners(KEY_HIDE_SPONSORED_MESSAGES, hideSponsoredMessages, !hideSponsoredMessages);
+    setBooleanValue(KEY_HIDE_SPONSORED_MESSAGES, hideSponsoredMessages, !hideSponsoredMessages);
   }
 
   public void toggleShowSearchTabs () {
-    putBoolean(KEY_SHOW_SEARCH_TABS, showSearchTabs ^= true);
-    notifyClientListeners(KEY_SHOW_SEARCH_TABS, showSearchTabs, !showSearchTabs);
+    setBooleanValue(KEY_SHOW_SEARCH_TABS, showSearchTabs, !showSearchTabs);
   }
 
   public void toggleDisableSendAsButton () {
-    notifyClientListeners(KEY_DISABLE_SEND_AS_BUTTON, !disableSendAsButton, disableSendAsButton);
-    putBoolean(KEY_DISABLE_SEND_AS_BUTTON, disableSendAsButton ^= true);
+    setBooleanValue(KEY_DISABLE_SEND_AS_BUTTON, disableSendAsButton, !disableSendAsButton);
   }
 
   public void toggleRoundedStickers () {
-    putBoolean(KEY_ROUNDED_STICKERS, roundedStickers ^= true);
+    setBooleanValue(KEY_ROUNDED_STICKERS, roundedStickers, !roundedStickers);
   }
 
   public void toggleIncreaseRecents () {
-    notifyClientListeners(KEY_INCREASE_RECENTS_COUNT, !increaseRecents, increaseRecents);
-    putBoolean(KEY_INCREASE_RECENTS_COUNT, increaseRecents ^= true);
+    setBooleanValue(KEY_INCREASE_RECENTS_COUNT, increaseRecents, !increaseRecents);
   }
 
   public void toggleHideMessagesBadge () {
-    putBoolean(KEY_HIDE_MESSAGES_BADGE, hideMessagesBadge ^= true);
+    setBooleanValue(KEY_HIDE_MESSAGES_BADGE, hideMessagesBadge, !hideMessagesBadge);
   }
 
   public int getSizeLimit () {
@@ -539,7 +502,7 @@ public class MoexConfig {
   }
 
   public void toggleRememberSendOptions () {
-    putBoolean(KEY_REMEMBER_SEND_OPTIONS, rememberOptions ^= true);
+    setBooleanValue(KEY_REMEMBER_SEND_OPTIONS, rememberOptions, !rememberOptions);
   }
 
   public void SendAsCopy (boolean state) {
@@ -567,12 +530,11 @@ public class MoexConfig {
   }
 
   public void toggleSquareAvatar () {
-    putBoolean(KEY_SQUARE_AVATAR, squareAvatar ^= true);
+    setBooleanValue(KEY_SQUARE_AVATAR, squareAvatar, !squareAvatar);
   }
 
   public void toggleBlurDrawer () {
-    putBoolean(KEY_BLUR_DRAWER, blurDrawer ^= true);
-    notifyClientListeners(KEY_BLUR_DRAWER, !blurDrawer, blurDrawer);
+    setBooleanValue(KEY_BLUR_DRAWER, blurDrawer, !blurDrawer);
   }
 
   public int getHeaderText () {
@@ -609,47 +571,35 @@ public class MoexConfig {
   }
 
   public void toggleTypingInsteadChoosing () {
-    putBoolean(KEY_TYPING_INSTEAD_CHOOSING, typingInsteadChoosing ^= true);
+    setBooleanValue(KEY_TYPING_INSTEAD_CHOOSING, typingInsteadChoosing, !typingInsteadChoosing);
   }
 
   public void toggleDisableReactions () {
-    putBoolean(KEY_DISABLE_REACTIONS, disableReactions ^= true);
+    setBooleanValue(KEY_DISABLE_REACTIONS, disableReactions, !disableReactions);
   }
 
   public void toggleSecureWindow () {
-    boolean oldValue = secureWindow;
-    secureWindow = !secureWindow;
-    putBoolean(KEY_SECURE_WINDOW, secureWindow);
-    notifyClientListeners(KEY_SECURE_WINDOW, secureWindow, oldValue);
+    setBooleanValue(KEY_SECURE_WINDOW, secureWindow, !secureWindow);
   }
 
   public void toggleSecureOnlySecretChats () {
-    boolean oldValue = secureOnlySecretChats;
-    secureOnlySecretChats = !secureOnlySecretChats;
-    putBoolean(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats);
-    notifyClientListeners(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats, oldValue);
+    setBooleanValue(KEY_SECURE_ONLY_SECRET_CHATS, secureOnlySecretChats, !secureOnlySecretChats);
   }
 
   public void toggleConfirmCalls () {
-    boolean oldValue = confirmCalls;
-    confirmCalls = !confirmCalls;
-    putBoolean(KEY_CONFIRM_CALLS, confirmCalls);
-    notifyClientListeners(KEY_CONFIRM_CALLS, confirmCalls, oldValue);
+    setBooleanValue(KEY_CONFIRM_CALLS, confirmCalls, !confirmCalls);
   }
 
   public void toggleConfirmVoice () {
-    boolean oldValue = confirmVoice;
-    confirmVoice = !confirmVoice;
-    putBoolean(KEY_CONFIRM_VOICE, confirmVoice);
-    notifyClientListeners(KEY_CONFIRM_VOICE, confirmVoice, oldValue);
+    setBooleanValue(KEY_CONFIRM_VOICE, confirmVoice, !confirmVoice);
   }
 
   public void toggleHideBottomBar () {
-    putBoolean(KEY_HIDE_BOTTOM_BAR, hideBottomBar ^= true);
+    setBooleanValue(KEY_HIDE_BOTTOM_BAR, hideBottomBar, !hideBottomBar);
   }
 
   public void toggleDarkenDrawer () {
-    putBoolean(KEY_DARKEN_DRAWER, darkenDrawer ^= true);
+    setBooleanValue(KEY_DARKEN_DRAWER, darkenDrawer, !darkenDrawer);
   }
 
   public int getDrawerItems () {
@@ -675,15 +625,15 @@ public class MoexConfig {
   }
 
   public void toggleSilentMessage () {
-    putBoolean(KEY_SILENT_MESSAGE, silentMessage ^= true);
+    setBooleanValue(KEY_SILENT_MESSAGE, silentMessage, !silentMessage);
   }
 
   public void toggleQuickEdit () {
-    putBoolean(KEY_CHAT_QUICK_EDIT, quickEdit ^= true);
+    setBooleanValue(KEY_CHAT_QUICK_EDIT, quickEdit, !quickEdit);
   }
 
   public void toggleQuickFeatured () {
-    putBoolean(KEY_CHAT_QUICK_FEATURED, quickFeatured ^= true);
+    setBooleanValue(KEY_CHAT_QUICK_FEATURED, quickFeatured, !quickFeatured);
   }
 
   public int getRoundVideos () {
@@ -695,72 +645,20 @@ public class MoexConfig {
   }
 
   public void toggleDisableProxyOnVpn () {
-    putBoolean(KEY_DISABLE_PROXY_ON_VPN, disableProxyOnVpn ^= true);
-    notifyClientListeners(KEY_DISABLE_PROXY_ON_VPN, disableProxyOnVpn, !disableProxyOnVpn);
+    setBooleanValue(KEY_DISABLE_PROXY_ON_VPN, disableProxyOnVpn, !disableProxyOnVpn);
   }
 
   public void toggleHideProxySponsor () {
-    putBoolean(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor ^= true);
-    notifyClientListeners(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor, !hideProxySponsor);
+    setBooleanValue(KEY_HIDE_PROXY_SPONSOR, hideProxySponsor, !hideProxySponsor);
   }
 
   public void toggleGhostMode () {
-    boolean oldValue = ghostMode;
-    ghostMode = !ghostMode;
-    putBoolean(KEY_GHOST_MODE, ghostMode);
-    notifyClientListeners(KEY_GHOST_MODE, ghostMode, oldValue);
-  }
-
-  public void toggleFolderTabs () {
-    boolean oldValue = folderTabs;
-    folderTabs = !folderTabs;
-    putBoolean(KEY_FOLDER_TABS, folderTabs);
-    notifyClientListeners(KEY_FOLDER_TABS, folderTabs, oldValue);
+    setBooleanValue(KEY_GHOST_MODE, ghostMode, !ghostMode);
   }
 
   public int getFolderTabsStyle () {
     int value = getInt(KEY_FOLDER_TABS_STYLE, FOLDER_TABS_STYLE_UPSTREAM);
     return value >= FOLDER_TABS_STYLE_UPSTREAM && value <= FOLDER_TABS_STYLE_TEXT_ICONS ? value : FOLDER_TABS_STYLE_UPSTREAM;
-  }
-
-  public int getChatSwipeAction () {
-    int value = getInt(KEY_CHAT_SWIPE_ACTION, SWIPE_NONE);
-    return value >= SWIPE_NONE && value <= SWIPE_DELETE ? value : SWIPE_NONE;
-  }
-
-  public void setChatSwipeAction (int value) {
-    int oldValue = getChatSwipeAction();
-    if (value < SWIPE_NONE || value > SWIPE_DELETE) value = SWIPE_NONE;
-    if (oldValue == value) return;
-    if (value == SWIPE_NONE) remove(KEY_CHAT_SWIPE_ACTION); else putInt(KEY_CHAT_SWIPE_ACTION, value);
-    notifyClientListeners(KEY_CHAT_SWIPE_ACTION, value, oldValue);
-  }
-
-  public int getDoubleTapAction () {
-    int value = getInt(KEY_DOUBLE_TAP_ACTION, DOUBLE_TAP_NONE);
-    return value >= DOUBLE_TAP_NONE && value <= DOUBLE_TAP_FORWARD ? value : DOUBLE_TAP_NONE;
-  }
-
-  @NonNull
-  public String getDoubleTapReaction () {
-    String value = getString(KEY_DOUBLE_TAP_REACTION, DEFAULT_DOUBLE_TAP_REACTION);
-    return value == null || value.isEmpty() ? DEFAULT_DOUBLE_TAP_REACTION : value;
-  }
-
-  public void setDoubleTapAction (int value) {
-    int oldValue = getDoubleTapAction();
-    if (value < DOUBLE_TAP_NONE || value > DOUBLE_TAP_FORWARD) value = DOUBLE_TAP_NONE;
-    if (oldValue == value) return;
-    if (value == DOUBLE_TAP_NONE) remove(KEY_DOUBLE_TAP_ACTION); else putInt(KEY_DOUBLE_TAP_ACTION, value);
-    notifyClientListeners(KEY_DOUBLE_TAP_ACTION, value, oldValue);
-  }
-
-  public void setDoubleTapReaction (@NonNull String value) {
-    if (value.isEmpty()) value = DEFAULT_DOUBLE_TAP_REACTION;
-    String oldValue = getDoubleTapReaction();
-    if (oldValue.equals(value)) return;
-    putString(KEY_DOUBLE_TAP_REACTION, value);
-    notifyClientListeners(KEY_DOUBLE_TAP_REACTION, value, oldValue);
   }
 
   public void setFolderTabsStyle (int value) {
@@ -808,7 +706,6 @@ public class MoexConfig {
   }
 
   public void setAutoPauseResumeSystemPlayback (boolean value) {
-    autoPauseResumeSystemPlayback = value;
-    putBoolean(KEY_AUTO_PAUSE_RESUME, value);
+    setBooleanValue(KEY_AUTO_PAUSE_RESUME, autoPauseResumeSystemPlayback, value);
   }
 }

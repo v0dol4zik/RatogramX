@@ -10,14 +10,9 @@ in development build metadata.
 ## [Unreleased]
 
 - Restored Telegram X's native chat-folder pager independently of Ratogram
-  experiments, retained the folder tab style override, and fixed a counter
-  update race that could crash after a configured chat swipe action.
-- Experimental chat-folder tabs with live folder updates, unread counters,
-  optional text/icon styles, and an independent beta toggle.
-- Experimental configurable left-swipe actions for chats: archive, mute, pin,
-  mark read/unread, or delete with the existing confirmation flow.
-- Experimental configurable double-tap actions for text messages: reaction,
-  reply, copy, translate, or forward.
+  experiments, moved the folder-tab style override to Interface settings, and
+  fixed a counter update race during folder changes.
+- Removed the obsolete experimental chat swipe and double-tap action handlers.
 - Optional screenshot and Recents-preview protection, globally or only while
   a secret chat is open.
 - Optional confirmation before calls and voice-message sends.

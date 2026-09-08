@@ -84,26 +84,11 @@
   <item name="btn_ghostNoRead" type="id" />
   <item name="btn_ghostNoTyping" type="id" />
   <item name="btn_ghostOffline" type="id" />
-  <item name="btn_folderTabs" type="id" />
   <item name="btn_folderTabsStyle" type="id" />
   <item name="folderTabsStyleUpstream" type="id" />
   <item name="folderTabsStyleText" type="id" />
   <item name="folderTabsStyleIcons" type="id" />
   <item name="folderTabsStyleTextIcons" type="id" />
-  <item name="btn_chatSwipeAction" type="id" />
-  <item name="chatSwipeNone" type="id" />
-  <item name="chatSwipeArchive" type="id" />
-  <item name="chatSwipeMute" type="id" />
-  <item name="chatSwipePin" type="id" />
-  <item name="chatSwipeRead" type="id" />
-  <item name="chatSwipeDelete" type="id" />
-  <item name="btn_doubleTapAction" type="id" />
-  <item name="doubleTapNone" type="id" />
-  <item name="doubleTapReaction" type="id" />
-  <item name="doubleTapReply" type="id" />
-  <item name="doubleTapCopy" type="id" />
-  <item name="doubleTapTranslate" type="id" />
-  <item name="doubleTapForward" type="id" />
   <item name="btn_secureWindow" type="id" />
   <item name="btn_secureOnlySecretChats" type="id" />
   <item name="btn_confirmVoice" type="id" />

@@ -80,6 +80,7 @@ import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.ui.EditRightsController;
 import org.thunderdog.challegram.unsorted.Passcode;
 import org.thunderdog.challegram.unsorted.Settings;
+import moe.kirao.mgx.PremiumCapabilities;
 import org.thunderdog.challegram.util.ChangeLogList;
 import org.thunderdog.challegram.util.DrawableProvider;
 import org.thunderdog.challegram.util.UserProvider;
@@ -2567,8 +2568,8 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   }
 
   public boolean hasPremium () {
-    // Client-only status override, independently implemented from the AyuGram4A local Premium concept.
-    return hasTelegramPremium() || Settings.instance().isLocalPremiumExperimentEnabled();
+    // Client-only status override; server-authoritative requests still use hasTelegramPremium().
+    return PremiumCapabilities.effective(hasTelegramPremium());
   }
 
   /** Returns the Premium state reported by Telegram, without local experiment overrides. */
@@ -3581,7 +3582,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   }
 
   public boolean isLocalPremiumOnly () {
-    return Settings.instance().isLocalPremiumExperimentEnabled() && !hasTelegramPremium();
+    return PremiumCapabilities.localOnly(hasTelegramPremium());
   }
 
   public boolean canUseLocalPins (@Nullable TdApi.ChatList chatList) {

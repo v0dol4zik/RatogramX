@@ -44,8 +44,10 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -299,6 +301,7 @@ import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.ui.MessageDetailsController;
 import moe.kirao.mgx.utils.SystemUtils;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.QuoteSelectionPolicy;
 
 public class MessagesController extends ViewController<MessagesController.Arguments> implements
   Menu, Unlockable, View.OnClickListener,
@@ -6027,21 +6030,76 @@ public class MessagesController extends ViewController<MessagesController.Argume
       return;
     }
 
-    TextView quoteView = new TextView(context());
+    // EditText retains Android's native long-press selection behavior inside a popup
+    // more reliably than a selectable TextView on older/custom Android builds.
+    EditText quoteView = new EditText(context());
     int horizontalPadding = Screen.dp(20f);
     quoteView.setPadding(horizontalPadding, Screen.dp(14f), horizontalPadding, Screen.dp(14f));
     quoteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17f);
     quoteView.setTypeface(Fonts.getRobotoRegular());
     quoteView.setTextColor(Theme.textAccentColor());
     quoteView.setText(TD.toDisplayCharSequence(source), TextView.BufferType.SPANNABLE);
-    quoteView.setTextIsSelectable(true);
-    // Explicitly install the movement method: popup containers consume touch events,
-    // and relying on TextView's implicit setup leaves selection disabled on some ROMs.
-    quoteView.setMovementMethod(ArrowKeyMovementMethod.getInstance());
     quoteView.setHighlightColor(Theme.fillingTextSelectionColor());
+    quoteView.setCursorVisible(false);
+    quoteView.setShowSoftInputOnFocus(false);
+    quoteView.setBackground(null);
+    quoteView.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+    quoteView.setKeyListener(null);
+    // setInputType/setKeyListener can reset the movement method. Install the
+    // selectable-text configuration last so long-press reliably enters selection mode.
+    quoteView.setMovementMethod(ArrowKeyMovementMethod.getInstance());
+    quoteView.setTextIsSelectable(true);
     quoteView.setLongClickable(true);
     quoteView.setFocusable(true);
     quoteView.setFocusableInTouchMode(true);
+    final int[] selectionAnchor = {-1, -1};
+    final float[] touchDown = new float[2];
+    final boolean[] pointerDown = {false};
+    final boolean[] manualSelection = {false};
+    final Runnable selectTouchedWord = () -> {
+      if (!pointerDown[0] || selectionAnchor[0] < 0) {
+        return;
+      }
+      int[] range = QuoteSelectionPolicy.wordRange(source.text, selectionAnchor[0]);
+      selectionAnchor[0] = range[0];
+      selectionAnchor[1] = range[1];
+      quoteView.setSelection(range[0], range[1]);
+      quoteView.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+      manualSelection[0] = true;
+    };
+    quoteView.setOnTouchListener((v, event) -> {
+      if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        v.requestFocus();
+        pointerDown[0] = true;
+        manualSelection[0] = false;
+        touchDown[0] = event.getX();
+        touchDown[1] = event.getY();
+        selectionAnchor[0] = quoteView.getOffsetForPosition(event.getX(), event.getY());
+        selectionAnchor[1] = selectionAnchor[0];
+        v.getParent().requestDisallowInterceptTouchEvent(true);
+        quoteView.postDelayed(selectTouchedWord, ViewConfiguration.getLongPressTimeout());
+      } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+        if (manualSelection[0]) {
+          int offset = quoteView.getOffsetForPosition(event.getX(), event.getY());
+          int[] range = QuoteSelectionPolicy.wordRange(source.text, offset);
+          quoteView.setSelection(Math.min(selectionAnchor[0], range[0]), Math.max(selectionAnchor[1], range[1]));
+          return true;
+        }
+        int touchSlop = ViewConfiguration.get(context()).getScaledTouchSlop();
+        if (Math.abs(event.getX() - touchDown[0]) > touchSlop || Math.abs(event.getY() - touchDown[1]) > touchSlop) {
+          quoteView.removeCallbacks(selectTouchedWord);
+          v.getParent().requestDisallowInterceptTouchEvent(false);
+        }
+      } else if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        pointerDown[0] = false;
+        quoteView.removeCallbacks(selectTouchedWord);
+        v.getParent().requestDisallowInterceptTouchEvent(false);
+        if (manualSelection[0]) {
+          return true;
+        }
+      }
+      return false;
+    });
 
     ScrollView scrollView = new ScrollView(context());
     scrollView.setFillViewport(true);
@@ -12617,36 +12675,6 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   public void stopTranslateMessages (TGMessage message) {
     message.stopTranslated();
-  }
-
-  public boolean performDoubleTapAction (@NonNull TGMessage message, int action) {
-    switch (action) {
-      case MoexConfig.DOUBLE_TAP_REACTION:
-        return message.performDoubleTapReaction(MoexConfig.instance().getDoubleTapReaction());
-      case MoexConfig.DOUBLE_TAP_REPLY: {
-        TdApi.Message current = message.getNewestMessage();
-        message.getMessageProperties(current.id, properties -> runOnUiThreadOptional(() -> {
-          if (properties != null) showReply(new MessageWithProperties(current, properties), null, 0, "", true, true);
-        }));
-        return true;
-      }
-      case MoexConfig.DOUBLE_TAP_COPY: {
-        if (!message.canBeSaved()) return false;
-        TdApi.FormattedText text = Td.textOrCaption(message.getNewestMessage().content);
-        if (text != null) UI.copyText(TD.toCopyText(text), R.string.CopiedText);
-        return true;
-      }
-      case MoexConfig.DOUBLE_TAP_TRANSLATE:
-        if (!message.isTranslatable()) return false;
-        startTranslateMessages(message);
-        return true;
-      case MoexConfig.DOUBLE_TAP_FORWARD:
-        if (!message.canBeForwarded()) return false;
-        shareMessages(message.getAllMessages(), false);
-        return true;
-      default:
-        return false;
-    }
   }
 
   /**/

@@ -176,9 +176,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_experimentalQuotes);
       adapter.updateValuedSettingById(R.id.btn_experimentalLocalPremium);
       adapter.updateValuedSettingById(R.id.btn_experimentalMessageHistory);
-      adapter.updateValuedSettingById(R.id.btn_folderTabsStyle);
-      adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
-      adapter.updateValuedSettingById(R.id.btn_doubleTapAction);
       adapter.updateValuedSettingById(R.id.btn_showIdProfile);
       updateGhostModeSettings();
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
@@ -202,9 +199,15 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       Settings.instance().setMessageHistoryExperimentEnabled(adapter.toggleView(v));
       adapter.updateValuedSettingById(viewId);
     } else if (viewId == R.id.btn_messageHistoryView) {
-      TextController controller = new TextController(context, tdlib);
-      controller.setArguments(TextController.Arguments.fromRawText(Lang.getString(R.string.MessageEditHistory), MessageHistoryStore.instance().dump(), "text/plain"));
-      navigateTo(controller);
+      // Reading the history database can involve thousands of entries. Keep it
+      // off the UI thread and only navigate after the snapshot is ready.
+      MessageHistoryStore.instance().dumpAsync(dump -> {
+        if (isDestroyed()) return;
+        TextController controller = new TextController(context, tdlib);
+        controller.setArguments(TextController.Arguments.fromRawText(
+          Lang.getString(R.string.MessageEditHistory), dump, "text/plain"));
+        navigateTo(controller);
+      });
     } else if (viewId == R.id.btn_ghostMode) {
       boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       MoexConfig.instance().toggleGhostMode();
@@ -228,10 +231,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       }
     } else if (viewId == R.id.btn_folderTabsStyle) {
       showFolderTabsStyleOptions();
-    } else if (viewId == R.id.btn_chatSwipeAction) {
-      showChatSwipeActionOptions();
-    } else if (viewId == R.id.btn_doubleTapAction) {
-      showDoubleTapActionOptions();
     } else if (viewId == R.id.btn_secureWindow) {
       MoexConfig.instance().toggleSecureWindow();
       adapter.updateValuedSettingById(viewId);
@@ -488,50 +487,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
     }));
   }
 
-  private void showChatSwipeActionOptions () {
-    int selected = MoexConfig.instance().getChatSwipeAction();
-    showSettings(new SettingsWrapBuilder(R.id.btn_chatSwipeAction).setRawItems(new ListItem[] {
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeNone, 0, R.string.SwipeNone, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_NONE),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeArchive, 0, R.string.SwipeArchive, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_ARCHIVE),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeMute, 0, R.string.SwipeMute, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_MUTE),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipePin, 0, R.string.SwipePin, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_PIN),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeRead, 0, R.string.SwipeRead, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_READ),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.chatSwipeDelete, 0, R.string.SwipeDelete, R.id.btn_chatSwipeAction, selected == MoexConfig.SWIPE_DELETE)
-    }).setAllowResize(false).setIntDelegate((id, result) -> {
-      int resultId = result.get(R.id.btn_chatSwipeAction);
-      int action = resultId == R.id.chatSwipeArchive ? MoexConfig.SWIPE_ARCHIVE
-        : resultId == R.id.chatSwipeMute ? MoexConfig.SWIPE_MUTE
-        : resultId == R.id.chatSwipePin ? MoexConfig.SWIPE_PIN
-        : resultId == R.id.chatSwipeRead ? MoexConfig.SWIPE_READ
-        : resultId == R.id.chatSwipeDelete ? MoexConfig.SWIPE_DELETE
-        : MoexConfig.SWIPE_NONE;
-      MoexConfig.instance().setChatSwipeAction(action);
-      adapter.updateValuedSettingById(R.id.btn_chatSwipeAction);
-    }));
-  }
-
-  private void showDoubleTapActionOptions () {
-    int selected = MoexConfig.instance().getDoubleTapAction();
-    showSettings(new SettingsWrapBuilder(R.id.btn_doubleTapAction).setRawItems(new ListItem[] {
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapNone, 0, R.string.DoubleTapNone, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_NONE),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapReaction, 0, Lang.getString(R.string.DoubleTapReaction, MoexConfig.instance().getDoubleTapReaction()), R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_REACTION),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapReply, 0, R.string.DoubleTapReply, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_REPLY),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapCopy, 0, R.string.DoubleTapCopy, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_COPY),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapTranslate, 0, R.string.DoubleTapTranslate, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_TRANSLATE),
-      new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.doubleTapForward, 0, R.string.DoubleTapForward, R.id.btn_doubleTapAction, selected == MoexConfig.DOUBLE_TAP_FORWARD)
-    }).setAllowResize(false).setIntDelegate((id, result) -> {
-      int resultId = result.get(R.id.btn_doubleTapAction);
-      int action = resultId == R.id.doubleTapReaction ? MoexConfig.DOUBLE_TAP_REACTION
-        : resultId == R.id.doubleTapReply ? MoexConfig.DOUBLE_TAP_REPLY
-        : resultId == R.id.doubleTapCopy ? MoexConfig.DOUBLE_TAP_COPY
-        : resultId == R.id.doubleTapTranslate ? MoexConfig.DOUBLE_TAP_TRANSLATE
-        : resultId == R.id.doubleTapForward ? MoexConfig.DOUBLE_TAP_FORWARD
-        : MoexConfig.DOUBLE_TAP_NONE;
-      MoexConfig.instance().setDoubleTapAction(action);
-      adapter.updateValuedSettingById(R.id.btn_doubleTapAction);
-    }));
-  }
-
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     adapter = new SettingsAdapter(this) {
@@ -609,26 +564,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
             : style == MoexConfig.FOLDER_TABS_STYLE_ICONS ? R.string.FolderTabsStyleIcons
             : style == MoexConfig.FOLDER_TABS_STYLE_TEXT_ICONS ? R.string.FolderTabsStyleTextIcons
             : R.string.FolderTabsStyleUpstream);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && Settings.instance().chatFoldersEnabled(), isUpdate);
-        } else if (itemId == R.id.btn_chatSwipeAction) {
-          int action = MoexConfig.instance().getChatSwipeAction();
-          view.setData(action == MoexConfig.SWIPE_ARCHIVE ? R.string.SwipeArchive
-            : action == MoexConfig.SWIPE_MUTE ? R.string.SwipeMute
-            : action == MoexConfig.SWIPE_PIN ? R.string.SwipePin
-            : action == MoexConfig.SWIPE_READ ? R.string.SwipeRead
-            : action == MoexConfig.SWIPE_DELETE ? R.string.SwipeDelete
-            : R.string.SwipeNone);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
-        } else if (itemId == R.id.btn_doubleTapAction) {
-          int action = MoexConfig.instance().getDoubleTapAction();
-          if (action == MoexConfig.DOUBLE_TAP_REACTION) {
-            view.setData(Lang.getString(R.string.DoubleTapReaction, MoexConfig.instance().getDoubleTapReaction()));
-          } else view.setData(action == MoexConfig.DOUBLE_TAP_REPLY ? R.string.DoubleTapReply
-            : action == MoexConfig.DOUBLE_TAP_COPY ? R.string.DoubleTapCopy
-            : action == MoexConfig.DOUBLE_TAP_TRANSLATE ? R.string.DoubleTapTranslate
-            : action == MoexConfig.DOUBLE_TAP_FORWARD ? R.string.DoubleTapForward
-            : R.string.DoubleTapNone);
-          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+          view.setEnabledAnimated(Settings.instance().chatFoldersEnabled(), isUpdate);
         } else if (itemId == R.id.btn_secureWindow) {
           view.getToggler().setRadioEnabled(MoexConfig.secureWindow, isUpdate);
         } else if (itemId == R.id.btn_secureOnlySecretChats) {
@@ -820,7 +756,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_squareAvatar, 0, R.string.SquareAvatar));
         items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_disableReactions, 0, R.string.DisableReactions));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_folderTabsStyle, 0, R.string.FolderTabsStyle));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.FolderTabsInfo));
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.MoexHideButtons));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
@@ -906,18 +845,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalForums, 0, R.string.Experiment_Forums));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.Experiment_ForumsInfo));
-        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
-        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_folderTabsStyle, 0, R.string.FolderTabsStyle));
-        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
-        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.FolderTabsInfo));
-        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
-        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_chatSwipeAction, 0, R.string.ChatSwipeAction));
-        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
-        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.ChatSwipeActionInfo));
-        items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
-        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_doubleTapAction, 0, R.string.DoubleTapAction));
-        items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
-        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.DoubleTapActionInfo));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_experimentalQuotes, 0, R.string.Experiment_PartialQuotes));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));

@@ -25,9 +25,4 @@ public class MoexConfigTest {
     assertFalse(GhostModeUtils.isFlagEnabled(MoexConfig.GHOST_NO_TYPING, MoexConfig.GHOST_NO_READ));
   }
 
-  @Test public void swipeActionRangeIsExplicit() {
-    assertEquals(0, MoexConfig.SWIPE_NONE);
-    assertEquals(5, MoexConfig.SWIPE_DELETE);
-    assertTrue(MoexConfig.SWIPE_ARCHIVE < MoexConfig.SWIPE_DELETE);
-  }
 }

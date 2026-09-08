@@ -33,6 +33,7 @@ import org.thunderdog.challegram.loader.ImageFile;
 import org.thunderdog.challegram.loader.ImageFileLocal;
 import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.unsorted.Settings;
+import moe.kirao.mgx.PremiumCapabilities;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -569,7 +570,7 @@ public class TdlibAccount implements Comparable<TdlibAccount>, TdlibProvider {
   }
 
   public boolean isPremium () {
-    return hasTelegramPremium() || Settings.instance().isLocalPremiumExperimentEnabled();
+    return PremiumCapabilities.effective(hasTelegramPremium());
   }
 
   public boolean hasTelegramPremium () {
@@ -654,7 +655,7 @@ public class TdlibAccount implements Comparable<TdlibAccount>, TdlibProvider {
   }
 
   public long getLocalEmojiStatusCustomEmojiId () {
-    if (!Settings.instance().isLocalPremiumExperimentEnabled() || hasTelegramPremium() || knownUserId == 0) {
+    if (!PremiumCapabilities.localOnly(hasTelegramPremium()) || knownUserId == 0) {
       return 0;
     }
     String prefix = Settings.accountInfoPrefix(id);

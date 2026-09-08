@@ -18,7 +18,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.os.Build;
 import android.view.HapticFeedbackConstants;
-import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -39,7 +38,6 @@ import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.data.TGMessage;
 import org.thunderdog.challegram.data.TGMessageBotInfo;
 import org.thunderdog.challegram.data.TGMessageLocation;
-import org.thunderdog.challegram.data.TGMessageMedia;
 import org.thunderdog.challegram.data.TGMessageSticker;
 import org.thunderdog.challegram.data.TGMessageText;
 import org.thunderdog.challegram.data.TGWebPage;
@@ -64,7 +62,6 @@ import org.thunderdog.challegram.tool.Views;
 import org.thunderdog.challegram.ui.EditRightsController;
 import org.thunderdog.challegram.ui.HashtagChatController;
 import org.thunderdog.challegram.ui.MessagesController;
-import moe.kirao.mgx.MoexConfig;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.DrawableProvider;
 import org.thunderdog.challegram.util.StringList;
@@ -99,13 +96,10 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
   private static final int FLAG_DISABLE_MEASURE = 1 << 6;
   private static final int FLAG_USE_COMPLEX_RECEIVER = 1 << 7;
   private static final int FLAG_IGNORE_PARENT_ON_MEASURE = 1 << 8;
-  private static final int FLAG_DOUBLE_TAP_HANDLED = 1 << 9;
 
   private @Nullable TGMessage msg;
 
   private int flags;
-
-  private final GestureDetector doubleTapDetector;
 
   private final AvatarReceiver avatarReceiver;
   private final GifReceiver gifReceiver;
@@ -127,18 +121,6 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
 
   public MessageView (Context context) {
     super(context);
-    doubleTapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
-      @Override
-      public boolean onDoubleTap (MotionEvent e) {
-        if (msg == null || msg instanceof TGMessageMedia || msg instanceof TGMessageSticker || msg.isEventLog()) return false;
-        MessagesController controller = msg.messagesController();
-        if (controller.inSelectMode() || !controller.isFocused() || !Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)) return false;
-        int action = MoexConfig.instance().getDoubleTapAction();
-        if (action == MoexConfig.DOUBLE_TAP_NONE || !controller.performDoubleTapAction(msg, action)) return false;
-        flags |= FLAG_DOUBLE_TAP_HANDLED;
-        return true;
-      }
-    });
     this.refreshRateLimiter = new RefreshRateLimiter(this, Config.MAX_ANIMATED_EMOJI_REFRESH_RATE);
     this.highRefreshRateLimiter = new RefreshRateLimiter(this, 60.0f);
     this.highRefreshRateLimiter.attachOtherRefreshLimiter(refreshRateLimiter);
@@ -1606,11 +1588,6 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
     if (UI.getContext(getContext()).getRecordAudioVideoController().isOpen()) {
       return false;
     }
-    doubleTapDetector.onTouchEvent(e);
-    if ((flags & FLAG_DOUBLE_TAP_HANDLED) != 0) {
-      if (e.getAction() == MotionEvent.ACTION_UP) flags &= ~FLAG_DOUBLE_TAP_HANDLED;
-      return true;
-    }
     switch (e.getAction()) {
       case MotionEvent.ACTION_DOWN: {
         if (msg.shouldIgnoreTap(e)) {
@@ -1686,10 +1663,6 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
         return false;
       }
       case MotionEvent.ACTION_UP: {
-        if ((flags & FLAG_DOUBLE_TAP_HANDLED) != 0) {
-          flags &= ~FLAG_DOUBLE_TAP_HANDLED;
-          return true;
-        }
         if ((flags & FLAG_LONG_PRESSED) != 0) {
           setLongPressed(false);
         }
