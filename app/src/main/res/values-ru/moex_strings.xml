@@ -51,6 +51,7 @@
   <string name="FolderTabsStyleText">Только текст</string>
   <string name="FolderTabsStyleIcons">Только иконки</string>
   <string name="FolderTabsStyleTextIcons">Текст и иконки</string>
+  <string name="AppIconChangeDeferred">Иконка сменится, когда вы свернёте приложение</string>
   <string name="SecureWindow">Защищать приложение в списке недавних</string>
   <string name="SecureWindowInfo">Запрещает скриншоты и скрывает превью приложения. Изменения применяются сразу.</string>
   <string name="SecureOnlySecretChats">Только в секретных чатах</string>

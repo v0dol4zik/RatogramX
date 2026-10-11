@@ -133,6 +133,7 @@ import org.thunderdog.challegram.unsorted.AppState;
 import org.thunderdog.challegram.unsorted.Passcode;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.ActivityPermissionResult;
+import org.thunderdog.challegram.util.AppIconManager;
 import org.thunderdog.challegram.util.AppUpdater;
 import org.thunderdog.challegram.util.KonfettiBuilder;
 import org.thunderdog.challegram.util.Permissions;
@@ -499,6 +500,7 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
       throw t;
     }
 
+    AppIconManager.onActivityCreated(this);
     Screen.checkDensity();
 
     this.isGestureNavigationEnabled = Screen.isGesturalNavigationEnabled(getResources());

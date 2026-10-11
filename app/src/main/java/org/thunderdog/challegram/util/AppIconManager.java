@@ -8,17 +8,31 @@
  */
 package org.thunderdog.challegram.util;
 
+import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
+import android.widget.Toast;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 
+import org.thunderdog.challegram.BaseActivity;
 import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.R;
+import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.unsorted.Settings;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Changes the launcher activity alias without restarting the running client. */
 public final class AppIconManager {
@@ -30,26 +44,33 @@ public final class AppIconManager {
     public final String displayName;
     public final String aliasSuffix;
     public final @DrawableRes int drawableRes;
+    public final @DrawableRes int launcherIconRes;
 
-    private Icon (String id, String displayName, String aliasSuffix, @DrawableRes int drawableRes) {
+    private Icon (String id, String displayName, String aliasSuffix, @DrawableRes int drawableRes, @DrawableRes int launcherIconRes) {
       this.id = id;
       this.displayName = displayName;
       this.aliasSuffix = aliasSuffix;
       this.drawableRes = drawableRes;
+      this.launcherIconRes = launcherIconRes;
     }
   }
 
   private static final Icon[] ICONS = {
-    new Icon("original", "Original", "Original", R.drawable.app_icon_original_full),
-    new Icon("amoled", "AMOLED", "Amoled", R.drawable.app_icon_amoled_full),
-    new Icon("lab", "Lab", "Lab", R.drawable.app_icon_lab_full),
-    new Icon("malware", "Malware", "Malware", R.drawable.app_icon_malware_full),
-    new Icon("not_you", "Not You", "NotYou", R.drawable.app_icon_not_you_full),
-    new Icon("notele", "NoTele", "NoTele", R.drawable.app_icon_notele_full),
-    new Icon("steam", "Steam", "Steam", R.drawable.app_icon_steam_full),
-    new Icon("twins", "Twins", "Twins", R.drawable.app_icon_twins_full),
-    new Icon("xue", "Xue", "Xue", R.drawable.app_icon_xue_full)
+    new Icon("original", "Original", "Original", R.drawable.app_icon_original_full, R.mipmap.app_icon_original),
+    new Icon("amoled", "AMOLED", "Amoled", R.drawable.app_icon_amoled_full, R.mipmap.app_icon_amoled),
+    new Icon("lab", "Lab", "Lab", R.drawable.app_icon_lab_full, R.mipmap.app_icon_lab),
+    new Icon("malware", "Malware", "Malware", R.drawable.app_icon_malware_full, R.mipmap.app_icon_malware),
+    new Icon("not_you", "Not You", "NotYou", R.drawable.app_icon_not_you_full, R.mipmap.app_icon_not_you),
+    new Icon("notele", "NoTele", "NoTele", R.drawable.app_icon_notele_full, R.mipmap.app_icon_notele),
+    new Icon("steam", "Steam", "Steam", R.drawable.app_icon_steam_full, R.mipmap.app_icon_steam),
+    new Icon("twins", "Twins", "Twins", R.drawable.app_icon_twins_full, R.mipmap.app_icon_twins),
+    new Icon("xue", "Xue", "Xue", R.drawable.app_icon_xue_full, R.mipmap.app_icon_xue)
   };
+
+  private static final long DEFERRED_CHANGE_DELAY = 1500;
+
+  private static @Nullable String pendingIconId;
+  private static @Nullable UI.StateListener pendingListener;
 
   private AppIconManager () { }
 
@@ -58,6 +79,10 @@ public final class AppIconManager {
   }
 
   public static @NonNull String getSelectedIconId () {
+    return pendingIconId != null ? pendingIconId : getAppliedIconId();
+  }
+
+  private static @NonNull String getAppliedIconId () {
     String iconId = Settings.instance().getString(SETTING_KEY, DEFAULT_ICON_ID);
     return findIcon(iconId) != null ? iconId : DEFAULT_ICON_ID;
   }
@@ -79,45 +104,183 @@ public final class AppIconManager {
       return false;
     }
 
-    String previousIconId = getSelectedIconId();
-    if (selectedIcon.id.equals(previousIconId)) {
+    Context appContext = context.getApplicationContext();
+    if (selectedIcon.id.equals(getAppliedIconId())) {
+      cancelPendingIcon();
       return true;
     }
 
+    if (isTaskStartedByAlias(appContext, selectedIcon)) {
+      // Disabling that alias now would close the app, so wait until it's in background.
+      if (pendingIconId == null) {
+        UI.showToast(R.string.AppIconChangeDeferred, Toast.LENGTH_LONG);
+      }
+      pendingIconId = selectedIcon.id;
+      if (pendingListener == null) {
+        pendingListener = newState -> {
+          if (newState != UI.State.RESUMED) {
+            UI.post(() -> {
+              if (UI.getUiState() != UI.State.RESUMED) {
+                applyPendingIcon(appContext);
+              }
+            }, DEFERRED_CHANGE_DELAY);
+          }
+        };
+        UI.addStateListener(pendingListener);
+      }
+      return true;
+    }
+
+    cancelPendingIcon();
+    return applyIcon(appContext, selectedIcon);
+  }
+
+  private static void applyPendingIcon (@NonNull Context context) {
+    Icon icon = findIcon(pendingIconId);
+    cancelPendingIcon();
+    if (icon != null) {
+      applyIcon(context, icon);
+    }
+  }
+
+  private static void cancelPendingIcon () {
+    pendingIconId = null;
+    if (pendingListener != null) {
+      UI.removeStateListener(pendingListener);
+      pendingListener = null;
+    }
+  }
+
+  private static boolean applyIcon (@NonNull Context context, @NonNull Icon selectedIcon) {
+    String previousIconId = getAppliedIconId();
     PackageManager packageManager = context.getPackageManager();
-    ComponentName selectedComponent = componentName(context, selectedIcon);
+    int[] previousStates = new int[ICONS.length];
+    boolean switching = false;
     try {
-      // Enable the destination first so the package always has a launcher entry.
-      packageManager.setComponentEnabledSetting(
-        selectedComponent,
-        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-        PackageManager.DONT_KILL_APP
-      );
-      for (Icon icon : ICONS) {
-        if (!icon.id.equals(selectedIcon.id)) {
-          packageManager.setComponentEnabledSetting(
+      for (int i = 0; i < ICONS.length; i++) {
+        previousStates[i] = packageManager.getComponentEnabledSetting(componentName(context, ICONS[i]));
+      }
+      switching = true;
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        // A single update, so the launcher never shows two icons at once.
+        List<PackageManager.ComponentEnabledSetting> settings = new ArrayList<>(ICONS.length);
+        for (Icon icon : ICONS) {
+          settings.add(new PackageManager.ComponentEnabledSetting(
             componentName(context, icon),
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            icon == selectedIcon ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
             PackageManager.DONT_KILL_APP
-          );
+          ));
+        }
+        packageManager.setComponentEnabledSettings(settings);
+      } else {
+        // Enable the destination first so the package always has a launcher entry.
+        setComponentEnabled(packageManager, componentName(context, selectedIcon), true);
+        for (Icon icon : ICONS) {
+          if (icon != selectedIcon) {
+            setComponentEnabled(packageManager, componentName(context, icon), false);
+          }
         }
       }
       Settings.instance().putString(SETTING_KEY, selectedIcon.id);
-      return true;
     } catch (RuntimeException error) {
       Icon previousIcon = findIcon(previousIconId);
-      if (previousIcon != null) {
+      if (switching && previousIcon != null) {
         try {
-          packageManager.setComponentEnabledSetting(
-            componentName(context, previousIcon),
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP
-          );
+          setComponentEnabled(packageManager, componentName(context, previousIcon), true);
+          for (int i = 0; i < ICONS.length; i++) {
+            if (ICONS[i] != previousIcon) {
+              packageManager.setComponentEnabledSetting(componentName(context, ICONS[i]),
+                previousStates[i], PackageManager.DONT_KILL_APP);
+            }
+          }
         } catch (RuntimeException ignored) { }
       }
       Log.e("Unable to change launcher icon to %s", error, selectedIcon.id);
       return false;
     }
+
+    BaseActivity activity = UI.getUiContext();
+    if (activity != null) {
+      updateTaskDescription(activity);
+    }
+    return true;
+  }
+
+  private static void setComponentEnabled (@NonNull PackageManager packageManager, @NonNull ComponentName component, boolean enabled) {
+    packageManager.setComponentEnabledSetting(
+      component,
+      enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+      PackageManager.DONT_KILL_APP
+    );
+  }
+
+  /**
+   * The system removes every task started by a disabled component. Aliases start
+   * {@link org.thunderdog.challegram.LauncherActivity}, which hands the task over to
+   * MainActivity, but a task opened before an update may still point to an alias.
+   */
+  private static boolean isTaskStartedByAlias (@NonNull Context context, @NonNull Icon keptIcon) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+      // relinquishTaskIdentity is not supported.
+      return true;
+    }
+    ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+    if (activityManager == null) {
+      return true;
+    }
+    try {
+      for (ActivityManager.AppTask task : activityManager.getAppTasks()) {
+        Intent baseIntent = task.getTaskInfo().baseIntent;
+        ComponentName component = baseIntent != null ? baseIntent.getComponent() : null;
+        if (component == null) {
+          continue;
+        }
+        for (Icon icon : ICONS) {
+          if (icon != keptIcon && component.equals(componentName(context, icon))) {
+            return true;
+          }
+        }
+      }
+    } catch (RuntimeException error) {
+      // Task disappeared while iterating.
+      Log.w("Unable to inspect app tasks", error);
+      return true;
+    }
+    return false;
+  }
+
+  /** Recent apps show the MainActivity icon, which is always the default one. */
+  public static void onActivityCreated (@NonNull Activity activity) {
+    if (!DEFAULT_ICON_ID.equals(getAppliedIconId())) {
+      updateTaskDescription(activity);
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  private static void updateTaskDescription (@NonNull Activity activity) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+      return;
+    }
+    Icon icon = findIcon(getAppliedIconId());
+    if (icon == null) {
+      return;
+    }
+    // Launchers ignore TaskDescription icon resources and only show bitmaps.
+    int colorPrimary = ContextCompat.getColor(activity, R.color.apps_list);
+    activity.setTaskDescription(new ActivityManager.TaskDescription(null, renderIcon(activity, icon), colorPrimary));
+  }
+
+  private static @Nullable Bitmap renderIcon (@NonNull Activity activity, @NonNull Icon icon) {
+    Drawable drawable = ContextCompat.getDrawable(activity, icon.launcherIconRes);
+    ActivityManager activityManager = (ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE);
+    if (drawable == null || activityManager == null) {
+      return null;
+    }
+    int size = activityManager.getLauncherLargeIconSize();
+    Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+    drawable.setBounds(0, 0, size, size);
+    drawable.draw(new Canvas(bitmap));
+    return bitmap;
   }
 
   public static @NonNull ComponentName componentName (@NonNull Context context, @NonNull Icon icon) {

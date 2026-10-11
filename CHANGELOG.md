@@ -9,6 +9,10 @@ in development build metadata.
 
 ## [Unreleased]
 
+- Launcher icons now use separate adaptive background, foreground, and
+  monochrome layers, with matching square and round legacy variants.
+- Changing the launcher icon keeps the current app task open and updates its
+  Recents icon; tasks opened before updating switch safely in the background.
 - Restored Telegram X's native chat-folder pager independently of Ratogram
   experiments, moved the folder-tab style override to Interface settings, and
   fixed a counter update race during folder changes.

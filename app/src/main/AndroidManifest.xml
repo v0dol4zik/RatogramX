@@ -418,9 +418,15 @@
       </intent-filter>
     </activity>
 
+    <!-- Launcher icon aliases start MainActivity through this trampoline -->
+    <activity
+      android:name=".LauncherActivity"
+      android:exported="false"
+      android:relinquishTaskIdentity="true" />
+
     <activity-alias
       android:name="${applicationId}.launcher.IconOriginal"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="true"
       android:exported="true"
       android:icon="@mipmap/app_icon_original"
@@ -434,7 +440,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconAmoled"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_amoled"
@@ -448,7 +454,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconLab"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_lab"
@@ -462,7 +468,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconMalware"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_malware"
@@ -476,7 +482,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconNotYou"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_not_you"
@@ -490,7 +496,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconNoTele"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_notele"
@@ -504,7 +510,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconSteam"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_steam"
@@ -518,7 +524,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconTwins"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_twins"
@@ -532,7 +538,7 @@
 
     <activity-alias
       android:name="${applicationId}.launcher.IconXue"
-      android:targetActivity=".MainActivity"
+      android:targetActivity=".LauncherActivity"
       android:enabled="false"
       android:exported="true"
       android:icon="@mipmap/app_icon_xue"
