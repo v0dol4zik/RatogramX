@@ -26,6 +26,8 @@ adding selected functionality inspired by and integrated from
 [moeGramX](https://github.com/moeCrafters/moeGramX), along with original
 Ratogram X features and branding.
 
+[![AI Slop Inside](https://sladge.net/badge.svg)](https://sladge.net)
+
 ## Highlights
 
 - **Search tabs** for chats, media, links, files, music, voice messages, and
