@@ -8427,7 +8427,8 @@ public class MediaViewController extends ViewController<MediaViewController.Args
     if (context instanceof MediaCollectorDelegate) {
       ((MediaCollectorDelegate) context).modifyMediaArguments(message, args);
     }
-    args.noLoadMore = message.isEventLog() || message.isSponsoredMessage();
+    // Poll attachments are not returned by chat media search filters.
+    args.noLoadMore = message.isEventLog() || message.isSponsoredMessage() || Td.isPoll(message.getMessage().content);
     args.areOnlyScheduled = message.isScheduled();
 
     openWithArgs(context, args);

@@ -1043,6 +1043,39 @@ public class MediaItem implements MessageSourceProvider, InvalidateContentProvid
       case TdApi.MessageAnimation.CONSTRUCTOR: {
         return new MediaItem(context, tdlib, msg.chatId, msg.id, msg.senderId, msg.date, (TdApi.MessageAnimation) msg.content).setMessage(msg);
       }
+      case TdApi.MessagePoll.CONSTRUCTOR: {
+        TdApi.MessagePoll poll = (TdApi.MessagePoll) msg.content;
+        if (poll.media == null) {
+          break;
+        }
+        MediaItem item;
+        switch (poll.media.getConstructor()) {
+          case TdApi.PollMediaPhoto.CONSTRUCTOR: {
+            TdApi.PollMediaPhoto photo = (TdApi.PollMediaPhoto) poll.media;
+            item = photo.video != null ? valueOf(context, tdlib, photo.video, null, photo.photo, poll.description) :
+              valueOf(context, tdlib, photo.photo, poll.description);
+            break;
+          }
+          case TdApi.PollMediaVideo.CONSTRUCTOR: {
+            TdApi.PollMediaVideo video = (TdApi.PollMediaVideo) poll.media;
+            item = valueOf(context, tdlib, video.video, video.alternativeVideos, video.cover, poll.description);
+            break;
+          }
+          case TdApi.PollMediaAnimation.CONSTRUCTOR:
+            item = valueOf(context, tdlib, ((TdApi.PollMediaAnimation) poll.media).animation, poll.description);
+            break;
+          case TdApi.PollMediaSticker.CONSTRUCTOR:
+            item = valueOf(context, tdlib, TD.convertToPhoto(((TdApi.PollMediaSticker) poll.media).sticker), poll.description);
+            break;
+          default:
+            item = null;
+            break;
+        }
+        if (item != null) {
+          return item.setSourceMessage(msg).setSourceSender(msg.senderId).setSourceDate(msg.date);
+        }
+        break;
+      }
       case TdApi.MessageChatChangePhoto.CONSTRUCTOR: {
         return new MediaItem(context, tdlib, msg.chatId, msg.id, ((TdApi.MessageChatChangePhoto) msg.content).photo).setMessage(msg);
       }

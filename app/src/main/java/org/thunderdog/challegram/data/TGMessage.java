@@ -8277,7 +8277,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
           return new TGMessageFile(context, msg);
         }
         case TdApi.MessagePoll.CONSTRUCTOR: {
-          return new TGMessagePoll(context, msg, nonNull((TdApi.MessagePoll) content).poll);
+          return new TGMessagePoll(context, msg, nonNull((TdApi.MessagePoll) content));
         }
         case TdApi.MessageLocation.CONSTRUCTOR: {
           return new TGMessageLocation(context, msg, (TdApi.MessageLocation) content);

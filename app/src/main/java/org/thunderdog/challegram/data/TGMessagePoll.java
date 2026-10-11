@@ -34,6 +34,9 @@ import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.loader.AvatarReceiver;
 import org.thunderdog.challegram.loader.ComplexReceiver;
 import org.thunderdog.challegram.loader.Receiver;
+import org.thunderdog.challegram.mediaview.MediaViewController;
+import org.thunderdog.challegram.mediaview.MediaViewThumbLocation;
+import org.thunderdog.challegram.mediaview.data.MediaItem;
 import org.thunderdog.challegram.navigation.TooltipOverlayView;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.theme.Theme;
@@ -51,6 +54,7 @@ import org.thunderdog.challegram.widget.SimplestCheckBox;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import me.vkryl.android.AnimatorUtils;
@@ -62,11 +66,14 @@ import me.vkryl.android.util.ClickHelper;
 import me.vkryl.core.ArrayUtils;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
+import me.vkryl.core.StringUtils;
 import me.vkryl.core.collection.IntList;
 import me.vkryl.core.lambda.Destroyable;
+import moe.kirao.mgx.utils.PollTranslationUtils;
 import tgx.td.Td;
 
-public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, ComplexReceiver.KeyFilter, TooltipOverlayView.VisibilityListener {
+public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, ComplexReceiver.KeyFilter, TooltipOverlayView.VisibilityListener, MediaWrapper.OnClickListener {
+  private static final long MEDIA_KEY = Long.MIN_VALUE;
   private static int ftoi (float f) { // Utility method to change conversion in all places, if needed
     return (int) f;
   }
@@ -243,6 +250,15 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   @Override
   protected void onMessageContainerDestroyed() {
+    if (descriptionText != null) {
+      descriptionText.performDestroy();
+    }
+    if (mediaText != null) {
+      mediaText.performDestroy();
+    }
+    if (mediaWrapper != null) {
+      mediaWrapper.destroy();
+    }
     if (options != null) {
       for (OptionEntry entry : options) {
         entry.performDestroy();
@@ -268,6 +284,13 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   private TdApi.FormattedText questionTextSource;
   private @Nullable TextWrapper questionText;
+  private TdApi.FormattedText description;
+  private TdApi.FormattedText descriptionTextSource;
+  private @Nullable TextWrapper descriptionText;
+  private @Nullable TdApi.PollMedia pollMedia;
+  private @Nullable MediaWrapper mediaWrapper;
+  private @Nullable TextWrapper mediaText;
+  private int mediaIcon;
 
   // Animation
 
@@ -367,8 +390,9 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
     }
   }
 
-  public TGMessagePoll (MessagesManager manager, TdApi.Message msg, TdApi.Poll poll) {
+  public TGMessagePoll (MessagesManager manager, TdApi.Message msg, TdApi.MessagePoll content) {
     super(manager, msg);
+    TdApi.Poll poll = content.poll;
 
     /*if (BuildConfig.DEBUG) {
       msg.date = (int) (tdlib().currentTimeMillis() / 1000l);
@@ -389,10 +413,130 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
       this.isButtonActive = null;
       this.button = null;
     }
+    this.description = content.description;
+    setDescription();
+    setMedia(content.media);
+  }
+
+  private int getQuestionTextIndex () {
+    return PollTranslationUtils.getQuestionIndex(description);
+  }
+
+  private void setDescription () {
+    TdApi.FormattedText text = translatedTexts != null && !Td.isEmpty(description) ? Td.trim(translatedTexts[0]) : description;
+    if (!Td.equalsTo(descriptionTextSource, text)) {
+      descriptionTextSource = text;
+      if (descriptionText != null) {
+        descriptionText.performDestroy();
+      }
+      descriptionText = Td.isEmpty(text) ? null : new TextWrapper(tdlib, text, getTextStyleProvider(), getTextColorSet(), openParameters(),
+        (wrapper, parsedText, specificMedia) -> invalidateTextMediaReceiver(parsedText, specificMedia))
+        .setViewProvider(currentViews)
+        .setClickCallback(clickCallback());
+    }
+  }
+
+  private boolean setMedia (@Nullable TdApi.PollMedia media) {
+    if (Td.contentEquals(pollMedia, media)) {
+      return false;
+    }
+    pollMedia = media;
+    if (mediaWrapper != null) {
+      mediaWrapper.destroy();
+      mediaWrapper = null;
+    }
+    if (mediaText != null) {
+      mediaText.performDestroy();
+      mediaText = null;
+    }
+    mediaIcon = 0;
+    if (media != null) {
+      String label = null;
+      switch (media.getConstructor()) {
+        case TdApi.PollMediaPhoto.CONSTRUCTOR: {
+          TdApi.PollMediaPhoto photo = (TdApi.PollMediaPhoto) media;
+          mediaWrapper = photo.video != null ?
+            new MediaWrapper(context(), tdlib, photo.video, photo.photo, msg.chatId, msg.id, this, false) :
+            new MediaWrapper(context(), tdlib, photo.photo, msg.chatId, msg.id, this, false);
+          break;
+        }
+        case TdApi.PollMediaVideo.CONSTRUCTOR: {
+          TdApi.PollMediaVideo video = (TdApi.PollMediaVideo) media;
+          mediaWrapper = new MediaWrapper(context(), tdlib, video.video, video.cover, msg.chatId, msg.id, this, false);
+          break;
+        }
+        case TdApi.PollMediaAnimation.CONSTRUCTOR:
+          mediaWrapper = new MediaWrapper(context(), tdlib, ((TdApi.PollMediaAnimation) media).animation, msg.chatId, msg.id, this, false);
+          break;
+        case TdApi.PollMediaAudio.CONSTRUCTOR:
+          label = TD.getTitle(((TdApi.PollMediaAudio) media).audio);
+          mediaIcon = R.drawable.baseline_music_note_24;
+          break;
+        case TdApi.PollMediaDocument.CONSTRUCTOR:
+          label = ((TdApi.PollMediaDocument) media).document.fileName;
+          if (StringUtils.isEmpty(label)) {
+            label = Lang.getString(R.string.File);
+          }
+          mediaIcon = R.drawable.baseline_insert_drive_file_24;
+          break;
+        case TdApi.PollMediaLocation.CONSTRUCTOR: {
+          TdApi.Location location = ((TdApi.PollMediaLocation) media).location;
+          label = Lang.getString(R.string.Location) + "\n" + String.format(Locale.US, "%.5f, %.5f", location.latitude, location.longitude);
+          mediaIcon = R.drawable.baseline_location_on_24;
+          break;
+        }
+        case TdApi.PollMediaVenue.CONSTRUCTOR: {
+          TdApi.Venue venue = ((TdApi.PollMediaVenue) media).venue;
+          label = venue.title + (StringUtils.isEmpty(venue.address) ? "" : "\n" + venue.address);
+          mediaIcon = R.drawable.baseline_location_on_24;
+          break;
+        }
+        case TdApi.PollMediaLink.CONSTRUCTOR:
+          label = ((TdApi.PollMediaLink) media).url;
+          mediaIcon = R.drawable.baseline_link_24;
+          break;
+        case TdApi.PollMediaSticker.CONSTRUCTOR:
+          mediaWrapper = new MediaWrapper(context(), tdlib, TD.convertToPhoto(((TdApi.PollMediaSticker) media).sticker), msg.chatId, msg.id, this, false);
+          break;
+      }
+      if (mediaWrapper != null) {
+        mediaWrapper.setViewProvider(currentViews);
+        mediaWrapper.setNeedRound(true, true, true, true);
+        mediaWrapper.setOnClickListener(this);
+      } else if (!StringUtils.isEmpty(label)) {
+        TdApi.FormattedText text = new TdApi.FormattedText(label, Text.findEntities(label, Text.ENTITY_FLAGS_EXTERNAL));
+        mediaText = new TextWrapper(tdlib, text, getTextStyleProvider(), getDecentColorSet(), openParameters(),
+          (wrapper, parsedText, specificMedia) -> invalidateTextMediaReceiver(parsedText, specificMedia))
+          .setViewProvider(currentViews)
+          .setClickCallback(clickCallback());
+      }
+    }
+    return true;
+  }
+
+  @Override
+  public void autoDownloadContent (TdApi.ChatType type) {
+    if (mediaWrapper != null) {
+      mediaWrapper.getFileProgress().downloadAutomatically(type);
+    }
+  }
+
+  @Override
+  protected void onMessageIdChanged (long oldMessageId, long newMessageId, boolean success) {
+    if (mediaWrapper != null) {
+      mediaWrapper.updateMessageId(oldMessageId, newMessageId, success);
+    }
+  }
+
+  @Override
+  protected void onMessageAttachedToView (@NonNull MessageView view, boolean attached) {
+    if (mediaWrapper != null) {
+      mediaWrapper.getFileProgress().notifyInvalidateTargetsChanged();
+    }
   }
 
   private void setQuestion (@NonNull TdApi.FormattedText question) {
-    TdApi.FormattedText questionToSet = (translatedTexts != null ? Td.trim(translatedTexts[0]) : question);
+    TdApi.FormattedText questionToSet = (translatedTexts != null ? Td.trim(translatedTexts[getQuestionTextIndex()]) : question);
     if (questionToSet == null)
       throw new IllegalStateException();
     if (!Td.equalsTo(this.questionTextSource, questionToSet)) {
@@ -407,7 +551,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
     prepareOptions(options, order);
     int optionId = 0;
     for (TdApi.PollOption option : options) {
-      TdApi.FormattedText optionToSet = (translatedTexts != null ? Td.trim(translatedTexts[optionId + 1]) : option.text);
+      TdApi.FormattedText optionToSet = (translatedTexts != null ? Td.trim(translatedTexts[getQuestionTextIndex() + optionId + 1]) : option.text);
       if (optionToSet == null) {
         optionToSet = Td.emptyFormattedText();
       }
@@ -426,13 +570,23 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
       textMediaReceiver.clear();
       return;
     }
-    int idOffset = Integer.MAX_VALUE / (options.length + 1);
+    int idOffset = Integer.MAX_VALUE / (options.length + 3);
     if (questionText != null) {
       questionText.requestMedia(textMediaReceiver, 0, idOffset);
     } else {
       textMediaReceiver.clearReceiversRange(0, idOffset);
     }
-    int key = 0;
+    if (descriptionText != null) {
+      descriptionText.requestMedia(textMediaReceiver, idOffset, idOffset);
+    } else {
+      textMediaReceiver.clearReceiversRange(idOffset, idOffset * 2);
+    }
+    if (mediaText != null) {
+      mediaText.requestMedia(textMediaReceiver, idOffset * 2, idOffset);
+    } else {
+      textMediaReceiver.clearReceiversRange(idOffset * 2, idOffset * 3);
+    }
+    int key = idOffset * 2;
     for (OptionEntry entry : options) {
       key += idOffset;
       if (entry.text != null) {
@@ -478,6 +632,17 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
     if (questionText != null) {
       questionText.prepare(maxWidth);
     }
+    if (descriptionText != null) {
+      descriptionText.prepare(maxWidth);
+    }
+    if (mediaWrapper != null) {
+      int width = mediaWrapper.getContentWidth();
+      int height = mediaWrapper.getContentHeight();
+      float scale = Math.min((float) maxWidth / Math.max(1, width), (float) maxWidth * 2f / Math.max(1, height));
+      mediaWrapper.buildContent(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)));
+    } else if (mediaText != null) {
+      mediaText.prepare(Math.max(1, maxWidth - Screen.dp(34f)));
+    }
     int optionWidth = maxWidth - Screen.dp(34f);
     for (OptionEntry option : this.options) {
       if (option.text != null) {
@@ -488,7 +653,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   @Override
   protected int getContentHeight () {
-    int height = getQuestionTitleHeight();
+    int height = getHeaderHeight();
     height += Screen.dp(18f); // poll status
     if (options != null) {
       for (OptionEntry option : options) {
@@ -507,6 +672,9 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   @Override
   public boolean filterKey (int receiverType, Receiver receiver, long key) {
+    if (mediaWrapper != null && key == MEDIA_KEY) {
+      return true;
+    }
     if (recentVoters != null) {
       for (ListAnimator.Entry<SenderEntry> recentVoter : recentVoters) {
         if (Td.getSenderId(recentVoter.item.senderId) == key) {
@@ -519,11 +687,16 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   @Override
   public boolean needComplexReceiver () {
-    return !getPoll().isAnonymous;
+    return !getPoll().isAnonymous || mediaWrapper != null;
   }
 
   @Override
   public void requestMediaContent (ComplexReceiver complexReceiver, boolean invalidate, int invalidateArg) {
+    if (mediaWrapper != null) {
+      mediaWrapper.requestPreview(complexReceiver.getPreviewReceiver(MEDIA_KEY));
+      mediaWrapper.requestImage(complexReceiver.getImageReceiver(MEDIA_KEY));
+      mediaWrapper.requestGif(complexReceiver.getGifReceiver(MEDIA_KEY));
+    }
     if (recentVoters != null) {
       for (ListAnimator.Entry<SenderEntry> entry : recentVoters) {
         long senderId = Td.getSenderId(entry.item.senderId);
@@ -537,9 +710,12 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
   @Override
   protected void drawContent (MessageView view, Canvas c, int startX, int startY, int maxWidth, ComplexReceiver receiver) {
     drawContent(view, c, startX, startY, maxWidth);
+    if (mediaWrapper != null && !shouldHideMedia()) {
+      mediaWrapper.draw(view, c, startX + (maxWidth - mediaWrapper.getCellWidth()) / 2, startY + getDescriptionHeight(),
+        receiver.getPreviewReceiver(MEDIA_KEY), mediaWrapper.needGif() ? receiver.getGifReceiver(MEDIA_KEY) : receiver.getImageReceiver(MEDIA_KEY), 1f);
+    }
 
-    // First, draw question
-    startY += getQuestionTitleHeight();
+    startY += getHeaderHeight();
     // Second, draw status
     startY += Screen.dp(18f);
 
@@ -566,13 +742,28 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
     return getContentX() + Screen.dp(12f);
   }
 
-  private int getQuestionTitleHeight () {
-    return questionText != null ? questionText.getHeight() + Screen.dp(5f) : 0;
+  private int getDescriptionHeight () {
+    return descriptionText != null ? descriptionText.getHeight() + Screen.dp(8f) : 0;
+  }
+
+  private int getAttachmentHeight () {
+    if (mediaWrapper != null) {
+      return mediaWrapper.getCellHeight() + Screen.dp(8f);
+    }
+    return mediaText != null ? Math.max(Screen.dp(24f), mediaText.getHeight()) + Screen.dp(8f) : 0;
+  }
+
+  private int getPollContentTop () {
+    return getDescriptionHeight() + getAttachmentHeight();
+  }
+
+  private int getHeaderHeight () {
+    return getPollContentTop() + (questionText != null ? questionText.getHeight() + Screen.dp(5f) : 0);
   }
 
   private int getConfettiCenterY (int optionId) {
     int startY = getContentY();
-    startY += getQuestionTitleHeight();
+    startY += getHeaderHeight();
     startY += Screen.dp(18f);
     int currentOptionId = 0;
     for (OptionEntry option : options) {
@@ -637,11 +828,19 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
     int decentColor = getDecentColor();
     int textOffset = Screen.dp(12f);
 
-    // First, draw question
-    if (questionText != null) {
-      questionText.draw(c, startX, startX + maxWidth, 0, startY, null, alpha, view.getTextMediaReceiver());
-      startY += getQuestionTitleHeight();
+    if (descriptionText != null) {
+      descriptionText.draw(c, startX, startX + maxWidth, 0, startY, null, alpha, view.getTextMediaReceiver());
     }
+    if (mediaText != null) {
+      int mediaY = startY + getDescriptionHeight();
+      Drawable icon = Drawables.get(mediaIcon);
+      Drawables.draw(c, icon, startX, mediaY, getDecentIconPaint());
+      mediaText.draw(c, startX + Screen.dp(34f), startX + maxWidth, 0, mediaY, null, alpha, view.getTextMediaReceiver());
+    }
+    if (questionText != null) {
+      questionText.draw(c, startX, startX + maxWidth, 0, startY + getPollContentTop(), null, alpha, view.getTextMediaReceiver());
+    }
+    startY += getHeaderHeight();
 
     // Second, draw status
     pollStatusText.draw(c, startX, startY);
@@ -1136,8 +1335,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
   @Override
   protected boolean onMessageContentChanged (TdApi.Message message, TdApi.MessageContent oldContent, TdApi.MessageContent newContent, boolean isBottomMessage) {
     if (Td.isPoll(newContent)) {
-      TdApi.Poll updatedPoll = ((TdApi.MessagePoll) newContent).poll;
-      applyPoll(updatedPoll, false);
+      applyPollContent((TdApi.MessagePoll) newContent);
       return true;
     }
     return false;
@@ -1145,9 +1343,24 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   @Override
   protected boolean updateMessageContent (TdApi.Message message, TdApi.MessageContent newContent, boolean isBottomMessage) {
-    TdApi.Poll updatedPoll = ((TdApi.MessagePoll) newContent).poll;
-    applyPoll(updatedPoll, false);
+    applyPollContent((TdApi.MessagePoll) newContent);
     return true;
+  }
+
+  private void applyPollContent (TdApi.MessagePoll content) {
+    boolean descriptionChanged = !Td.equalsTo(description, content.description);
+    if (descriptionChanged) {
+      description = content.description;
+      translatedTexts = null;
+      setDescription();
+      invalidateTextMediaReceiver();
+    }
+    boolean mediaChanged = setMedia(content.media);
+    applyPoll(content.poll, descriptionChanged || mediaChanged);
+    if (mediaChanged) {
+      invalidateContentReceiver();
+      invalidateTextMediaReceiver();
+    }
   }
 
   // Texts
@@ -1456,6 +1669,11 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
   @Override
   public boolean onTouchEvent (MessageView view, MotionEvent e) {
     boolean res = super.onTouchEvent(view, e);
+    if ((descriptionText != null && descriptionText.onTouchEvent(view, e)) ||
+        (mediaText != null && mediaText.onTouchEvent(view, e)) ||
+        (mediaWrapper != null && mediaWrapper.onTouchEvent(view, e))) {
+      return true;
+    }
     return (!isEventLog() && clickHelper.onTouchEvent(view, e)) || res;
   }
 
@@ -1464,7 +1682,26 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
   @Override
   public boolean performLongPress (View view, float x, float y) {
     clickHelper.cancel(view, x, y);
+    if ((descriptionText != null && descriptionText.performLongPress(view)) ||
+        (mediaText != null && mediaText.performLongPress(view)) ||
+        (mediaWrapper != null && mediaWrapper.performLongPress(view))) {
+      return true;
+    }
     return super.performLongPress(view, x, y);
+  }
+
+  @Override
+  public boolean onClick (View view, MediaWrapper wrapper) {
+    MediaItem item = MediaItem.valueOf(context(), tdlib, msg);
+    if (item != null) {
+      MediaViewController.openFromMessage(this, item);
+    }
+    return true;
+  }
+
+  @Override
+  public MediaViewThumbLocation getMediaThumbLocation (long messageId, View view, int viewTop, int viewBottom, int top) {
+    return mediaWrapper != null && messageId == msg.id ? mediaWrapper.getMediaThumbLocation(view, viewTop, viewBottom, top) : null;
   }
 
   @Override
@@ -1477,7 +1714,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
       return false;
     }
 
-    int startY = getQuestionTitleHeight();
+    int startY = getHeaderHeight();
     if (explanationDrawable != null && getHintVisibility() > 0f) {
       float cx = maxWidth - explanationDrawable.getMinimumWidth() / 2f - Screen.dp(2f);
       float cy = startY + pollStatusText.getHeight() / 2f;
@@ -1549,7 +1786,8 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
       }
       explanationPopup = buildContentHint(view, (targetView, outRect) -> {
         if (questionText != null) {
-          outRect.set(0, 0, questionText.getWidth(), questionText.getHeight());
+          int top = getPollContentTop();
+          outRect.set(0, top, questionText.getWidth(), top + questionText.getHeight());
         } else {
           outRect.setEmpty();
         }
@@ -1566,7 +1804,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
         if (button.singleton() != null) {
           if (isScheduled()) {
             showContentHint(view, (targetView, outRect) -> {
-              int startY = getQuestionTitleHeight();
+              int startY = getHeaderHeight();
               startY += Screen.dp(18f);
               for (OptionEntry options : options) {
                 startY += Math.max(Screen.dp(46f), options.text != null ? options.text.getHeight() : 0) + Screen.separatorSize();
@@ -1614,7 +1852,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
       } else if (isScheduled()) {
         final int selectedOptionId = clickOptionId;
         showContentHint(view, (targetView, outRect) -> {
-          int startY = getQuestionTitleHeight();
+          int startY = getHeaderHeight();
           startY += Screen.dp(18f);
           for (int i = 0; i < options.length; i++) {
             final int optionId = findOptionId(i, displayOrder);
@@ -1634,7 +1872,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
       } else if (!canVote(true)) {
         final int selectedOptionId = clickOptionId;
         showContentHint(view, (targetView, outRect) -> {
-          int startY = getQuestionTitleHeight();
+          int startY = getHeaderHeight();
           startY += Screen.dp(18f);
           for (int i = 0; i < options.length; i++) {
             final int optionId = findOptionId(i, displayOrder);
@@ -1710,7 +1948,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   private TooltipOverlayView.LocationProvider makeVoteButtonLocationProvider (boolean needOffset) {
     return (targetView, outRect) -> {
-      int startY = getQuestionTitleHeight() + Screen.dp(23f);
+      int startY = getHeaderHeight() + Screen.dp(23f);
       for (OptionEntry option : options) {
         int optionHeight = getOptionHeight(option.text);
         startY += optionHeight;
@@ -1724,7 +1962,7 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
 
   private TooltipOverlayView.LocationProvider makeButtonLocationProvider (int selectedOptionId, boolean needOffset) {
     return (targetView, outRect) -> {
-      int startY = getQuestionTitleHeight();
+      int startY = getHeaderHeight();
       for (int i = 0; i < options.length; i++) {
         final int optionId = findOptionId(i, displayOrder);
         OptionEntry option = options[optionId];
@@ -1751,34 +1989,13 @@ public class TGMessagePoll extends TGMessage implements ClickHelper.Delegate, Co
     if (state == null || state.poll == null) {
       return null;
     }
-    // FIXME: proper workaround for "•"
-    TdApi.FormattedText concatenatedText = Td.isEmpty(state.poll.question) ? state.poll.question : new TdApi.FormattedText(
-      state.poll.question.text.replaceAll("•", " "),
-      state.poll.question.entities
-    );
-    for (TdApi.PollOption option : state.poll.options) {
-      concatenatedText = Td.concat(
-        concatenatedText,
-        new TdApi.FormattedText("\n\n• ", new TdApi.TextEntity[0]),
-        Td.isEmpty(option.text) ? option.text : new TdApi.FormattedText(
-          option.text.text.replaceAll("•", " "),
-          option.text.entities
-        )
-      );
-    }
-    return concatenatedText;
+    return PollTranslationUtils.buildSource(description, state.poll);
   }
 
   @Override
   protected void setTranslationResult (@Nullable TdApi.FormattedText text) {
-    if (text != null) {
-      translatedTexts = Td.split(text, "•");
-      if (translatedTexts.length != state.options.length + 1) {
-        translatedTexts = null;
-      }
-    } else {
-      translatedTexts = null;
-    }
+    translatedTexts = PollTranslationUtils.splitResult(text, description, state.options.length);
+    setDescription();
     applyPoll(getPoll(), true);
     rebuildAndUpdateContent();
     invalidateTextMediaReceiver();
