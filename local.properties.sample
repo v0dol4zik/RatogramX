@@ -7,6 +7,9 @@
 # Path to Android SDK
 sdk.dir=
 
+# Location of the MSYS2. This is only used on Windows.
+msys2.dir=
+
 ## Path to the keystore file
 keystore.file=
 
@@ -28,12 +31,8 @@ app.sources_url=https://github.com/v0dol4zik/RatogramX
 
 ## Obtain credentials to access Telegram API:
 # https://core.telegram.org/api/obtaining_api_id
-telegram.api_id=
-telegram.api_hash=
+telegram.api_id=12345
+telegram.api_hash=00000000000000000000000000000000
 
-## Obtain credentials to access YouTube API:
-# https://developers.google.com/youtube/android/player/register
-youtube.api_key=
-
-## Extension module to apply.
+## Extension module to apply. One of: none, hms
 tgx.extension=none

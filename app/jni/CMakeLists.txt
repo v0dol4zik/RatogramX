@@ -1,9 +1,17 @@
 cmake_minimum_required(VERSION 3.22.1 FATAL_ERROR)
 project(tgx VERSION 1.0.0 LANGUAGES C CXX)
-message(STATUS "Building ${PROJECT_NAME} platform: ${ANDROID_PLATFORM} abi: ${ANDROID_ABI} type: ${CMAKE_BUILD_TYPE} flavor: ${TGX_FLAVOR} (${PROJECT_SOURCE_DIR})")
+message(STATUS "Building ${PROJECT_NAME} ndk: r${ANDROID_NDK_MAJOR} (${ANDROID_NDK_REVISION}) platform: ${ANDROID_PLATFORM} (${ANDROID_MIN_SDK_VERSION}) abi: ${ANDROID_ABI} type: ${CMAKE_BUILD_TYPE} flavor: ${TGX_FLAVOR} (${PROJECT_SOURCE_DIR})")
+
+if(NOT ANDROID_NDK_MAJOR OR NOT ANDROID_NDK_REVISION)
+  message(FATAL_ERROR "Unknown NDK: r${ANDROID_NDK_MAJOR} (${ANDROID_NDK_REVISION})")
+endif()
 
 if (NOT TGX_FLAVOR MATCHES "^(legacy|lollipop|marshmallow|latest)$")
   message(FATAL_ERROR "Unknown flavor: ${TGX_FLAVOR}")
+endif()
+
+if (NOT DEFINED ANDROID_MIN_SDK_VERSION)
+  message(FATAL_ERROR "ANDROID_MIN_SDK_VERSION is not set")
 endif()
 
 # == Include ==
@@ -15,11 +23,14 @@ include("${CMAKE_HOME_DIRECTORY}/cmake/Join.cmake")
 # == Dirs ==
 
 set(THIRDPARTY_DIR "${PROJECT_SOURCE_DIR}/third_party")
-set(TGX_ROOT_DIR "${PROJECT_SOURCE_DIR}/../..")
 set(TDLIB_DIR "${TGX_ROOT_DIR}/tdlib")
 set(UTILS_DIR "${THIRDPARTY_DIR}/jni-utils")
 
-set(ENABLE_TGVOIP yes)
+if(${TGX_FLAVOR} STREQUAL "legacy")
+  set(ENABLE_TGVOIP no)
+else()
+  set(ENABLE_TGVOIP yes)
+endif()
 
 # Using webp only if building for 32-bit platform
 #if (${ANDROID_ABI} STREQUAL "armeabi-v7a" OR ${ANDROID_ABI} STREQUAL "x86")
@@ -28,16 +39,6 @@ set(ENABLE_TGVOIP yes)
 #  set(USE_WEBP no)
 #endif()
 set(USE_WEBP yes)
-
-set(FFMPEG_SRC_DIR "${THIRDPARTY_DIR}/ffmpeg")
-set(FFMPEG_LIBS
-  swresample
-  avformat
-  swscale
-  avcodec
-  avfilter
-  avutil
-)
 
 set(VPX_DIR "${LIBVPX_DIR}/${ANDROID_ABI}")
 set(VPX_LIB_PATH "${VPX_DIR}/lib/libvpx.a")
@@ -69,7 +70,15 @@ add_compile_options(
   "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-fvisibility=hidden>"
   "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-fvisibility-inlines-hidden>"
   "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-flto=full>"
+  "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-fno-unwind-tables>"
+  "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-fno-asynchronous-unwind-tables>"
 )
+
+if (ANDROID_MIN_SDK_VERSION GREATER_EQUAL 23)
+  add_link_options(
+    "-Wl,--pack-dyn-relocs=android"
+  )
+endif()
 
 # == Libraries ==
 
@@ -77,24 +86,24 @@ add_compile_options(
 
 add_library(crypto SHARED IMPORTED)
 set_target_properties(crypto PROPERTIES IMPORTED_LOCATION
-  ${TDLIB_DIR}/openssl/${ANDROID_ABI}/lib/libcryptox.so
+  ${TDLIB_DIR}/openssl/${ANDROID_NDK_REVISION}/${ANDROID_PLATFORM}/${ANDROID_ABI}/lib/libcryptox.so
 )
 add_library(ssl SHARED IMPORTED)
 set_target_properties(ssl PROPERTIES IMPORTED_LOCATION
-  ${TDLIB_DIR}/openssl/${ANDROID_ABI}/lib/libsslx.so
+  ${TDLIB_DIR}/openssl/${ANDROID_NDK_REVISION}/${ANDROID_PLATFORM}/${ANDROID_ABI}/lib/libsslx.so
 )
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.11.0")
   target_include_directories(crypto INTERFACE
-    ${TDLIB_DIR}/openssl/${ANDROID_ABI}/include
+    ${TDLIB_DIR}/openssl/${ANDROID_NDK_REVISION}/${ANDROID_PLATFORM}/${ANDROID_ABI}/include
   )
   target_include_directories(ssl INTERFACE
-    ${TDLIB_DIR}/openssl/${ANDROID_ABI}/include
+    ${TDLIB_DIR}/openssl/${ANDROID_NDK_REVISION}/${ANDROID_PLATFORM}/${ANDROID_ABI}/include
   )
 endif()
 
 add_library(tdjni SHARED IMPORTED)
 set_target_properties(tdjni PROPERTIES IMPORTED_LOCATION
-  ${TDLIB_DIR}/src/main/libs/${ANDROID_ABI}/libtdjni.so
+  ${TDLIB_DIR}/src/main/libs/${ANDROID_NDK_REVISION}/${ANDROID_PLATFORM}/${ANDROID_ABI}/libtdjni.so
 )
 target_link_libraries(tdjni INTERFACE crypto ssl)
 
@@ -116,12 +125,13 @@ add_subdirectory(
 include("${PROJECT_SOURCE_DIR}/BuildYuv.cmake")
 
 # vpx
-if(EXISTS "${VPX_DIR}")
-  add_library(vpx STATIC IMPORTED)
-  set_target_properties(vpx PROPERTIES IMPORTED_LOCATION "${VPX_LIB_PATH}")
-  target_include_directories(vpx INTERFACE "${VPX_DIR}/include")
-else()
-  message(WARNING "./gradlew buildLibvpx was not run yet")
+set(VPX_INCLUDE_DIR "${VPX_DIR}/include")
+add_library(vpx STATIC IMPORTED)
+set_target_properties(vpx PROPERTIES IMPORTED_LOCATION "${VPX_LIB_PATH}")
+target_include_directories(vpx INTERFACE "${VPX_INCLUDE_DIR}")
+file(MAKE_DIRECTORY "${VPX_INCLUDE_DIR}")
+if(NOT EXISTS "${VPX_LIB_PATH}" OR NOT EXISTS "${VPX_INCLUDE_DIR}")
+  message(WARNING "Missing dependency: vpx. Run :app:buildLibvpx or Refresh Linked C++ Projects")
 endif()
 
 # opusfile
@@ -139,18 +149,17 @@ if (${USE_WEBP})
 endif()
 
 # ffmpeg
-if(EXISTS "${FFMPEG_DIR}")
-  foreach(FFMPEG_LIB IN LISTS FFMPEG_LIBS)
-    add_library(${FFMPEG_LIB} STATIC IMPORTED)
-    set_target_properties(${FFMPEG_LIB} PROPERTIES IMPORTED_LOCATION "${FFMPEG_DIR}/${ANDROID_ABI}/lib/lib${FFMPEG_LIB}.a")
-    target_include_directories(${FFMPEG_LIB} INTERFACE
-      "${FFMPEG_DIR}/${ANDROID_ABI}/include"
-      "${FFMPEG_SRC_DIR}"
-    )
-  endforeach()
-else()
-  message(WARNING "./gradlew buildFFmpeg was not run yet")
-endif()
+foreach(FFMPEG_LIB IN LISTS FFMPEG_LIBS)
+  set(FFMPEG_LIB_PATH "${FFMPEG_DIR}/${ANDROID_ABI}/lib/lib${FFMPEG_LIB}.a")
+  set(FFMPEG_INCLUDE_DIR "${FFMPEG_DIR}/${ANDROID_ABI}/include")
+  add_library(${FFMPEG_LIB} STATIC IMPORTED)
+  set_target_properties(${FFMPEG_LIB} PROPERTIES IMPORTED_LOCATION "${FFMPEG_LIB_PATH}")
+  target_include_directories(${FFMPEG_LIB} INTERFACE "${FFMPEG_INCLUDE_DIR}")
+  file(MAKE_DIRECTORY "${FFMPEG_INCLUDE_DIR}")
+  if(NOT EXISTS "${FFMPEG_LIB_PATH}" OR NOT EXISTS "${FFMPEG_INCLUDE_DIR}")
+    message(WARNING "Missing dependency: ${FFMPEG_LIB}. Run :app:buildFfmpeg or Refresh Linked C++ Projects.")
+  endif()
+endforeach()
 
 # tgcalls
 if (${ENABLE_TGVOIP})

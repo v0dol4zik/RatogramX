@@ -9,6 +9,10 @@ in development build metadata.
 
 ## [Unreleased]
 
+- Updated the Telegram X base to 0.29.1.1817, including the matching TDLib,
+  call libraries, native toolchain, and background-notification fixes.
+- Restored VPN detection on Android 5 and verified the Android 5 ARM32 build;
+  documented SDK/ABI variants and added older-device build coverage to CI.
 - Forum topics use their own read markers, unread counters, and saved scroll
   positions; marking a forum read also clears its topics, mentions, and reactions.
 - Centered default topic icons and kept unread badges clear of the discussion button.

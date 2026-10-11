@@ -7,11 +7,6 @@
 	path = app/jni/third_party/libyuv
 	url = https://chromium.googlesource.com/libyuv/libyuv
 	shallow = true
-[submodule "libtgvoip"]
-	path = app/jni/tgvoip/third_party/libtgvoip
-	url = https://github.com/TGX-Android/libtgvoip
-	shallow = true
-	branch = tgx
 [submodule "ffmpeg"]
 	path = app/jni/third_party/ffmpeg
 	url = https://github.com/FFmpeg/FFmpeg
@@ -135,3 +130,6 @@
 [submodule "thirdparty/androidx-media/lollipop"]
 	path = app/thirdparty/androidx-media/lollipop
 	url = https://github.com/androidx/media
+[submodule "app/jni/third_party/pixman"]
+	path = app/jni/third_party/pixman
+	url = https://gitlab.freedesktop.org/pixman/pixman.git

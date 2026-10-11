@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.2 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.22.1 FATAL_ERROR)
 project(tgcalls VERSION 1.0.0 LANGUAGES C CXX)
 
 message(STATUS "Building ${PROJECT_NAME} platform: ${ANDROID_PLATFORM} abi: ${ANDROID_ABI} type: ${CMAKE_BUILD_TYPE} flavor: ${TGX_FLAVOR} (${PROJECT_SOURCE_DIR})")
@@ -20,8 +20,6 @@ include("${PROJECT_SOURCE_DIR}/BuildJson11.cmake")
 include("${PROJECT_SOURCE_DIR}/BuildRNNoise.cmake")
 # webrtc
 include("${PROJECT_SOURCE_DIR}/BuildWebRTC.cmake")
-# libtgvoip
-include("${PROJECT_SOURCE_DIR}/BuildTelegramVoIP.cmake")
 # tgcalls
 include("${PROJECT_SOURCE_DIR}/BuildTgCalls.cmake")
 
@@ -194,9 +192,9 @@ target_link_libraries(${TGCALLS_LIB}
 )
 
 target_link_options(${TGCALLS_LIB} PRIVATE
-  "$<$<CONFIG:Release>:-Wl,--gc-sections,--icf=safe>"
-  "$<$<CONFIG:Release>:-Wl,--exclude-libs,ALL>"
-  "$<$<CONFIG:Release>:-flto=full>"
+  "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-Wl,--gc-sections,--icf=safe>"
+  "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-Wl,--exclude-libs,ALL>"
+  "$<$<CONFIG:Release,RelWithDebInfo,MinSizeRel>:-flto=full>"
 )
 
 if (${ANDROID_ABI} STREQUAL "arm64-v8a" OR ${ANDROID_ABI} STREQUAL "x86_64")

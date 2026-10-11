@@ -4,9 +4,10 @@ import androidx.baselineprofile.gradle.consumer.BaselineProfileConsumerExtension
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.impl.VariantOutputImpl
+import com.android.build.gradle.tasks.ExternalNativeBuildTask
 import org.gradle.kotlin.dsl.support.uppercaseFirstChar
 import tgx.gradle.*
-import tgx.gradle.source.GitVersionSource
+import tgx.gradle.source.GitInformationSource
 import tgx.gradle.task.*
 import java.util.*
 
@@ -23,6 +24,40 @@ val ratogramxDevPackage = providers.gradleProperty("ratogramxDevPackage")
   .map(String::toBoolean)
   .orElse(false)
   .get()
+val useLegacyNdk = tgxConfig.useLegacyNdk.get()
+val appliedNdkVersion = if (useLegacyNdk) {
+  config.build.legacyNdkVersion
+} else {
+  config.build.primaryNdkVersion
+}
+val ndkMinSdkVersion = appliedNdkVersion.ndkVersionToMinSdk()
+
+val validateGitSetupTask = tasks.register<ValidateGitSetupTask>("validateGitSetup") {
+  group = "Setup"
+  description = "Ensures git modules and LFS objects are fetched correctly"
+
+  mainDir.set(layout.projectDirectory.dir(".."))
+  gitmodulesFile.set(layout.projectDirectory.file("../.gitmodules"))
+  submoduleMarkers.from(providers.fileContents(
+    layout.projectDirectory.file("../.gitmodules")
+  ).asText.map { gitmodules ->
+    Regex("""^\s*path\s*=\s*(.+)$""", RegexOption.MULTILINE)
+      .findAll(gitmodules).map { it.groupValues[1].trim() }.map { "../$it/.git" }.toList()
+  })
+  lfsFiles.from(
+    layout.projectDirectory.dir(
+      "../tdlib/src/main/libs"
+    ).asFileTree.matching {
+      include("*/*/*/*.so")
+    },
+    layout.projectDirectory.dir(
+      "../tdlib/openssl"
+    ).asFileTree.matching {
+      include("*/*/*/lib/libcryptox.so")
+      include("*/*/*/lib/libsslx.so")
+    }
+  )
+}
 
 val generateThemes = tasks.register<GenerateThemesTask>("generateThemes") {
   group = "Setup"
@@ -113,9 +148,12 @@ val fetchLocalizedStrings = tasks.register<FetchLocalizedStringsTask>("fetchLoca
   resOutputDir.set(layout.buildDirectory.dir(
     "generated/tgx/locales/res"
   ))
+  localeFiltersOutputFile.set(layout.buildDirectory.file(
+    "generated/tgx/locales/filter.txt"
+  ))
 }
 
-val patchJetpackMediaTasks = Sdk.VARIANTS.values.filter { !it.isMarshmallow }.associateBy({ it.flavor }) { variant ->
+val patchJetpackMediaTasks = Sdk.VARIANTS.values.associateBy({ it.jetpackMediaFlavor }) { variant ->
   tasks.register<PatchJetpackMediaTask>(
     "patchJetpackMedia${variant.flavor.uppercaseFirstChar()}"
   ) {
@@ -123,12 +161,15 @@ val patchJetpackMediaTasks = Sdk.VARIANTS.values.filter { !it.isMarshmallow }.as
     description = "Copies patched androidx-media extensions for ${variant.flavor} flavor"
     inputDirs.from(Config.ANDROIDX_MEDIA_EXTENSIONS.map { extension ->
       layout.projectDirectory.dir(
-        "thirdparty/androidx-media/${variant.flavor}/libraries/$extension/src/main/jni"
+        "thirdparty/androidx-media/${
+          variant.jetpackMediaFlavor
+        }/libraries/$extension/src/main/jni"
       )
     })
     outputDir.set(layout.buildDirectory.dir(
-      "generated/tgx/androidx-media/${variant.flavor}"
+      "generated/tgx/androidx-media/${variant.jetpackMediaFlavor}"
     ))
+    dependsOn(validateGitSetupTask)
   }
 }
 
@@ -143,6 +184,7 @@ val patchOpusTask = tasks.register<PatchOpusTask>(
 ) {
   group = "Setup"
   description = "Creates a patched copy of opus"
+  msys2Dir.set(msys2Directory(config.msys2Dir))
   inputDir.set(layout.projectDirectory.dir(
     "jni/third_party/opus"
   ))
@@ -158,9 +200,12 @@ val patchOpusTask = tasks.register<PatchOpusTask>(
   outputDir.set(layout.buildDirectory.dir(
     "generated/tgx/opus"
   ))
+  dependsOn(validateGitSetupTask)
 }
 
-val buildLibvpxTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
+val buildLibvpxTasks = Sdk.VARIANTS.values.filter {
+  (it.usesLegacyNdk == useLegacyNdk || config.build.primaryNdkVersion == config.build.legacyNdkVersion)
+}.flatMap { sdkVariant ->
   val abiVariants = if (sdkVariant.minSdk >= 21) {
     arrayOf("arm64", "arm32", "x86", "x64")
   } else {
@@ -174,7 +219,7 @@ val buildLibvpxTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
       description = "Builds libvpx for ${sdkVariant.flavor}, $abiVariant flavor"
       // System
       sdkDir.set(File(config.sdkDir))
-      // sdkDir.fileValue(File(config.sdkDir))
+      msys2Dir.set(msys2Directory(config.msys2Dir))
       ndkVersion.set(android.ndkVersion)
       hostTag.set(findHostTag())
       // Input
@@ -200,6 +245,7 @@ val buildLibvpxTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
       outputDir.set(layout.buildDirectory.dir(
         "generated/tgx/libvpx/${sdkVariant.flavor}/${abiVariant.toAbiFilter()}"
       ))
+      dependsOn(validateGitSetupTask)
     })
   }
 }.toMap()
@@ -209,7 +255,9 @@ val buildLibvpxTask = tasks.register("buildLibvpx") {
   dependsOn(buildLibvpxTasks.values)
 }
 
-val buildFfmpegTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
+val buildFfmpegTasks = Sdk.VARIANTS.values.filter {
+  (it.usesLegacyNdk == useLegacyNdk || config.build.primaryNdkVersion == config.build.legacyNdkVersion)
+}.flatMap { sdkVariant ->
   val abiVariants = if (sdkVariant.minSdk >= 21) {
     arrayOf("arm64", "arm32", "x86", "x64")
   } else {
@@ -223,7 +271,8 @@ val buildFfmpegTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
       group = "Setup"
       description = "Builds FFmpeg for ${sdkVariant.flavor}, $abiVariant flavor"
       // System
-      sdkDir.fileValue(File(config.sdkDir))
+      sdkDir.set(File(config.sdkDir))
+      msys2Dir.set(msys2Directory(config.msys2Dir))
       ndkVersion.set(android.ndkVersion)
       hostTag.set(findHostTag())
       // Input
@@ -250,7 +299,7 @@ val buildFfmpegTasks = Sdk.VARIANTS.values.flatMap { sdkVariant ->
       outputDir.set(layout.buildDirectory.dir(
         "generated/tgx/ffmpeg/${sdkVariant.flavor}/${abiVariant.toAbiFilter()}"
       ))
-      dependsOn(buildLibvpxTasks[key] ?: error("libvpx task not found for $key"))
+      dependsOn(validateGitSetupTask, buildLibvpxTasks[key] ?: error("libvpx task not found for $key"))
     }
     Pair(key, task)
   }
@@ -260,6 +309,9 @@ val buildFfmpegTask = tasks.register("buildFfmpeg") {
   description = "Builds FFmpeg for all flavors"
   dependsOn(buildFfmpegTasks.values)
 }
+
+val buildNativeTasks = mutableMapOf<String, TaskProvider<*>>()
+
 
 //noinspection WrongGradleMethod
 android {
@@ -309,7 +361,6 @@ android {
     resValue("string", "content_authority", "${config.applicationId}.sync.provider")
 
     buildConfigString("PROJECT_NAME", config.applicationName)
-    buildConfigBool("SHARED_STL", Config.SHARED_STL)
     buildConfigString("SAFETYNET_API_KEY", config.safetyNetToken)
 
     buildConfigString("DOWNLOAD_URL", config.appDownloadUrl)
@@ -345,8 +396,8 @@ android {
     // Library versions in BuildConfig.java
 
     var tdlibVersion = ""
-    val tdlibCommit = File(project.rootDir.absoluteFile, "tdlib/version.txt").bufferedReader().readLine().take(7)
-    val tdlibVersionFile = File(project.rootDir.absoluteFile, "tdlib/source/td/CMakeLists.txt")
+    val tdlibCommit = requireFile(project.isolated.rootProject.projectDirectory.file("tdlib/version.txt").asFile).bufferedReader().readLine().take(7)
+    val tdlibVersionFile = requireFile(project.isolated.rootProject.projectDirectory.file("tdlib/source/td/CMakeLists.txt").asFile)
     tdlibVersionFile.bufferedReader().use { reader ->
       val regex = Regex("^project\\(TDLib VERSION (\\d+\\.\\d+\\.\\d+) LANGUAGES CXX C\\)$")
       while (true) {
@@ -364,7 +415,7 @@ android {
 
     buildConfigString("TDLIB_VERSION", tdlibVersion)
 
-    val tgxGitVersionProvider = providers.of(GitVersionSource::class) {
+    val tgxGitVersionProvider = providers.of(GitInformationSource::class) {
       parameters.module = layout.projectDirectory
     }
     val tgxGit = tgxGitVersionProvider.get()
@@ -403,7 +454,7 @@ android {
 
     // OpenSSL version
 
-    val openSslGit = providers.of(GitVersionSource::class) {
+    val openSslGit = providers.of(GitInformationSource::class) {
       parameters.module = layout.projectDirectory.dir("../tdlib/source/openssl")
     }.get()
     buildConfigString("OPENSSL_COMMIT", openSslGit.commitHashShort)
@@ -411,23 +462,23 @@ android {
 
     // WebRTC version
 
-    val webrtcGit = providers.of(GitVersionSource::class) {
-      parameters.module = layout.projectDirectory.dir("jni/third_party/webrtc")
+    val webrtcGit = providers.of(GitInformationSource::class) {
+      parameters.module = layout.projectDirectory.dir("jni/tgvoip/third_party/webrtc")
     }.get()
     buildConfigString("WEBRTC_COMMIT", webrtcGit.commitHashShort)
     buildConfigString("WEBRTC_COMMIT_URL", webrtcGit.commitUrl)
 
     // tgcalls version
 
-    val tgcallsGit = providers.of(GitVersionSource::class) {
-      parameters.module = layout.projectDirectory.dir("jni/third_party/tgcalls")
+    val tgcallsGit = providers.of(GitInformationSource::class) {
+      parameters.module = layout.projectDirectory.dir("jni/tgvoip/third_party/tgcalls")
     }.get()
     buildConfigString("TGCALLS_COMMIT", tgcallsGit.commitHashShort)
     buildConfigString("TGCALLS_COMMIT_URL", tgcallsGit.commitUrl)
 
     // FFmpeg version
 
-    val ffmpegGit = providers.of(GitVersionSource::class) {
+    val ffmpegGit = providers.of(GitInformationSource::class) {
       parameters.module = layout.projectDirectory.dir("jni/third_party/ffmpeg")
     }.get()
     buildConfigString("FFMPEG_COMMIT", ffmpegGit.commitHashShort)
@@ -435,7 +486,7 @@ android {
 
     // WebP version
 
-    val webpGit = providers.of(GitVersionSource::class) {
+    val webpGit = providers.of(GitInformationSource::class) {
       parameters.module = layout.projectDirectory.dir("jni/third_party/webp")
     }.get()
     buildConfigString("WEBP_COMMIT", webpGit.commitHashShort)
@@ -488,7 +539,10 @@ android {
   }
 
   flavorDimensions += arrayOf("SDK", "ABI")
-  androidComponents.disableRudimentaryVariants()
+  androidComponents.disableRudimentaryVariants { sdkVariant, abiVariant ->
+    maxOf(sdkVariant.minSdk, abiVariant.minSdk) >= ndkMinSdkVersion &&
+    (sdkVariant.usesLegacyNdk == useLegacyNdk || config.build.primaryNdkVersion == config.build.legacyNdkVersion)
+  }
   productFlavors {
     Sdk.VARIANTS.forEach { (sdkIndex, variant) ->
       create(variant.flavor) {
@@ -496,18 +550,19 @@ android {
         isDefault = sdkIndex == Sdk.LATEST
 
         if (generateBaselineProfile && !variant.isLatest) {
-          matchingFallbacks += "latest"
+          matchingFallbacks += Sdk.VARIANTS[Sdk.LATEST]!!.flavor
         }
         Sdk.VARIANTS.forEach { (subSdkIndex, subVariant) ->
           buildConfigBool("${subVariant.flavor.uppercase()}_FLAVOR", sdkIndex == subSdkIndex)
         }
 
-        val actualMinSdk = if (config.isHuaweiBuild) {
-          maxOf(variant.minSdk, Config.MIN_SDK_VERSION_HUAWEI)
-        } else {
-          variant.minSdk
-        }
-        val selectedMinSdk = maxOf(variant.minSdk, actualMinSdk)
+        buildConfigBool("CALLS_AVAILABLE", !variant.isLegacy)
+
+        val selectedMinSdk = maxOf(
+          variant.minSdk,
+          Config.MIN_SDK_VERSION_HUAWEI.takeIf { config.isHuaweiBuild } ?: 0,
+          ndkMinSdkVersion
+        )
         minSdk = selectedMinSdk
         if (selectedMinSdk < 21) {
           proguardFile("proguard-r8-bug-android-4.x-workaround.pro")
@@ -529,10 +584,14 @@ android {
           "-finline-functions"
         )
         externalNativeBuild.cmake {
-          targets += arrayOf("tgxjni", "tgcallsjni")
+          targets += "tgxjni"
+          if (!variant.isLegacy) {
+            targets += "tgcallsjni"
+          }
           arguments(
             "-DANDROID_PLATFORM=android-${selectedMinSdk}",
-            "-DANDROID_STL=${if (Config.SHARED_STL) "c++_shared" else "c++_static"}",
+            "-DANDROID_MIN_SDK_VERSION=${selectedMinSdk}",
+            "-DANDROID_STL=${if (appliedNdkVersion.ndkVersionMajor() >= 27) "c++_shared" else "c++_static"}",
             "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON",
             "-DCMAKE_SKIP_RPATH=ON",
             "-DCMAKE_C_VISIBILITY_PRESET=hidden",
@@ -540,18 +599,26 @@ android {
             "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--gc-sections,--icf=safe -Wl,--build-id=sha1",
             "-DCMAKE_C_FLAGS=-D_LARGEFILE_SOURCE=1 ${flags.joinToString(" ")}",
             "-DCMAKE_CXX_FLAGS=-std=c++17 ${flags.joinToString(" ")}",
-            "-DTGX_FLAVOR=${variant.flavor}"
+            "-DTGX_FLAVOR=${variant.flavor}",
+            "-DTGX_ROOT_DIR=${project.isolated.rootProject.projectDirectory.asFile.absoluteFile.invariantSeparatorsPath}",
+            "-DFFMPEG_LIBS=${Config.FFMPEG_LIBS.joinToString(";")}"
           )
 
           val dirs = mapOf(
-            "ANDROIDX_MEDIA_DIR" to layout.buildDirectory.dir("generated/tgx/androidx-media/${
-              (variant.takeIf { !it.isMarshmallow } ?: Sdk.VARIANTS[Sdk.LATEST]!!).flavor
-            }"),
-            "OPUS_DIR" to layout.buildDirectory.dir("generated/tgx/opus"),
-            "LIBVPX_DIR" to layout.buildDirectory.dir("generated/tgx/libvpx/${variant.flavor}"),
-            "FFMPEG_DIR" to layout.buildDirectory.dir("generated/tgx/ffmpeg/${variant.flavor}")
+            "ANDROIDX_MEDIA_DIR" to layout.buildDirectory.dir(
+              "generated/tgx/androidx-media/${variant.jetpackMediaFlavor}"
+            ),
+            "OPUS_DIR" to layout.buildDirectory.dir(
+              "generated/tgx/opus"
+            ),
+            "LIBVPX_DIR" to layout.buildDirectory.dir(
+              "generated/tgx/libvpx/${variant.flavor}"
+            ),
+            "FFMPEG_DIR" to layout.buildDirectory.dir(
+              "generated/tgx/ffmpeg/${variant.flavor}"
+            )
           ).map {
-            "-D${it.key}=${it.value.get().asFile.absolutePath}"
+            "-D${it.key}=${it.value.get().asFile.absoluteFile.invariantSeparatorsPath}"
           }.toTypedArray()
           arguments(*dirs)
         }
@@ -559,7 +626,7 @@ android {
         sourceSets.getByName(variant.flavor) {
           Config.ANDROIDX_MEDIA_EXTENSIONS.forEach { extension ->
             java.directories += "thirdparty/androidx-media/${
-              (variant.takeIf { !it.isMarshmallow } ?: Sdk.VARIANTS[Sdk.LATEST]!!).flavor
+              variant.jetpackMediaFlavor
             }/libraries/${extension}/src/main/java"
           }
           val extraFolders = findExtraFolders(variant)
@@ -589,7 +656,9 @@ android {
           "effect"
         ).plus(Config.ANDROIDX_MEDIA_EXTENSIONS).forEach { extension ->
           val proguardFile = project.layout.projectDirectory.file(
-            "thirdparty/androidx-media/${variant.flavor}/libraries/${extension}/proguard-rules.txt"
+            "thirdparty/androidx-media/${
+              variant.jetpackMediaFlavor
+            }/libraries/${extension}/proguard-rules.txt"
           ).asFile
           if (proguardFile.exists()) {
             extraProguardFileCount++
@@ -599,12 +668,14 @@ android {
 
         if (extraProguardFileCount > 0) {
           project.logger.lifecycle("[proguard]: Applied $extraProguardFileCount extra proguard files for \"${variant.flavor}\" flavor")
+        } else {
+          fatal("Unable to find any proguard files for ${variant.flavor} flavor")
         }
       }
     }
 
     Abi.VARIANTS.filter { (abiIndex, variant) ->
-      generateBaselineProfile || !variant.isTestingLab
+      (generateBaselineProfile || !variant.isTestingLab)
     }.forEach { (abiIndex, variant) ->
       create(variant.flavor) {
         dimension = "ABI"
@@ -617,14 +688,10 @@ android {
           buildConfigBool("${subVariant.flavor.uppercase()}_FLAVOR", abiIndex == subAbiIndex)
         }
 
-        ndkVersion = if (variant.is64Bit) {
-          config.build.primaryNdkVersion
-        } else {
-          config.build.legacyNdkVersion
-        }
-        // ndkPath = File(sdkDirectory, "ndk/$ndkVersion").absolutePath
+        ndkVersion = appliedNdkVersion
         buildConfigString("NDK_VERSION", ndkVersion)
-        buildConfigBool("WEBP_ENABLED", true) // variant.minSdk < 19
+        buildConfigBool("SHARED_STL", ndkVersion.ndkVersionMajor() >= 27)
+        buildConfigBool("WEBP_ENABLED", true)
         if (ndk.abiFilters.isNotEmpty())
           error(ndk.abiFilters.joinToString())
         ndk.abiFilters.addAll(variant.filters)
@@ -642,6 +709,11 @@ android {
       variant.sources.res?.addGeneratedSourceDirectory(
         fetchLocalizedStrings, FetchLocalizedStringsTask::resOutputDir
       )
+      variant.androidResources.localeFilters.addAll(
+        fetchLocalizedStrings.flatMap { it.localeFiltersOutputFile }.map { file ->
+          file.asFile.readLines().filter { it.isNotBlank() }
+        }
+      )
     }
 
     onVariants { variant ->
@@ -651,14 +723,12 @@ android {
       val (abi, abiVariant) = Abi.VARIANTS.entries.first { it.value.flavor == abiFlavor }
       val (sdk, sdkVariant) = Sdk.VARIANTS.entries.first { it.value.flavor == sdkFlavor }
 
-      val patchJetpackMediaTask = (
-        sdkVariant.takeIf {
-          !it.isMarshmallow
-        } ?: Sdk.VARIANTS[Sdk.LATEST]!!
-      ).let {
-        patchJetpackMediaTasks[it.flavor]!!
-      }
-      variant.lifecycleTasks.registerPreBuild(patchJetpackMediaTask, patchOpusTask)
+      val nativeBuildTasks = mutableListOf<TaskProvider<out Task>>()
+
+      nativeBuildTasks.addAll(arrayOf(
+        patchJetpackMediaTasks[sdkVariant.jetpackMediaFlavor]!!,
+        patchOpusTask
+      ))
 
       abiVariant.filters.filter {
         sdkVariant.minSdk >= 21 || it == "armeabi-v7a" || it == "x86"
@@ -667,8 +737,33 @@ android {
       }.forEach { key ->
         val buildLibvpxTask = buildLibvpxTasks[key] ?: error("libvpx task not found for $key")
         val buildFfmpegTask = buildFfmpegTasks[key] ?: error("ffmpeg task not found for $key")
-        variant.lifecycleTasks.registerPreBuild(buildLibvpxTask, buildFfmpegTask)
+        nativeBuildTasks += buildLibvpxTask
+        nativeBuildTasks += buildFfmpegTask
       }
+
+      val buildNativeTask = tasks.register<ValidateNativeBuildTask>("buildNativeDependencies${variant.name.uppercaseFirstChar()}") {
+        group = "Setup"
+        description = "Builds native dependencies for ${sdkVariant.flavor}, $abiVariant flavor and validates output"
+        jetpackMediaDir.set(layout.buildDirectory.dir(
+          "generated/tgx/androidx-media/${sdkVariant.jetpackMediaFlavor}"
+        ))
+        opusDir.set(layout.buildDirectory.dir(
+          "generated/tgx/opus"
+        ))
+        libvpxDirs.from(abiVariant.filters.map { abiFilter ->
+          layout.buildDirectory.dir(
+            "generated/tgx/libvpx/${sdkVariant.flavor}/$abiFilter"
+          )
+        })
+        ffmpegDirs.from(abiVariant.filters.map { abiFilter ->
+          layout.buildDirectory.dir(
+            "generated/tgx/ffmpeg/${sdkVariant.flavor}/$abiFilter"
+          )
+        })
+        dependsOn(*nativeBuildTasks.toTypedArray())
+      }
+      variant.lifecycleTasks.registerPreBuild(validateGitSetupTask, buildNativeTask)
+      buildNativeTasks["${sdkVariant.flavor}${abiVariant.flavor.uppercaseFirstChar()}"] = buildNativeTask
 
       variant.sources.res?.apply {
         addGeneratedSourceDirectory(
@@ -696,6 +791,11 @@ android {
         addGeneratedSourceDirectory(
           generateEmojiSetsTask, GenerateEmojiSetsTask::kotlinOutputDir
         )
+      }
+
+      if (!config.isHuaweiBuild && abiVariant.isUniversal) {
+        variant.packaging.dex.useLegacyPackaging = true
+        variant.packaging.jniLibs.useLegacyPackaging = true
       }
     }
 
@@ -750,7 +850,7 @@ android {
         libs.google.recaptcha.lollipop,
         libs.google.recaptcha.marshmallow,
         libs.google.recaptcha.latest
-      )!!.get().version!!
+      ).get().version!!
       require(recaptchaVersion.isNotEmpty() && recaptchaVersion.matches(Regex("^[0-9.]+$"))) {
         "Invalid ReCaptcha version: $recaptchaVersion"
       }
@@ -771,7 +871,7 @@ android {
 
         var openSslVersionFull = ""
         var openSslReleaseDate = ""
-        val openSslVersionFile = File(project.rootDir.absoluteFile, "tdlib/openssl/${abiVariant.filters.first()}/include/openssl/opensslv.h")
+        val openSslVersionFile = requireFile(project.isolated.rootProject.projectDirectory.file("tdlib/openssl/${ndkVersion}/android-${sdkVariant.minSdk}/${abiVariant.filters.first()}/include/openssl/opensslv.h").asFile)
         openSslVersionFile.bufferedReader().use { reader ->
           val regex = Regex("^# define (OPENSSL_FULL_VERSION_STR|OPENSSL_RELEASE_DATE)\\s*\"([^\"]+)\"$")
           while (true) {
@@ -829,21 +929,6 @@ android {
       }
     }
   }
-
-  // Packaging
-
-  packaging {
-    Config.SUPPORTED_ABI.forEach { abi ->
-      jniLibs.pickFirsts.let { set ->
-        if (Config.SHARED_STL) {
-          set.add("lib/$abi/libc++_shared.so")
-        }
-        set.add("tdlib/openssl/$abi/lib/libcryptox.so")
-        set.add("tdlib/openssl/$abi/lib/libsslx.so")
-        set.add("tdlib/src/main/libs/$abi/libtdjni.so")
-      }
-    }
-  }
 }
 
 if (generateBaselineProfile) {
@@ -861,6 +946,20 @@ if (generateBaselineProfile) {
   }
 }
 
+afterEvaluate {
+  tasks.withType<ExternalNativeBuildTask>().configureEach {
+    val variantName = variantName.replace(Regex("(Benchmark)?(NonMinified)?(Release|Debug)$", RegexOption.IGNORE_CASE), "")
+    val buildNativeTask = buildNativeTasks[variantName]
+    require(buildNativeTask != null) {
+      "Could not find buildNativeTask for $variantName (${this.variantName})"
+    }
+    dependsOn(validateGitSetupTask, buildNativeTask)
+  }
+  tasks.named("preBuild") {
+    dependsOn(validateGitSetupTask)
+  }
+}
+
 dependencies {
   testImplementation("junit:junit:4.13.2")
   sinceNougatImplementation(libs.androidx.profileinstaller)
@@ -873,7 +972,7 @@ dependencies {
   implementation(project(":extension:${config.extension}"))
   // TDLib: https://github.com/tdlib/td/blob/master/CHANGELOG.md
   implementation(project(":tdlib"))
-  implementation(project(":tgcalls"))
+  sinceLollipopImplementation(project(":tgcalls"))
   implementation(project(":vkryl:core"))
   implementation(project(":vkryl:leveldb"))
   implementation(project(":vkryl:android"))
@@ -908,6 +1007,7 @@ dependencies {
   flavorImplementation(
     libs.androidx.work.runtime.legacy,
     libs.androidx.work.runtime.lollipop,
+    libs.androidx.work.runtime.marshmallow,
     libs.androidx.work.runtime.latest
   )
   flavorImplementation(
@@ -943,11 +1043,13 @@ dependencies {
   flavorImplementation(
     libs.google.play.services.base.legacy,
     libs.google.play.services.base.lollipop,
+    libs.google.play.services.base.marshmallow,
     libs.google.play.services.base.latest
   )
   flavorImplementation(
     libs.google.play.services.basement.legacy,
     libs.google.play.services.basement.lollipop,
+    libs.google.play.services.basement.marshmallow,
     libs.google.play.services.basement.latest
   )
   flavorImplementation(
@@ -1025,6 +1127,11 @@ dependencies {
   sinceMarshmallowImplementation(libs.androidx.media.inspector.latest)
   // Play In-App Updates: https://developer.android.com/reference/com/google/android/play/core/release-notes-in_app_updates
   implementation(libs.google.play.app.update)
+  // Play Billing: https://developer.android.com/google/play/billing/release-notes
+  sinceLollipopImplementation(
+    libs.google.play.billing.lollipop,
+    libs.google.play.billing.latest
+  )
   // The Checker Framework: https://checkerframework.org/CHANGELOG.md
   compileOnly(libs.annotations.checkerframework)
   // OkHttp: https://github.com/square/okhttp/blob/master/CHANGELOG.md

@@ -81,9 +81,9 @@ builds.
 - Linux or macOS. Windows is supported through an MSYS2-compatible shell, as
   in upstream Telegram X.
 - Git and Git LFS.
-- JDK 21.
-- Android SDK package `android-37.1` and Build Tools `37.0.0`.
-- Android NDK `23.2.8568313`.
+- JDK 25.
+- Android SDK package `android-37.2` and Build Tools `37.0.0`.
+- Android NDK `30.0.16248370`, with `23.2.8568313` for legacy builds.
 - CMake `3.22.1`.
 - A personal Telegram `api_id` and `api_hash` from
   [my.telegram.org](https://my.telegram.org/apps).
@@ -108,6 +108,7 @@ Copy the public template:
 
 ```bash
 cp local.properties.sample local.properties
+cp gradle.properties.sample gradle.properties
 ```
 
 Edit `local.properties` and provide at least:
@@ -151,7 +152,7 @@ build native dependencies.
 ARM64 debug build used for current Ratogram X development:
 
 ```bash
-JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleLatestArm64Debug
+JAVA_HOME=/path/to/jdk-25 ./gradlew :app:assembleLatestArm64Debug
 ```
 
 Output:
@@ -174,7 +175,7 @@ Before opening a pull request:
 
 ```bash
 git diff --check
-JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleLatestArm64Debug
+JAVA_HOME=/path/to/jdk-25 ./gradlew :app:assembleLatestArm64Debug
 ```
 
 Keep changes focused, preserve the Telegram X visual language, and avoid

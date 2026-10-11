@@ -301,7 +301,7 @@ public class InputView extends NoClipEditText implements InlineSearchContext.Cal
               type = new TdApi.TextEntityTypeBlockQuote();
             } else {
               if (BuildConfig.DEBUG) {
-                Log.i("Menu item: %s %s", UI.getAppContext().getResources().getResourceName(item.getItemId()), item.getTitle());
+                Log.i("Menu item: %s %s", UI.getResources().getResourceName(item.getItemId()), item.getTitle());
               }
               continue;
             }
@@ -1261,6 +1261,12 @@ public class InputView extends NoClipEditText implements InlineSearchContext.Cal
           draft = TD.toCharSequence(textDraft.text);
           break;
         }
+        case TdApi.DraftMessageContentInputRichMessage.CONSTRUCTOR: {
+          TdApi.DraftMessageContentInputRichMessage richMessage = (TdApi.DraftMessageContentInputRichMessage) draftContent;
+          // TODO
+          draft = "";
+          break;
+        }
         case TdApi.DraftMessageContentRichMessage.CONSTRUCTOR: {
           TdApi.DraftMessageContentRichMessage richMessage = (TdApi.DraftMessageContentRichMessage) draftContent;
           // TODO
@@ -1273,7 +1279,7 @@ public class InputView extends NoClipEditText implements InlineSearchContext.Cal
           break;
         }
         default: {
-          Td.assertDraftMessageContent_b637f166();
+          Td.assertDraftMessageContent_f690069b();
           throw Td.unsupported(draftContent);
         }
       }

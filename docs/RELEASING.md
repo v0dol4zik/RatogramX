@@ -15,7 +15,7 @@ This checklist applies to public Ratogram X APK releases.
 
 ## Build and test
 
-- Build with JDK 21 and the SDK, NDK, and CMake versions from
+- Build with JDK 25 and the SDK, NDK, and CMake versions from
   `version.properties`.
 - Build every ABI that will be published.
 - Install the APKs on representative devices.
@@ -31,6 +31,20 @@ This checklist applies to public Ratogram X APK releases.
 
 ## Publish
 
+Choose APK variants deliberately; the `latest` flavor starts at Android 7.0
+and cannot be installed on Android 5 or 6. ABI names alone do not indicate
+the minimum Android version.
+
+| Android version | SDK flavor | NDK | Example ARM32 task |
+| --- | --- | --- | --- |
+| 4.1–4.4 (API 16–20) | `legacy` | r23 | `:app:assembleLegacyArm32Release -PuseLegacyNdk=true` |
+| 5.0–5.1 (API 21–22) | `lollipop` | r30 | `:app:assembleLollipopArm32Release` |
+| 6.0 (API 23) | `marshmallow` | r30 | `:app:assembleMarshmallowArm32Release` |
+| 7.0+ (API 24+) | `latest` | r30 | `:app:assembleLatestArm32Release` |
+
+Use the matching `Arm64` or `Universal` task where supported. Native TDLib
+and OpenSSL artifacts must match the SDK flavor, ABI, and NDK revision.
+
 For a payload reproducibility check, compare a clean rebuild with the
 published APK. The helper excludes only `META-INF/` signature entries:
 
@@ -38,7 +52,7 @@ published APK. The helper excludes only `META-INF/` signature entries:
 reproducible-builds/verify.sh published.apk rebuilt.apk
 ```
 
-Set `REPRO_BUILD=1` to perform the rebuild in the pinned Ubuntu/JDK Docker
+Set `REPRO_BUILD=1` to perform the rebuild in the Ubuntu/JDK 25 Docker
 image. Publish the resulting SHA-256 checksum beside each APK; signatures
 remain verified separately with `apksigner verify --print-certs`.
 

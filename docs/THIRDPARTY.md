@@ -3,9 +3,11 @@
 * [TDLib](https://github.com/tdlib/td): used for interacting with Telegram API and caching data
 * [LevelDB](https://github.com/google/leveldb): used for storing local data and settings
 
-* [libtgvoip](https://github.com/grishka/libtgvoip) & java layer by the same author: used for VoIP
+* [tgcalls](https://github.com/TelegramMessenger/tgcalls) and [WebRTC](https://webrtc.googlesource.com/src): used for VoIP
+* [libtgvoip](https://github.com/grishka/libtgvoip) & java layer by the same author: used for VoIP before the Telegram X 1817 update
 
 * [rlottie](https://github.com/TGX-Android/rlottie): fork of [Samsung library](https://github.com/Samsung/rlottie), used for animated stickers
+* [pixman](https://gitlab.freedesktop.org/pixman/pixman): MIT-licensed vector compositing and NEON routines used by rlottie with the modern NDK; notices are retained in the submodule's `COPYING`
 * [lz4](https://github.com/lz4/lz4): used for storing cached frames of animated stickers
 * [WebP](https://developers.google.com/speed/webp): used for showing static stickers on Android versions below 4.4
 

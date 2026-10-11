@@ -4,6 +4,10 @@ Ratogram X is hosted in the moeGramX GitHub fork network. Its active `main`
 branch is based on the Telegram X Android source tree and incorporates selected
 moeGramX code as a source integration.
 
+The current Telegram X base is
+[`v0.29.1.1817`](https://github.com/TGX-Android/Telegram-X/releases/tag/v0.29.1.1817).
+Integration decisions are recorded in [docs/UPSTREAM_MERGE.md](docs/UPSTREAM_MERGE.md).
+
 ## Upstream projects
 
 1. [Telegram X](https://github.com/TGX-Android/Telegram-X) provides the main

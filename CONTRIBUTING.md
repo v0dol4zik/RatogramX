@@ -45,13 +45,13 @@ At minimum, run:
 
 ```bash
 git diff --check
-JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleLatestArm64Debug
+JAVA_HOME=/path/to/jdk-25 ./gradlew :app:assembleLatestArm64Debug
 ```
 
 For JVM unit tests, run:
 
 ```bash
-JAVA_HOME=/path/to/jdk-21 ./gradlew :app:testLatestArm64DebugUnitTest
+JAVA_HOME=/path/to/jdk-25 ./gradlew :app:testLatestArm64DebugUnitTest
 ```
 
 Test the affected flow on a real device or emulator. Mention anything that

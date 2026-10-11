@@ -78,6 +78,8 @@ import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.TGCountry;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.ui.EditRightsController;
+import org.thunderdog.challegram.unsorted.AppContext;
+import org.thunderdog.challegram.unsorted.DeviceTokenRetrieverInstance;
 import org.thunderdog.challegram.unsorted.Passcode;
 import org.thunderdog.challegram.unsorted.Settings;
 import moe.kirao.mgx.PremiumCapabilities;
@@ -1831,7 +1833,13 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
 
   public void runOnTdlibThread (@NonNull Runnable runnable, double timeoutSeconds, boolean acquireReference) {
     if (acquireReference) {
-      incrementJobReferenceCount(JOB_ID_RUNNABLE + "_" + Log.toString(Log.generateException(1)));
+      String id;
+      if (Config.DEBUG_TDLIB_REFERENCES) {
+        id = JOB_ID_RUNNABLE + "_" + Log.toString(Log.generateException(2));
+      } else {
+        id = JOB_ID_RUNNABLE;
+      }
+      incrementJobReferenceCount(id);
     }
     clientHolder().runOnTdlibThread(() -> {
       runnable.run();
@@ -4939,7 +4947,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       case TdApi.MessageAnimation.CONSTRUCTOR:
         return !photoVideoOnly;
       default:
-        Td.assertMessageContent_a80283cf();
+        Td.assertMessageContent_af730a78();
         break;
     }
 
@@ -5023,7 +5031,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         case TdApi.MessageAnimatedEmoji.CONSTRUCTOR:
           return Td.textOrCaption(messageText);
       }
-      Td.assertMessageContent_a80283cf();
+      Td.assertMessageContent_af730a78();
       throw Td.unsupported(messageText);
     }
     MessageEditMediaPending pendingEditMedia = getPendingMessageMedia(chatId, messageId);
@@ -6125,7 +6133,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       if (deviceToken != null && (state == TdlibManager.TokenState.NONE || state == TdlibManager.TokenState.INITIALIZING)) {
         state = TdlibManager.TokenState.OK;
       }
-      String tokenProvider = TdlibNotificationUtils.getDeviceTokenRetriever().name;
+      String tokenProvider = DeviceTokenRetrieverInstance.get().name;
       String error = context().getTokenError();
       switch (state) {
         case TdlibManager.TokenState.ERROR: {
@@ -6171,7 +6179,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       }
     }
     final long timeZoneOffset = timeZoneOffset();
-    final Context context = UI.getAppContext();
+    final Context context = AppContext.get();
     params.put("package_id", context.getPackageName());
     String installerName = AppInstallationUtil.getInstallerPackageName(context);
     if (!StringUtils.isEmpty(installerName)) {
@@ -6267,7 +6275,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       updateNotificationParameters(client);
       client.send(new TdApi.SetOption("storage_max_files_size", new TdApi.OptionValueInteger(Integer.MAX_VALUE)), okHandler);
       client.send(new TdApi.SetOption("ignore_default_disable_notification", new TdApi.OptionValueBoolean(true)), okHandler);
-      client.send(new TdApi.SetOption("ignore_platform_restrictions", new TdApi.OptionValueBoolean(AppInstallationUtil.isAppSideLoaded(UI.getAppContext()))), okHandler);
+      client.send(new TdApi.SetOption("ignore_platform_restrictions", new TdApi.OptionValueBoolean(AppInstallationUtil.isAppSideLoaded(AppContext.get()))), okHandler);
       client.send(new TdApi.SetOption("process_pinned_messages_as_mentions", new TdApi.OptionValueBoolean(true)), okHandler);
     }
     checkConnectionParams(client, true);
@@ -6905,7 +6913,8 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   }
 
   public boolean youtubePipEnabled () {
-    return !options.youtubePipDisabled || AppInstallationUtil.isAppSideLoaded(UI.getAppContext());
+    if (!options.youtubePipDisabled) return true;
+    return AppInstallationUtil.isAppSideLoaded(AppContext.get());
   }
 
   public List<RtcServer> rtcServers () {
@@ -7655,6 +7664,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
   }
 
+  private void updateChatWelcomeMessages (TdApi.UpdateChatWelcomeMessages update) {
+    // TODO?
+  }
+
   private void updateMessageSendSucceeded (TdApi.UpdateMessageSendSucceeded update) {
     synchronized (dataLock) {
       Settings.instance().updateScrollMessageId(accountId, update.message.chatId, update.oldMessageId, update.message.id);
@@ -7696,15 +7709,13 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   }
 
   @TdlibThread
-  private void updateMessageContent (TdApi.UpdateMessageContent update) {
-    final TdApi.Chat chat;
-    synchronized (dataLock) {
-      chat = chats.get(update.chatId);
-      if (TdlibUtils.assertChat(update.chatId, chat, update)) {
-        return;
-      }
-    }
+  private void updateMessageEphemeralContent (TdApi.UpdateMessageEphemeralContent update) {
+    listeners.updateMessageEphemeralContent(update);
+    context.global().notifyUpdateEphemeralMessageContent(this, update);
+  }
 
+  @TdlibThread
+  private void updateMessageContent (TdApi.UpdateMessageContent update) {
     listeners.updateMessageContent(update);
     context.global().notifyUpdateMessageContent(this, update);
 
@@ -7719,7 +7730,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         break;
       }
       default: {
-        Td.assertMessageContent_a80283cf();
+        Td.assertMessageContent_af730a78();
         break;
       }
     }
@@ -8393,6 +8404,19 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
 
     listeners.updateChatHasScheduledMessages(update);
+  }
+
+  @TdlibThread
+  private void updateChatHasWelcomeMessages (TdApi.UpdateChatHasWelcomeMessages update) {
+    synchronized (dataLock) {
+      final TdApi.Chat chat = chats.get(update.chatId);
+      if (TdlibUtils.assertChat(update.chatId, chat, update)) {
+        return;
+      }
+      chat.hasWelcomeMessages = update.hasWelcomeMessages;
+    }
+
+    listeners.updateChatHasWelcomeMessages(update);
   }
 
   @TdlibThread
@@ -9325,7 +9349,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
     long projectId = 0;
     try {
-      FirebaseOptions options = FirebaseOptions.fromResource(UI.getAppContext());
+      FirebaseOptions options = FirebaseOptions.fromResource(AppContext.get());
       String projectIdRaw = options != null ? options.getGcmSenderId() : "";
       if (!StringUtils.isEmpty(projectIdRaw)) {
         projectId = Long.parseLong(projectIdRaw);
@@ -9341,7 +9365,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         .setNonce(nonce)
         .setCloudProjectNumber(projectId)
         .build();
-      IntegrityManager integrityManager = IntegrityManagerFactory.create(UI.getAppContext());
+      IntegrityManager integrityManager = IntegrityManagerFactory.create(AppContext.get());
       Task<IntegrityTokenResponse> integrityTokenResponse = integrityManager.requestIntegrityToken(request);
       integrityTokenResponse
         .addOnSuccessListener(r -> {
@@ -9975,6 +9999,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         updateNewMessage((TdApi.UpdateNewMessage) update, true);
         break;
       }
+      case TdApi.UpdateChatWelcomeMessages.CONSTRUCTOR: {
+        updateChatWelcomeMessages((TdApi.UpdateChatWelcomeMessages) update);
+        break;
+      }
       case TdApi.UpdateMessageSendSucceeded.CONSTRUCTOR: {
         updateMessageSendSucceeded((TdApi.UpdateMessageSendSucceeded) update);
         break;
@@ -9993,6 +10021,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       }
       case TdApi.UpdateMessageContent.CONSTRUCTOR: {
         updateMessageContent((TdApi.UpdateMessageContent) update);
+        break;
+      }
+      case TdApi.UpdateMessageEphemeralContent.CONSTRUCTOR: {
+        updateMessageEphemeralContent((TdApi.UpdateMessageEphemeralContent) update);
         break;
       }
       case TdApi.UpdateMessageEdited.CONSTRUCTOR: {
@@ -10239,6 +10271,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         updateChatHasScheduledMessages((TdApi.UpdateChatHasScheduledMessages) update);
         break;
       }
+      case TdApi.UpdateChatHasWelcomeMessages.CONSTRUCTOR: {
+        updateChatHasWelcomeMessages((TdApi.UpdateChatHasWelcomeMessages) update);
+        break;
+      }
       case TdApi.UpdateChatHasProtectedContent.CONSTRUCTOR: {
         updateChatHasProtectedContent((TdApi.UpdateChatHasProtectedContent) update);
         break;
@@ -10265,6 +10301,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       }
       case TdApi.UpdateChatAction.CONSTRUCTOR: {
         updateChatUserAction((TdApi.UpdateChatAction) update);
+        break;
+      }
+      case TdApi.UpdateStopMessageDraft.CONSTRUCTOR: {
+        // TODO?
         break;
       }
 
@@ -10366,6 +10406,10 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       // Communities
       case TdApi.UpdateCommunity.CONSTRUCTOR: {
         cache.onUpdateCommunity((TdApi.UpdateCommunity) update);
+        break;
+      }
+      case TdApi.UpdateCommunityFullInfo.CONSTRUCTOR: {
+        cache.onUpdateCommunityFull((TdApi.UpdateCommunityFullInfo) update);
         break;
       }
 
@@ -10660,7 +10704,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         throw Td.unsupported(update);
       }
       default: {
-        Td.assertUpdate_d96eca42();
+        Td.assertUpdate_a21b1e40();
         throw Td.unsupported(update);
       }
     }
@@ -11621,6 +11665,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         case TdApi.MessageChatDeleteMember.CONSTRUCTOR:
         case TdApi.MessageChatDeletePhoto.CONSTRUCTOR:
         case TdApi.MessageChatJoinByLink.CONSTRUCTOR:
+        case TdApi.MessageChatJoinFromCommunity.CONSTRUCTOR:
         case TdApi.MessageChatJoinByRequest.CONSTRUCTOR:
         case TdApi.MessageChatSetMessageAutoDeleteTime.CONSTRUCTOR:
         case TdApi.MessageChatSetTheme.CONSTRUCTOR:
@@ -11636,7 +11681,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         case TdApi.MessageForumTopicIsHiddenToggled.CONSTRUCTOR:
         case TdApi.MessageGiftedPremium.CONSTRUCTOR:
         case TdApi.MessageGiftedStars.CONSTRUCTOR:
-        case TdApi.MessageGiftedTon.CONSTRUCTOR:
+        case TdApi.MessageGiftedGrams.CONSTRUCTOR:
         case TdApi.MessageGift.CONSTRUCTOR:
         case TdApi.MessageUpgradedGift.CONSTRUCTOR:
         case TdApi.MessageUpgradedGiftPurchaseOffer.CONSTRUCTOR:
@@ -11688,7 +11733,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
           // assuming we want to check RightId.SEND_BASIC_MESSAGES
           return getBasicMessageRestrictionText(chat);
         default:
-          Td.assertMessageContent_a80283cf();
+          Td.assertMessageContent_af730a78();
           throw Td.unsupported(message.content);
       }
     }

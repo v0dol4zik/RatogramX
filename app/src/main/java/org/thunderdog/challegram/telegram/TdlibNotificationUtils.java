@@ -40,7 +40,6 @@ import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.loader.ImageCache;
 import org.thunderdog.challegram.loader.ImageFile;
 import org.thunderdog.challegram.loader.ImageReader;
-import org.thunderdog.challegram.push.FirebaseDeviceTokenRetriever;
 import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
 import org.thunderdog.challegram.theme.ThemeId;
@@ -50,11 +49,11 @@ import org.thunderdog.challegram.tool.Intents;
 import org.thunderdog.challegram.tool.PorterDuffPaint;
 import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.UI;
+import org.thunderdog.challegram.unsorted.DeviceTokenRetrieverInstance;
 import org.thunderdog.challegram.util.DeviceTokenType;
 import org.thunderdog.challegram.util.text.Letters;
 
 import tgx.bridge.DeviceTokenRetriever;
-import tgx.bridge.PushManagerBridge;
 import tgx.bridge.TokenRetrieverListener;
 import tgx.td.Td;
 
@@ -243,27 +242,6 @@ public class TdlibNotificationUtils {
     }
   }
 
-  private static DeviceTokenRetriever deviceTokenRetriever;
-
-  public static synchronized boolean initialize () {
-    if (deviceTokenRetriever == null) {
-      DeviceTokenRetriever retriever = PushManagerBridge.onCreateNewTokenRetriever(UI.getAppContext());
-      //noinspection ConstantConditions
-      if (retriever == null) {
-        return false;
-      }
-      deviceTokenRetriever = retriever;
-    }
-    return deviceTokenRetriever.initialize(UI.getAppContext());
-  }
-
-  public static @NonNull DeviceTokenRetriever getDeviceTokenRetriever () {
-    if (deviceTokenRetriever == null) {
-      initialize();
-    }
-    return deviceTokenRetriever;
-  }
-
   @DeviceTokenType
   public static int getDeviceTokenType (TdApi.DeviceToken deviceToken) {
     return switch (deviceToken.getConstructor()) {
@@ -302,7 +280,8 @@ public class TdlibNotificationUtils {
   }
 
   private static void getDeviceTokenImpl (Context context, int retryCount, TokenRetrieverListener listener) {
-    if (initialize()) {
+    if (DeviceTokenRetrieverInstance.initialize()) {
+      DeviceTokenRetriever deviceTokenRetriever = DeviceTokenRetrieverInstance.get();
       TDLib.Tag.notifications("Retrieving device token via %s... retryCount: %d", deviceTokenRetriever.name, retryCount);
       deviceTokenRetriever.retrieveDeviceToken(context, listener);
     } else {

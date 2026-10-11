@@ -68,6 +68,8 @@ public class Config {
 
   public static final boolean ENABLE_DELETE_CALL_HISTORY = BuildConfig.DEBUG;
 
+  public static final boolean DEBUG_TDLIB_REFERENCES = false;
+
   private static Boolean hasWebpSupport;
   public static boolean useBundledWebp () {
     if (BuildConfig.WEBP_ENABLED) {
@@ -330,9 +332,6 @@ public class Config {
   public static final boolean REQUIRE_FIREBASE_SERVICES_FOR_SAFETYNET = false;
 
   public static final boolean USE_INPUT_VIEW_CLIPPING_FIX = false;
-
-  public static final int VOIP_CONNECTION_MIN_LAYER = 65;
-  public static final boolean FORCE_DIRECT_TGVOIP = false;
 
   public static final boolean ALLOW_SPONSORED_MESSAGE_LINK_COPY = true;
   public static final boolean PROTECT_ANONYMOUS_VOTING = false;

@@ -10,6 +10,7 @@ import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.core.Background;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.tool.UI;
+import org.thunderdog.challegram.unsorted.AppContext;
 import org.thunderdog.challegram.unsorted.Settings;
 
 import java.io.File;
@@ -34,7 +35,7 @@ public final class MessageHistoryStore {
   private int writesSincePrune;
 
   private MessageHistoryStore () {
-    File dir = new File(UI.getAppContext().getFilesDir(), "moexconf/history");
+    File dir = new File(AppContext.get().getFilesDir(), "moexconf/history");
     if (!dir.exists()) dir.mkdirs();
     db = new LevelDB(new File(dir, "db").getPath(), true, null);
     // Database maintenance must never run on the TDLib callback or UI thread.

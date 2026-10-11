@@ -11,8 +11,6 @@ set(TGCALLS_DIR "${TGCALLS_DEPS_DIR}/tgcalls")
 add_library(tgcalls STATIC
   "${TGCALLS_DIR}/tgcalls/utils/gzip.cpp"
 
-  "${TGCALLS_DIR}/tgcalls/legacy/InstanceImplLegacy.cpp"
-
   "${TGCALLS_DIR}/tgcalls/desktop_capturer/DesktopCaptureSourceManager.cpp"
   "${TGCALLS_DIR}/tgcalls/desktop_capturer/DesktopCaptureSourceHelper.cpp"
   "${TGCALLS_DIR}/tgcalls/desktop_capturer/DesktopCaptureSource.cpp"
@@ -21,6 +19,7 @@ add_library(tgcalls STATIC
   "${TGCALLS_DIR}/tgcalls/platform/android/AndroidInterface.cpp"
   "${TGCALLS_DIR}/tgcalls/platform/android/VideoCameraCapturer.cpp"
   "${TGCALLS_DIR}/tgcalls/platform/android/VideoCapturerInterfaceImpl.cpp"
+  "${TGCALLS_DIR}/tgcalls/group/StreamingAudioRendererTest.cpp"
 
   "${TGCALLS_DIR}/tgcalls/Manager.cpp"
   "${TGCALLS_DIR}/tgcalls/MediaManager.cpp"
@@ -58,6 +57,7 @@ add_library(tgcalls STATIC
   "${TGCALLS_DIR}/tgcalls/v2/ContentNegotiation.cpp"
   "${TGCALLS_DIR}/tgcalls/v2/DirectNetworkingImpl.cpp"
   "${TGCALLS_DIR}/tgcalls/v2/ExternalSignalingConnection.cpp"
+  "${TGCALLS_DIR}/tgcalls/v2/MtProtoIceTransport.cpp"
   "${TGCALLS_DIR}/tgcalls/v2/InstanceV2Impl.cpp"
   "${TGCALLS_DIR}/tgcalls/v2/InstanceV2CompatImpl.cpp"
   "${TGCALLS_DIR}/tgcalls/v2/InstanceV2ReferenceImpl.cpp"
@@ -93,8 +93,6 @@ target_link_libraries(tgcalls PRIVATE
   rnnoise
   json11
   z
-)
-
-target_link_libraries(tgcalls PUBLIC
-  tgvoip
+  absl
+  webrtc
 )

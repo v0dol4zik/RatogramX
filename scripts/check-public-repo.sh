@@ -5,7 +5,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 git diff --check
 
-sensitive_paths='(^|/)(local\.properties|keystore\.properties|[^/]+\.(jks|keystore|p12))$|(^|/)(ratogramx_deploy_key)(\.pub)?$'
+sensitive_paths='(^|/)(local\.properties|gradle\.properties|keystore\.properties|[^/]+\.(jks|keystore|p12))$|(^|/)(ratogramx_deploy_key)(\.pub)?$'
 tracked_sensitive="$(git ls-files | grep -E "$sensitive_paths" || true)"
 if [[ -n "$tracked_sensitive" ]]; then
   echo "Refusing to publish tracked sensitive files:" >&2
@@ -13,7 +13,7 @@ if [[ -n "$tracked_sensitive" ]]; then
   exit 1
 fi
 
-for required_file in README.md LICENSE NOTICE.md CONTRIBUTING.md SECURITY.md local.properties.sample; do
+for required_file in README.md LICENSE NOTICE.md CONTRIBUTING.md SECURITY.md local.properties.sample gradle.properties.sample; do
   if [[ ! -s "$required_file" ]]; then
     echo "Missing or empty public repository file: $required_file" >&2
     exit 1

@@ -18,11 +18,11 @@ import android.content.Context;
 import android.os.Build;
 import android.telephony.TelephonyManager;
 
-import org.drinkless.tdlib.TdApi;
 import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.telegram.Tdlib;
+import org.thunderdog.challegram.unsorted.AppContext;
 
 import java.util.Locale;
 
@@ -303,7 +303,7 @@ public class TGCountry {
         String formatted = Strings.formatPhone("+" + code + number);
         return new String[] {code, formatted.substring(code.length() + 1)};
       }
-      TelephonyManager manager = (TelephonyManager) UI.getAppContext().getSystemService(Context.TELEPHONY_SERVICE);
+      TelephonyManager manager = (TelephonyManager) AppContext.get().getSystemService(Context.TELEPHONY_SERVICE);
       if (manager == null) {
         return null;
       }

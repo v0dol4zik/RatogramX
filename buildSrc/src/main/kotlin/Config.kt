@@ -13,28 +13,30 @@
 
 // File with static configuration, that is meant to be adjusted only once
 
-import tgx.gradle.fatal
-import tgx.gradle.getIntOrThrow
-import tgx.gradle.getLongOrThrow
-import tgx.gradle.getOrThrow
-import tgx.gradle.loadProperties
+import tgx.gradle.*
 import java.io.File
 import java.util.*
 
 object Config {
   const val MIN_SDK_VERSION = 16
   const val MIN_SDK_VERSION_HUAWEI = 17
-  val JAVA_VERSION = org.gradle.api.JavaVersion.VERSION_21
+  val JAVA_VERSION = org.gradle.api.JavaVersion.VERSION_25
   val ANDROIDX_MEDIA_EXTENSIONS = arrayOf(
     "decoder_ffmpeg",
     "decoder_flac",
     "decoder_opus",
     "decoder_vp9"
   )
-  val SUPPORTED_ABI = arrayOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86")
 
-  // FIXME(ndK): As of 16.08.2025, NDK team didn't release an update for r23's c++_shared.so with 16 KB ELF alignment
-  const val SHARED_STL = false
+  val FFMPEG_LIBS = arrayOf(
+    "swresample",
+    "avformat",
+    "swscale",
+    "avcodec",
+    "avfilter",
+    "avutil"
+  )
+  val SUPPORTED_ABI = arrayOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86")
 }
 
 data class PullRequest (
@@ -76,6 +78,7 @@ data class BuildVersions(
 
 data class ApplicationConfig(
   val sdkDir: String,
+  val msys2Dir: String,
 
   val applicationName: String,
   val applicationId: String,
@@ -148,10 +151,11 @@ class AbiVariant (val flavor: String, vararg val filters: String = arrayOf(), va
       return true
     }
 
+  val isUniversal: Boolean
+    get() = flavor == Abi.VARIANTS[Abi.UNIVERSAL]!!.flavor
+
   val isTestingLab: Boolean
-    get() {
-      return flavor == Abi.VARIANTS[Abi.LAB]!!.flavor
-    }
+    get() = flavor == Abi.VARIANTS[Abi.LAB]!!.flavor
 
   val minSdk: Int
     get() = if (is64Bit) {
@@ -194,6 +198,12 @@ data class SdkVariant(
     flavor == "lollipop"
   val isLegacy: Boolean =
     flavor == "legacy"
+
+  val jetpackMediaFlavor: String =
+    flavor.takeIf { !isMarshmallow } ?: "latest"
+
+  val usesLegacyNdk: Boolean =
+    isLegacy
 }
 
 object Sdk {

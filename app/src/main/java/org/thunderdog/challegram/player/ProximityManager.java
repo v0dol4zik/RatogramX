@@ -30,7 +30,6 @@ import android.os.Build;
 import android.os.PowerManager;
 
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -40,6 +39,7 @@ import org.thunderdog.challegram.BaseActivity;
 import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.tool.UI;
+import org.thunderdog.challegram.unsorted.AppContext;
 import org.thunderdog.challegram.unsorted.Settings;
 
 import tgx.flavor.Flavor;
@@ -198,7 +198,7 @@ public class ProximityManager implements Settings.RaiseToSpeakListener, SensorEv
       BluetoothAdapter btAdapter = am.isBluetoothScoAvailableOffCall() ? BluetoothAdapter.getDefaultAdapter() : null;
       IntentFilter intentFilter = newIntentFilter(btAdapter);
       try {
-        Flavor.registerReceiver(UI.getAppContext(), receiver, intentFilter, false);
+        Flavor.registerReceiver(AppContext.get(), receiver, intentFilter, false);
       } catch (Throwable t) {
         Log.e("Unable to register headset broadcast receiver", t);
       }
@@ -237,7 +237,7 @@ public class ProximityManager implements Settings.RaiseToSpeakListener, SensorEv
       return false;
     }
     try {
-      UI.getAppContext().unregisterReceiver(receiver);
+      AppContext.get().unregisterReceiver(receiver);
     } catch (Throwable t) {
       Log.e("Unable to unregister receiver");
     }
@@ -251,7 +251,7 @@ public class ProximityManager implements Settings.RaiseToSpeakListener, SensorEv
     boolean playingThroughEarpiece = playbackObject != null && (forceEarpiece || isNearToProximitySensor);
     if (this.playingThroughEarpiece != playingThroughEarpiece) {
       this.playingThroughEarpiece = playingThroughEarpiece;
-      AudioManager am = (AudioManager) UI.getAppContext().getSystemService(Context.AUDIO_SERVICE);
+      AudioManager am = (AudioManager) AppContext.get().getSystemService(Context.AUDIO_SERVICE);
       if (am != null) {
         if (playingThroughEarpiece) {
           // TODO: rework to setCommunicationDevice(AudioDeviceInfo) or clearCommunicationDevice()

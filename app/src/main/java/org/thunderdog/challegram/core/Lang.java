@@ -51,6 +51,7 @@ import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.tool.Fonts;
 import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.UI;
+import org.thunderdog.challegram.unsorted.AppContext;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.CustomTypefaceSpan;
 import org.thunderdog.challegram.util.StringList;
@@ -109,7 +110,7 @@ public class Lang {
 
   public static String getResourceEntryName (int resource) {
     try {
-      return UI.getAppContext().getResources().getResourceEntryName(resource);
+      return UI.getResources().getResourceEntryName(resource);
     } catch (Throwable t) {
       Log.e("Unable to find resource entry name (shitty modified APK?)");
       return "";
@@ -127,7 +128,7 @@ public class Lang {
   @StringRes
   public static int getStringResourceIdentifier (String key) {
     try {
-      Context context = UI.getAppContext();
+      Context context = AppContext.get();
       return context.getResources().getIdentifier(key, "string", context.getPackageName());
     } catch (Throwable ignored) {
       return 0;
@@ -333,7 +334,7 @@ public class Lang {
   }
 
   private static String getAndroidString (@StringRes int resId) throws Resources.NotFoundException {
-    return UI.getAppContext().getResources().getString(resId);
+    return UI.getResources().getString(resId);
   }
 
   private static String getAndroidString (@Nullable TdApi.LanguagePackInfo languagePackInfo, @StringRes int resId) throws Resources.NotFoundException {
@@ -341,7 +342,7 @@ public class Lang {
   }
 
   private static String getAndroidString (@StringRes int resId, Object... formatArgs) {
-    return UI.getAppContext().getResources().getString(resId, formatArgs);
+    return UI.getResources().getString(resId, formatArgs);
   }
 
   private static String getAndroidString (@Nullable TdApi.LanguagePackInfo languagePackInfo, @StringRes int resId, Object... formatArgs) {
@@ -349,7 +350,7 @@ public class Lang {
   }
 
   private static Resources getAndroidResources (@Nullable TdApi.LanguagePackInfo languagePackInfo) {
-    Context context = UI.getAppContext();
+    Context context = AppContext.get();
     if (languagePackInfo == null) {
       return context.getResources();
     }
@@ -793,7 +794,7 @@ public class Lang {
       /*String language = dateFormatLocale().getLanguage();
       if (language.equals(Locale.getDefault().getLanguage())) {
         Formatter f = new Formatter(new StringBuilder(50), dateFormatLocale());
-        return android.text.format.DateUtils.formatDateRange(UI.getAppContext(), f, timeInMillis, timeInMillis, android.text.format.DateUtils.FORMAT_SHOW_TIME).toString();
+        return android.text.format.DateUtils.formatDateRange(AppContext.get(), f, timeInMillis, timeInMillis, android.text.format.DateUtils.FORMAT_SHOW_TIME).toString();
       }
       if (language.equals("en")) {
         return dateFormat(fallbackPattern, timeInMillis);
@@ -1208,7 +1209,7 @@ public class Lang {
       case TdApi.MessageInvoice.CONSTRUCTOR:
       case TdApi.MessageGiftedPremium.CONSTRUCTOR:
       case TdApi.MessageGiftedStars.CONSTRUCTOR:
-      case TdApi.MessageGiftedTon.CONSTRUCTOR:
+      case TdApi.MessageGiftedGrams.CONSTRUCTOR:
       case TdApi.MessageGift.CONSTRUCTOR:
       case TdApi.MessageUpgradedGift.CONSTRUCTOR:
       case TdApi.MessageUpgradedGiftPurchaseOffer.CONSTRUCTOR:
@@ -1231,6 +1232,8 @@ public class Lang {
       case TdApi.MessageChatDeleteMember.CONSTRUCTOR:
       case TdApi.MessageChatDeletePhoto.CONSTRUCTOR:
       case TdApi.MessageChatJoinByLink.CONSTRUCTOR:
+      case TdApi.MessageChatJoinByRequest.CONSTRUCTOR:
+      case TdApi.MessageChatJoinFromCommunity.CONSTRUCTOR:
       case TdApi.MessageChatSetMessageAutoDeleteTime.CONSTRUCTOR:
       case TdApi.MessageChatUpgradeFrom.CONSTRUCTOR:
       case TdApi.MessageChatUpgradeTo.CONSTRUCTOR:
@@ -1249,7 +1252,6 @@ public class Lang {
       case TdApi.MessagePinMessage.CONSTRUCTOR:
       case TdApi.MessageScreenshotTaken.CONSTRUCTOR:
       case TdApi.MessageBotWriteAccessAllowed.CONSTRUCTOR:
-      case TdApi.MessageChatJoinByRequest.CONSTRUCTOR:
       case TdApi.MessageChatSetBackground.CONSTRUCTOR:
       case TdApi.MessageChatSetTheme.CONSTRUCTOR:
       case TdApi.MessageChatShared.CONSTRUCTOR:
@@ -1285,7 +1287,7 @@ public class Lang {
       case TdApi.MessageChatRemovedFromCommunity.CONSTRUCTOR:
         break;
       default:
-        Td.assertMessageContent_a80283cf();
+        Td.assertMessageContent_af730a78();
         throw Td.unsupported(message.content);
     }
     if (format == null) {
@@ -2552,7 +2554,7 @@ public class Lang {
 
   public static String getDateRange (long timeStart, long timeEnd, TimeUnit unit, boolean needTime) {
     Formatter f = new Formatter(new StringBuilder(50), locale());
-    return android.text.format.DateUtils.formatDateRange(UI.getAppContext(), f, unit.toMillis(timeStart), unit.toMillis(timeEnd), (needTime ? android.text.format.DateUtils.FORMAT_ABBREV_ALL | android.text.format.DateUtils.FORMAT_SHOW_TIME : android.text.format.DateUtils.FORMAT_ABBREV_ALL)).toString();
+    return android.text.format.DateUtils.formatDateRange(AppContext.get(), f, unit.toMillis(timeStart), unit.toMillis(timeEnd), (needTime ? android.text.format.DateUtils.FORMAT_ABBREV_ALL | android.text.format.DateUtils.FORMAT_SHOW_TIME : android.text.format.DateUtils.FORMAT_ABBREV_ALL)).toString();
   }
 
   public static String getDatestamp (long time, TimeUnit unit) {
@@ -3512,7 +3514,7 @@ public class Lang {
   }
 
   public static Locale getConfigurationLocale () {
-    Configuration configuration = UI.getAppContext().getResources().getConfiguration();
+    Configuration configuration = UI.getResources().getConfiguration();
     return getPrimaryLocale(configuration);
   }
 

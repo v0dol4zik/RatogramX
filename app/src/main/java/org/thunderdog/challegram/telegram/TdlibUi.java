@@ -625,7 +625,8 @@ public class TdlibUi extends Handler {
             }
           })
           .setSaveStr(R.string.Delete)
-          .setSaveColorId(ColorId.textNegative))
+          .setSaveColorId(ColorId.textNegative)
+          .setAllowResize(false))
       );
     });
   }

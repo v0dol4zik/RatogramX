@@ -27,6 +27,7 @@ import androidx.core.os.CancellationSignal;
 
 import org.thunderdog.challegram.BaseActivity;
 import org.thunderdog.challegram.tool.UI;
+import org.thunderdog.challegram.unsorted.AppContext;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -35,7 +36,6 @@ import me.vkryl.core.BitwiseUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.CancellableRunnable;
 
-@RequiresApi(Build.VERSION_CODES.M)
 public class BiometricAuthentication {
   public static final boolean ONLY_FINGERPRINT = Build.VERSION.SDK_INT < Build.VERSION_CODES.R;
 
@@ -46,7 +46,7 @@ public class BiometricAuthentication {
 
   private static @Nullable BiometricManager getManager () {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      return BiometricManager.from(UI.getAppContext());
+      return BiometricManager.from(AppContext.get());
     } else {
       return null;
     }
@@ -148,6 +148,7 @@ public class BiometricAuthentication {
   private static CancellationSignal pendingSignal;
   private static long lastTimestamp;
 
+  @RequiresApi(Build.VERSION_CODES.M)
   public static void authenticate (BaseActivity context, CharSequence title, CharSequence negativeButtonText, boolean strong, Callback callback) {
     CancellationSignal signal = new CancellationSignal();
     BiometricPrompt.PromptInfo info = new BiometricPrompt.PromptInfo.Builder()

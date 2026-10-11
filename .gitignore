@@ -20,6 +20,7 @@ obj
 
 /captures
 /local.properties
+/gradle.properties
 /keystore.properties
 /.env
 /.env.*
