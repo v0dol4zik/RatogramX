@@ -17,6 +17,13 @@ public final class GhostModeUtils {
     return (enabledFlags & flag) != 0;
   }
 
+  public static int flagsForEnabling (int flags, int previousFlags) {
+    flags &= MoexConfig.GHOST_MODE_ALL;
+    if (flags != 0) return flags;
+    previousFlags &= MoexConfig.GHOST_MODE_ALL;
+    return previousFlags != 0 ? previousFlags : MoexConfig.GHOST_MODE_ALL;
+  }
+
   public static boolean shouldSuppressRead () {
     return isEnabled(MoexConfig.GHOST_NO_READ);
   }

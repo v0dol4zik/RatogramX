@@ -1770,6 +1770,7 @@ public class TdlibUi extends Handler {
     public TdApi.ChatInviteLinkInfo inviteLinkInfo;
     public ThreadInfo threadInfo;
     public TdApi.MessageTopic messageTopicId;
+    public @Nullable TdApi.ForumTopic forumTopic;
     public TdApi.SearchMessagesFilter filter;
     public TdApi.InternalLinkTypeVideoChat videoChatOrLiveStreamInvitation;
     public TdApi.FormattedText fillDraft;
@@ -2197,20 +2198,36 @@ public class TdlibUi extends Handler {
       return;
     }
 
+    if (Settings.instance().isForumTopicsExperimentEnabled() && messageTopicId != null &&
+        messageTopicId.getConstructor() == TdApi.MessageTopicForum.CONSTRUCTOR && params.forumTopic == null) {
+      int forumTopicId = ((TdApi.MessageTopicForum) messageTopicId).forumTopicId;
+      tdlib.send(new TdApi.GetForumTopic(chat.id, forumTopicId), (topic, error) -> {
+        if (error != null || topic == null) {
+          if (error != null) UI.showError(error);
+          tdlib.ui().post(params::onDone);
+        } else {
+          params.forumTopic = topic;
+          openChat(context, chat, params);
+        }
+      });
+      return;
+    }
+    final TdApi.ForumTopic forumTopic = Settings.instance().isForumTopicsExperimentEnabled() && params != null ? params.forumTopic : null;
+
     final int highlightMode;
     final MessageId highlightMessageId;
     if (params != null && params.highlightSet) {
       highlightMode = params.highlightMode;
       highlightMessageId = params.highlightMessageId;
     } else {
-      highlightMode = MessagesManager.getAnchorHighlightMode(tdlib.id(), chat, messageThread);
-      highlightMessageId = MessagesManager.getAnchorMessageId(tdlib.id(), chat, messageThread, highlightMode);
+      highlightMode = MessagesManager.getAnchorHighlightMode(tdlib.id(), chat, messageThread, messageTopicId, forumTopic);
+      highlightMessageId = MessagesManager.getAnchorMessageId(tdlib.id(), chat, messageThread, messageTopicId, forumTopic, highlightMode);
     }
 
     final boolean isSelfChat = tdlib.isSelfChat(chat.id);
 
     boolean doneOpen = false;
-    if (context instanceof MessagesController && !((MessagesController) context).inPreviewMode() && ((MessagesController) context).compareChat(chat.id, messageThread, onlyScheduled)) {
+    if (context instanceof MessagesController && !((MessagesController) context).inPreviewMode() && ((MessagesController) context).compareChat(chat.id, messageThread, messageTopicId, onlyScheduled)) {
       boolean doneSomething = false;
       if (highlightMode == MessagesManager.HIGHLIGHT_MODE_NORMAL && highlightMessageId != null) {
         ((MessagesController) context).highlightMessage(highlightMessageId, urlOpenParameters);
@@ -2242,7 +2259,7 @@ public class TdlibUi extends Handler {
     }
     if (!doneOpen && highlightMode == MessagesManager.HIGHLIGHT_MODE_NORMAL && highlightMessageId != null) {
       ViewController<?> c = context.context().navigation().getCurrentStackItem();
-      if (c != null && c != context && c.tdlib() == context.tdlib() && c instanceof MessagesController && !((MessagesController) c).inPreviewMode() && ((MessagesController) c).compareChat(chat.id, messageThread, onlyScheduled)) {
+      if (c != null && c != context && c.tdlib() == context.tdlib() && c instanceof MessagesController && !((MessagesController) c).inPreviewMode() && ((MessagesController) c).compareChat(chat.id, messageThread, messageTopicId, onlyScheduled)) {
         ((MessagesController) c).highlightMessage(highlightMessageId, urlOpenParameters);
         doneOpen = true;
       }
@@ -2317,6 +2334,7 @@ public class TdlibUi extends Handler {
       arguments = new MessagesController.Arguments(tdlib, chatList, chat, messageThread, messageTopicId, filter);
     }
     controller.setArguments(arguments
+      .setForumTopic(forumTopic)
       .setScheduled(onlyScheduled)
       .referrer(referrer)
       .voiceChatInvitation(voiceChatInvitation)

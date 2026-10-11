@@ -44,7 +44,8 @@
   <string name="GhostNoRead">Скрывать уведомления о прочтении</string>
   <string name="GhostNoTyping">Скрывать статус набора текста</string>
   <string name="GhostOffline">Показываться офлайн</string>
-  <string name="GhostModeEnabledToast">Настройки режима призрака применены</string>
+  <string name="GhostModeEnabledToast">Режим невидимки включён</string>
+  <string name="GhostModeDisabledToast">Режим невидимки выключен</string>
   <string name="FolderTabsInfo">Меняет вид стандартных вкладок папок Telegram X.</string>
   <string name="FolderTabsStyle">Вид вкладок папок</string>
   <string name="FolderTabsStyleUpstream">По умолчанию Telegram X</string>

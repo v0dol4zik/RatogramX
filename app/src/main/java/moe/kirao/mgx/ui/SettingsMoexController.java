@@ -215,17 +215,17 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
         tdlib.refreshOnlineStatus();
       }
-      UI.showToast(R.string.GhostModeEnabledToast, Toast.LENGTH_SHORT);
+      UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
     } else if (viewId == R.id.btn_ghostNoRead) {
       MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_NO_READ);
-      adapter.updateValuedSettingById(viewId);
+      updateGhostModeSettings();
     } else if (viewId == R.id.btn_ghostNoTyping) {
       MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_NO_TYPING);
-      adapter.updateValuedSettingById(viewId);
+      updateGhostModeSettings();
     } else if (viewId == R.id.btn_ghostOffline) {
       boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_OFFLINE);
-      adapter.updateValuedSettingById(viewId);
+      updateGhostModeSettings();
       if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
         tdlib.refreshOnlineStatus();
       }
@@ -550,13 +550,13 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
           view.getToggler().setRadioEnabled(MoexConfig.ghostMode, isUpdate);
           view.setEnabledAnimated(experimentsAllowed, isUpdate);
         } else if (itemId == R.id.btn_ghostNoRead) {
-          view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_NO_READ), isUpdate);
+          view.getToggler().setRadioEnabled(MoexConfig.ghostMode && MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_NO_READ), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
         } else if (itemId == R.id.btn_ghostNoTyping) {
-          view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_NO_TYPING), isUpdate);
+          view.getToggler().setRadioEnabled(MoexConfig.ghostMode && MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_NO_TYPING), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
         } else if (itemId == R.id.btn_ghostOffline) {
-          view.getToggler().setRadioEnabled(MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_OFFLINE), isUpdate);
+          view.getToggler().setRadioEnabled(MoexConfig.ghostMode && MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_OFFLINE), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
         } else if (itemId == R.id.btn_folderTabsStyle) {
           int style = MoexConfig.instance().getFolderTabsStyle();

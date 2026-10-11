@@ -5210,6 +5210,10 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     long lastReadMessageId;
     if (messageThread != null) {
       lastReadMessageId = msg.isOutgoing ? messageThread.getLastReadOutboxMessageId() : messageThread.getLastReadInboxMessageId();
+    } else if (messagesController().isForumTopic()) {
+      TdApi.ForumTopic topic = messagesController().getForumTopic();
+      if (topic == null) return true;
+      lastReadMessageId = msg.isOutgoing ? topic.lastReadOutboxMessageId : topic.lastReadInboxMessageId;
     } else if (chat != null) {
       lastReadMessageId = msg.isOutgoing ? chat.lastReadOutboxMessageId : chat.lastReadInboxMessageId;
     } else {

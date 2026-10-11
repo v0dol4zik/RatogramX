@@ -2,6 +2,7 @@ package org.thunderdog.challegram.telegram
 
 import me.vkryl.core.reference.ReferenceMap
 import org.drinkless.tdlib.TdApi.*
+import moe.kirao.mgx.utils.ForumReadPolicy
 
 class TdlibForumTopicManager(
   tdlib: Tdlib
@@ -62,7 +63,8 @@ class TdlibForumTopicManager(
           prevValue.lastMessage,
           prevValue.order,
           update.isPinned,
-          prevValue.unreadCount,
+          ForumReadPolicy.unreadAfterRead(prevValue.unreadCount,
+            prevValue.lastMessage?.id ?: 0, update.lastReadInboxMessageId, 0),
           update.lastReadInboxMessageId,
           update.lastReadOutboxMessageId,
           update.unreadMentionCount,

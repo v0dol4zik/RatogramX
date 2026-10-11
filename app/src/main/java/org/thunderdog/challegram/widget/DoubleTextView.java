@@ -20,6 +20,8 @@ import android.graphics.Color;
 import android.graphics.Path;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.InsetDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -283,6 +285,8 @@ public class DoubleTextView extends RelativeLayout implements RtlCheckListener, 
       addView(topicIconView, 0, params);
     }
     topicIconView.setVisibility(View.VISIBLE);
+    topicIconView.setCompoundDrawables(null, null, null, null);
+    topicIconView.setTextColor(Theme.textAccentColor());
     if (icon != null && icon.customEmojiId != 0) {
       topicIconView.setBackground(null);
       topicIconView.setText(TD.toCharSequence(new TdApi.FormattedText("*", new TdApi.TextEntity[] {
@@ -292,14 +296,16 @@ public class DoubleTextView extends RelativeLayout implements RtlCheckListener, 
       GradientDrawable background = new GradientDrawable();
       background.setShape(GradientDrawable.OVAL);
       background.setColor(ColorUtils.color(255, icon != null ? icon.color : Theme.textAccentColor()));
-      topicIconView.setBackground(background);
-      topicIconView.setText("\u25c8");
-      topicIconView.setTextColor(Color.TRANSPARENT);
+      topicIconView.setText("");
       Drawable drawable = Drawables.get(getResources(), R.drawable.baseline_forum_24);
       if (drawable != null) {
         drawable = drawable.mutate();
-        drawable.setColorFilter(Paints.getColorFilter(Color.WHITE));
-        topicIconView.setCompoundDrawablesWithIntrinsicBounds(null, drawable, null, null);
+        drawable.setColorFilter(Paints.getColorFilter(Theme.getColor(ColorId.avatar_content)));
+        topicIconView.setBackground(new LayerDrawable(new Drawable[] {
+          background, new InsetDrawable(drawable, Screen.dp(12f))
+        }));
+      } else {
+        topicIconView.setBackground(background);
       }
     }
   }

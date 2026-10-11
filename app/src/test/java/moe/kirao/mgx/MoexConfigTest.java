@@ -25,4 +25,13 @@ public class MoexConfigTest {
     assertFalse(GhostModeUtils.isFlagEnabled(MoexConfig.GHOST_NO_TYPING, MoexConfig.GHOST_NO_READ));
   }
 
+  @Test public void enablingGhostRestoresTheLastNonemptySelection() {
+    assertEquals(MoexConfig.GHOST_NO_READ,
+      GhostModeUtils.flagsForEnabling(0, MoexConfig.GHOST_NO_READ));
+    assertEquals(MoexConfig.GHOST_NO_TYPING,
+      GhostModeUtils.flagsForEnabling(MoexConfig.GHOST_NO_TYPING, MoexConfig.GHOST_NO_READ));
+    assertEquals(MoexConfig.GHOST_MODE_ALL, GhostModeUtils.flagsForEnabling(0, 0));
+    assertEquals(MoexConfig.GHOST_MODE_ALL, GhostModeUtils.flagsForEnabling(0, 1 << 20));
+  }
+
 }

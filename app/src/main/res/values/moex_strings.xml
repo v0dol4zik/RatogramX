@@ -49,7 +49,8 @@
   <string name="GhostNoRead">Hide read receipts</string>
   <string name="GhostNoTyping">Hide typing activity</string>
   <string name="GhostOffline">Appear offline</string>
-  <string name="GhostModeEnabledToast">Ghost mode settings applied</string>
+  <string name="GhostModeEnabledToast">Ghost mode enabled</string>
+  <string name="GhostModeDisabledToast">Ghost mode disabled</string>
   <string name="FolderTabsInfo">Changes how Telegram X\'s standard chat folder tabs are displayed.</string>
   <string name="FolderTabsStyle">Folder tabs style</string>
   <string name="FolderTabsStyleUpstream">Telegram X default</string>

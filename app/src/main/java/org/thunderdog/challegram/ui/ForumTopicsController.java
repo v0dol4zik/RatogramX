@@ -28,6 +28,7 @@ import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.v.CustomRecyclerView;
 import org.thunderdog.challegram.widget.DoubleTextView;
 import moe.kirao.mgx.utils.ForumPaginationPolicy;
+import moe.kirao.mgx.utils.ForumReadPolicy;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -269,11 +270,15 @@ public class ForumTopicsController extends RecyclerViewController<Long> implemen
     runOnUiThreadOptional(() -> {
       TdApi.ForumTopic topic = topics.get((int) messageThreadId);
       if (topic != null) {
+        boolean readChanged = topic.lastReadInboxMessageId != lastReadInboxMessageId;
         topic.isPinned = isPinned;
         topic.lastReadInboxMessageId = lastReadInboxMessageId;
         topic.lastReadOutboxMessageId = lastReadOutboxMessageId;
+        topic.unreadCount = ForumReadPolicy.unreadAfterRead(topic.unreadCount,
+          topic.lastMessage != null ? topic.lastMessage.id : 0, lastReadInboxMessageId, 0);
         topic.notificationSettings = notificationSettings;
         updateTopicRow((int) messageThreadId);
+        if (readChanged && topic.unreadCount > 0) scheduleRefresh();
       } else if (hasLoadedInitialPage) {
         scheduleRefresh();
       }
@@ -303,9 +308,14 @@ public class ForumTopicsController extends RecyclerViewController<Long> implemen
     // Do not let a burst of TDLib updates repeatedly clear and rebuild the list.
     // One refresh per short interval is enough to discover newly-created topics.
     long now = System.currentTimeMillis();
-    if (now - lastRefreshAt < REFRESH_DEBOUNCE_MS) return;
     removeCallbacks(refreshRunnable);
-    runOnUiThread(refreshRunnable, REFRESH_DEBOUNCE_MS);
+    runOnUiThread(refreshRunnable, Math.max(REFRESH_DEBOUNCE_MS, lastRefreshAt + REFRESH_DEBOUNCE_MS - now));
+  }
+
+  @Override
+  public void onFocus () {
+    super.onFocus();
+    if (hasLoadedInitialPage) scheduleRefresh();
   }
 
   @Override
@@ -316,6 +326,7 @@ public class ForumTopicsController extends RecyclerViewController<Long> implemen
     if (topic == null || topic.info == null) return;
     TdlibUi.ChatOpenParameters parameters = new TdlibUi.ChatOpenParameters().keepStack();
     parameters.messageTopicId = new TdApi.MessageTopicForum(topic.info.forumTopicId);
+    parameters.forumTopic = topic;
     tdlib.ui().openChat(this, getChatId(), parameters);
   }
 

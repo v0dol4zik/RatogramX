@@ -1335,7 +1335,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
         tdlib.refreshOnlineStatus();
       }
       updateGhostModeButton();
-      UI.showToast(R.string.GhostModeEnabledToast, Toast.LENGTH_SHORT);
+      UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
     } else if (id == R.id.menu_btn_search) {
       openSearchMode();
     } else if (id == R.id.menu_btn_settings) {

@@ -1346,6 +1346,12 @@ public class MessagesLoader implements Client.ResultHandler {
       lastReadOutboxMessageId = messageThread.getLastReadOutboxMessageId();
       lastReadInboxMessageId = messageThread.getLastReadInboxMessageId();
       hasUnreadMessages = messageThread.hasUnreadMessages(chat);
+    } else if (topicId != null && topicId.getConstructor() == TdApi.MessageTopicForum.CONSTRUCTOR) {
+      TdApi.ForumTopic topic = manager.controller().getForumTopic();
+      chatId = getChatId();
+      lastReadOutboxMessageId = topic != null ? topic.lastReadOutboxMessageId : 0;
+      lastReadInboxMessageId = topic != null ? topic.lastReadInboxMessageId : 0;
+      hasUnreadMessages = topic != null && topic.unreadCount > 0;
     } else if (chat != null) {
       chatId = chat.id;
       lastReadOutboxMessageId = chat.lastReadOutboxMessageId;

@@ -70,6 +70,7 @@ public class MoexConfig {
   public static final String KEY_AUTO_PAUSE_RESUME = "auto_pause_resume_system_playback";
   public static final String KEY_GHOST_MODE = "ghost_mode";
   public static final String KEY_GHOST_MODE_FLAGS = "ghost_mode_flags";
+  private static final String KEY_GHOST_MODE_LAST_FLAGS = "ghost_mode_last_flags";
   public static final String KEY_FOLDER_TABS_STYLE = "folder_tabs_style";
   public static final String KEY_SECURE_WINDOW = "secure_window";
   public static final String KEY_SECURE_ONLY_SECRET_CHATS = "secure_only_secret_chats";
@@ -653,6 +654,10 @@ public class MoexConfig {
   }
 
   public void toggleGhostMode () {
+    if (!ghostMode && getGhostModeFlags() == 0) {
+      setGhostModeFlags(moe.kirao.mgx.utils.GhostModeUtils.flagsForEnabling(
+        getGhostModeFlags(), getInt(KEY_GHOST_MODE_LAST_FLAGS, GHOST_MODE_ALL)));
+    }
     setBooleanValue(KEY_GHOST_MODE, ghostMode, !ghostMode);
   }
 
@@ -681,6 +686,10 @@ public class MoexConfig {
     int oldFlags = getGhostModeFlags();
     flags &= GHOST_MODE_ALL;
     if (flags == oldFlags) return;
+    if (flags == 0) {
+      putInt(KEY_GHOST_MODE_LAST_FLAGS, oldFlags);
+      if (ghostMode) setBooleanValue(KEY_GHOST_MODE, true, false);
+    }
     putInt(KEY_GHOST_MODE_FLAGS, flags);
     notifyClientListeners(KEY_GHOST_MODE_FLAGS, flags, oldFlags);
   }

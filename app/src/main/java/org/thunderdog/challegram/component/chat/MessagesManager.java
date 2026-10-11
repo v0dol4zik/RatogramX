@@ -89,6 +89,8 @@ import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.FutureBool;
 import me.vkryl.core.lambda.RunnableData;
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.ForumReadPolicy;
 import tgx.td.ChatId;
 import tgx.td.MessageId;
 import tgx.td.Td;
@@ -1930,6 +1932,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
     if (messageThread != null) {
       messageThread.updateNewMessage(message);
     }
+    controller.onNewForumTopicMessage(message.getMessage());
     if (!message.isOutgoing()) {
       controller.checkSwitchPm(message.getMessage());
     }
@@ -2306,7 +2309,9 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
     TdApi.Chat chat = tdlib.chatStrict(chatId);
     ThreadInfo messageThread = loader.getMessageThread();
-    long lastReadInboxMessageId = messageThread != null ? messageThread.getLastReadInboxMessageId() : chat.lastReadInboxMessageId;
+    TdApi.ForumTopic forumTopic = controller.getForumTopic();
+    long lastReadInboxMessageId = messageThread != null ? messageThread.getLastReadInboxMessageId() :
+      controller.isForumTopic() ? (forumTopic != null ? forumTopic.lastReadInboxMessageId : 0) : chat.lastReadInboxMessageId;
 
     int index = 0;
     main: while (index < adapter.getMessageCount()) {
@@ -2383,6 +2388,18 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
       } else {
         messageThread.updateMessagesDeleted(messageIds, removedCount, removedUnreadCount);
       }
+    } else if (forumTopic != null && !areScheduled()) {
+      controller.updateForumTopicReadInbox(forumTopic.lastReadInboxMessageId,
+        Math.max(0, forumTopic.unreadCount - removedUnreadCount));
+    }
+  }
+
+  public void updateForumTopicReadInbox (long lastReadInboxMessageId) {
+    TGMessage previous = null;
+    for (int i = adapter.getMessageCount() - 1; i >= 0; i--) {
+      TGMessage item = adapter.getMessage(i);
+      if (!item.isOutgoing() && item.updateUnread(lastReadInboxMessageId, previous)) invalidateViewAt(i);
+      previous = item;
     }
   }
 
@@ -2627,6 +2644,9 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
         scrollChatId = message.getChatId();
         if (threadInfo != null) {
           readFully = scrollChatId == loader.getChatId() && threadInfo.getLastMessageId() == scrollMessageId;
+        } else if (controller.isForumTopic()) {
+          TdApi.ForumTopic topic = controller.getForumTopic();
+          readFully = topic != null && topic.lastMessage != null && topic.lastMessage.id == scrollMessageId;
         } else {
           TdApi.Chat chat = tdlib.chat(scrollChatId);
           readFully = chat != null && chat.lastMessage != null && chat.lastMessage.id == scrollMessageId;
@@ -3328,8 +3348,16 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   public static final int CHATS_THRESHOLD = 1;
 
   public static boolean canGoUnread (TdApi.Chat chat, @Nullable ThreadInfo threadInfo) {
+    return canGoUnread(chat, threadInfo, null, null);
+  }
+
+  public static boolean canGoUnread (TdApi.Chat chat, @Nullable ThreadInfo threadInfo,
+                                     @Nullable TdApi.MessageTopic topicId, @Nullable TdApi.ForumTopic forumTopic) {
     if (threadInfo != null) {
       return threadInfo.hasUnreadMessages(chat) && threadInfo.getLastReadInboxMessageId() != 0;
+    }
+    if (topicId != null && topicId.getConstructor() == TdApi.MessageTopicForum.CONSTRUCTOR) {
+      return ForumReadPolicy.hasUnread(forumTopic);
     }
     return chat.unreadCount >= CHATS_THRESHOLD &&
             chat.lastReadInboxMessageId != 0 && chat.lastReadInboxMessageId != MessageId.MAX_VALID_ID &&
@@ -3338,12 +3366,17 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public static int getAnchorHighlightMode (int accountId, TdApi.Chat chat, @Nullable ThreadInfo threadInfo) {
+    return getAnchorHighlightMode(accountId, chat, threadInfo, null, null);
+  }
+
+  public static int getAnchorHighlightMode (int accountId, TdApi.Chat chat, @Nullable ThreadInfo threadInfo,
+                                            @Nullable TdApi.MessageTopic topicId, @Nullable TdApi.ForumTopic forumTopic) {
     if (chat == null) {
       return HIGHLIGHT_MODE_NONE;
     }
-    boolean canGoUnread = canGoUnread(chat, threadInfo);
+    boolean canGoUnread = canGoUnread(chat, threadInfo, topicId, forumTopic);
     Settings.SavedMessageId messageId = Settings.instance().getScrollMessageId(accountId, chat.id,
-      threadInfo != null ? threadInfo.getMessageTopicId() : null
+      threadInfo != null ? threadInfo.getMessageTopicId() : topicId
     );
     boolean preferUnreadFirst = messageId == null || messageId.readFully;
     if (preferUnreadFirst) {
@@ -3364,10 +3397,15 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public static MessageId getAnchorMessageId (int accountId, TdApi.Chat chat, @Nullable ThreadInfo threadInfo, int anchorMode) {
+    return getAnchorMessageId(accountId, chat, threadInfo, null, null, anchorMode);
+  }
+
+  public static MessageId getAnchorMessageId (int accountId, TdApi.Chat chat, @Nullable ThreadInfo threadInfo,
+                                              @Nullable TdApi.MessageTopic topicId, @Nullable TdApi.ForumTopic forumTopic, int anchorMode) {
     switch (anchorMode) {
       case HIGHLIGHT_MODE_POSITION_RESTORE: {
         Settings.SavedMessageId messageId = Settings.instance().getScrollMessageId(
-          accountId, chat.id, threadInfo != null ? threadInfo.getMessageTopicId() : null
+          accountId, chat.id, threadInfo != null ? threadInfo.getMessageTopicId() : topicId
         );
         return messageId != null && messageId.id.getMessageId() != 0 ? messageId.id : null;
       }
@@ -3375,6 +3413,9 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
       case HIGHLIGHT_MODE_UNREAD_NEXT: {
         if (threadInfo != null) {
           return new MessageId(threadInfo.getChatId(), threadInfo.getLastReadInboxMessageId() == 0 ? MessageId.MIN_VALID_ID : threadInfo.getLastReadInboxMessageId());
+        } else if (topicId != null && topicId.getConstructor() == TdApi.MessageTopicForum.CONSTRUCTOR) {
+          return new MessageId(chat.id, forumTopic != null && forumTopic.lastReadInboxMessageId != 0 ?
+            forumTopic.lastReadInboxMessageId : MessageId.MIN_VALID_ID);
         } else if (chat.lastReadOutboxMessageId == MessageId.MAX_VALID_ID || ChatId.isMultiChat(chat.id)) {
           return new MessageId(chat.id, chat.lastReadInboxMessageId);
         } else {
@@ -3675,6 +3716,10 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   private void checkMessageThreadUnreadCounter (int firstVisibleItemPosition) {
+    if (controller.isForumTopic()) {
+      checkForumTopicUnreadCounter(firstVisibleItemPosition);
+      return;
+    }
     ThreadInfo messageThread = loader.getMessageThread();
     if (messageThread == null || inSpecialMode() || !isFocused || firstVisibleItemPosition == -1)
       return;
@@ -3739,6 +3784,40 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
         unreadMessageCount += 1 + message.getMessageCountBetween(lastReadInboxMessageId, inboxMessageId);
       }
       messageThread.updateReadInbox(lastReadInboxMessageId, unreadMessageCount);
+    }
+  }
+
+  private void checkForumTopicUnreadCounter (int firstVisibleItemPosition) {
+    TdApi.ForumTopic topic = controller.getForumTopic();
+    if (topic == null || !canRead() || GhostModeUtils.shouldSuppressRead() || !isFocused || firstVisibleItemPosition < 0) return;
+    long previousReadId = topic.lastReadInboxMessageId;
+    long maxReadId = previousReadId;
+    int newlyReadCount = 0;
+    for (int index = firstVisibleItemPosition; index < manager.getItemCount(); index++) {
+      View view = manager.findViewByPosition(index);
+      if (!(view instanceof MessageProvider)) continue;
+      TGMessage message = ((MessageProvider) view).getMessage();
+      if (message.isSponsoredMessage() || message.isThreadHeader()) continue;
+      long messageId = message.getBiggestId();
+      if (messageId <= previousReadId) break;
+      maxReadId = Math.max(maxReadId, messageId);
+      if (!message.isOutgoing()) newlyReadCount += 1 + message.getMessageCountBetween(previousReadId, messageId);
+    }
+    int unreadCount;
+    if (loader.canLoadBottom()) {
+      unreadCount = ForumReadPolicy.unreadAfterRead(topic.unreadCount,
+        topic.lastMessage != null ? topic.lastMessage.id : 0, maxReadId, newlyReadCount);
+    } else {
+      unreadCount = 0;
+      for (int index = 0; index < getActiveMessageCount(); index++) {
+        TGMessage message = adapter.getItem(index);
+        if (!message.isOutgoing() && !message.isSponsoredMessage() && message.getBiggestId() > maxReadId) {
+          unreadCount += 1 + message.getMessageCountBetween(maxReadId, message.getBiggestId());
+        }
+      }
+    }
+    if (maxReadId > previousReadId || unreadCount != topic.unreadCount) {
+      controller.updateForumTopicReadInbox(maxReadId, unreadCount);
     }
   }
 

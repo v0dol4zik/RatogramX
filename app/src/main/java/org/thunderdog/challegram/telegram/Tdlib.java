@@ -146,6 +146,7 @@ import tgx.td.data.MessageWithProperties;
 
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.ForumPaginationPolicy;
 
 public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, DateChangeListener {
   @Override
@@ -4009,28 +4010,88 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
 
   public void markChatAsRead (long chatId, TdApi.MessageSource source, boolean allowRemoveMarkedAsUnrad, @Nullable Runnable after) {
     TdApi.Chat chat = chat(chatId);
-    if (chat != null) {
-      if (chat.isMarkedAsUnread && allowRemoveMarkedAsUnrad) {
-        switch (source.getConstructor()) {
-          case TdApi.MessageSourceChatHistory.CONSTRUCTOR:
-          case TdApi.MessageSourceHistoryPreview.CONSTRUCTOR:
-          case TdApi.MessageSourceChatList.CONSTRUCTOR:
-          case TdApi.MessageSourceSearch.CONSTRUCTOR:
-          case TdApi.MessageSourceChatEventLog.CONSTRUCTOR:
-          case TdApi.MessageSourceNotification.CONSTRUCTOR:
-          case TdApi.MessageSourceOther.CONSTRUCTOR:
-            client().send(new TdApi.ToggleChatIsMarkedAsUnread(chat.id, false), okHandler(after));
-            break;
-          case TdApi.MessageSourceMessageThreadHistory.CONSTRUCTOR:
-          case TdApi.MessageSourceForumTopicHistory.CONSTRUCTOR:
-            // No need to remove marked as unread mark
-            break;
+    if (chat == null || hasPasscode(chat)) {
+      finishReadAction(after);
+      return;
+    }
+    boolean removeMark = allowRemoveMarkedAsUnrad &&
+      source.getConstructor() != TdApi.MessageSourceMessageThreadHistory.CONSTRUCTOR &&
+      source.getConstructor() != TdApi.MessageSourceForumTopicHistory.CONSTRUCTOR &&
+      source.getConstructor() != TdApi.MessageSourceDirectMessagesChatTopicHistory.CONSTRUCTOR;
+    if (removeMark && Settings.instance().isForumTopicsExperimentEnabled() && isForum(chatId)) {
+      collectForumReadRequests(chat, source, after, 0, 0L, 0, new HashSet<>(), new ArrayList<>());
+    } else {
+      completeChatRead(chat, source, removeMark, after);
+    }
+  }
+
+  private void finishReadAction (@Nullable Runnable after) {
+    if (after != null) ui().post(after);
+  }
+
+  private void completeChatRead (TdApi.Chat chat, TdApi.MessageSource source, boolean removeMark, @Nullable Runnable after) {
+    Runnable unmark = () -> {
+      if (removeMark) {
+        send(new TdApi.ToggleChatIsMarkedAsUnread(chat.id, false), (ok, error) -> {
+          if (error != null) UI.showError(error);
+          finishReadAction(after);
+        });
+      } else {
+        finishReadAction(after);
+      }
+    };
+    if (chat.lastMessage == null) {
+      unmark.run();
+    } else {
+      send(new TdApi.ViewMessages(chat.id, new long[] {chat.lastMessage.id}, source, true), (ok, error) -> {
+        if (error != null) {
+          UI.showError(error);
+          finishReadAction(after);
+        } else {
+          unmark.run();
+        }
+      });
+    }
+  }
+
+  private void collectForumReadRequests (TdApi.Chat chat, TdApi.MessageSource source, @Nullable Runnable after,
+                                        int offsetDate, long offsetMessageId, int offsetTopicId,
+                                        Set<Integer> seenTopics, List<TdApi.Function<TdApi.Ok>> requests) {
+    send(new TdApi.GetForumTopics(chat.id, "", offsetDate, offsetMessageId, offsetTopicId, 100), (page, error) -> {
+      if (error != null || page == null) {
+        if (error != null) UI.showError(error);
+        finishReadAction(after);
+        return;
+      }
+      for (TdApi.ForumTopic topic : page.topics) {
+        if (topic == null || topic.info == null || !seenTopics.add(topic.info.forumTopicId)) continue;
+        int topicId = topic.info.forumTopicId;
+        if (topic.unreadCount > 0 && topic.lastMessage != null) {
+          requests.add(new TdApi.ViewMessages(chat.id, new long[] {topic.lastMessage.id}, new TdApi.MessageSourceForumTopicHistory(), true));
+        }
+        if (topic.unreadMentionCount > 0) requests.add(new TdApi.ReadAllForumTopicMentions(chat.id, topicId));
+        if (topic.unreadReactionCount > 0) requests.add(new TdApi.ReadAllForumTopicReactions(chat.id, topicId));
+        if (topic.unreadPollVoteCount > 0) requests.add(new TdApi.ReadAllForumTopicPollVotes(chat.id, topicId));
+      }
+      if (ForumPaginationPolicy.hasNextPage(page, offsetDate, offsetMessageId, offsetTopicId)) {
+        collectForumReadRequests(chat, source, after, page.nextOffsetDate, page.nextOffsetMessageId,
+          page.nextOffsetForumTopicId, seenTopics, requests);
+      } else if (requests.isEmpty()) {
+        completeChatRead(chat, source, true, after);
+      } else {
+        AtomicInteger remaining = new AtomicInteger(requests.size());
+        AtomicBoolean failed = new AtomicBoolean();
+        for (TdApi.Function<TdApi.Ok> request : requests) {
+          send(request, (ok, readError) -> {
+            if (readError != null && !failed.getAndSet(true)) UI.showError(readError);
+            if (remaining.decrementAndGet() == 0) {
+              if (failed.get()) finishReadAction(after);
+              else completeChatRead(chat, source, true, after);
+            }
+          });
         }
       }
-      if (!hasPasscode(chat) && chat.lastMessage != null) {
-        client().send(new TdApi.ViewMessages(chatId, new long[] {chat.lastMessage.id}, source, true), okHandler(after));
-      }
-    }
+    });
   }
 
   public void markChatAsUnread (@Nullable TdApi.Chat chat, @Nullable Runnable after) {
