@@ -301,6 +301,7 @@ import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.ui.MessageDetailsController;
 import moe.kirao.mgx.utils.SystemUtils;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.GhostReadStore;
 import moe.kirao.mgx.utils.QuoteSelectionPolicy;
 import moe.kirao.mgx.utils.ForumReadPolicy;
 import org.thunderdog.challegram.telegram.TdlibForumTopicManager;
@@ -323,7 +324,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   RecordAudioVideoController.RecordStateListeners,
   ViewPager.OnPageChangeListener, ViewPagerTopView.OnItemClickListener,
   TGMessage.SelectableDelegate, GlobalAccountListener, EmojiToneHelper.Delegate, ComplexHeaderView.Callback, LiveLocationHelper.Callback, CreatePollController.Callback,
-  HapticMenuHelper.Provider, HapticMenuHelper.OnItemClickListener, TdlibSettingsManager.DismissRequestsListener, MoexConfig.SettingsChangeListener, InputView.SelectionChangeListener {
+  HapticMenuHelper.Provider, HapticMenuHelper.OnItemClickListener, TdlibSettingsManager.DismissRequestsListener, MoexConfig.SettingsChangeListener, InputView.SelectionChangeListener, GhostReadStore.Listener {
   private boolean reuseEnabled;
   private boolean destroyInstance;
 
@@ -1571,6 +1572,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     updateView();
 
     MoexConfig.instance().addSettingsListener(this);
+    GhostReadStore.addListener(this);
     TGLegacyManager.instance().addEmojiListener(this);
 
     if (needTabs()) {
@@ -1905,6 +1907,31 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Nullable
   public ThreadInfo getMessageThread () {
     return messageThread;
+  }
+
+  public @Nullable GhostReadStore.Inbox getReadInbox () {
+    if (messageThread != null) return GhostReadStore.Inbox.from(messageThread);
+    if (isForumTopic()) {
+      TdApi.ForumTopic topic = getForumTopic();
+      return topic != null ? GhostReadStore.Inbox.from(topic) : null;
+    }
+    return chat != null ? GhostReadStore.Inbox.from(chat) : null;
+  }
+
+  public int getUnreadMessageCount () {
+    GhostReadStore.Inbox inbox = getReadInbox();
+    return inbox != null ? GhostReadStore.unreadCount(tdlib.id(), getChatId(), getMessageTopicId(), inbox) : 0;
+  }
+
+  @Override
+  public void onLocalReadStateChanged (int accountId, long chatId, @Nullable TdApi.MessageTopic topicId, long readMessageId) {
+    if (isDestroyed() || contentView == null || accountId != tdlib.id() || chatId != getChatId() ||
+        !Td.equalsTo(topicId, getMessageTopicId()) || areScheduledOnly() || inPreviewMode || isInForceTouchMode()) return;
+    GhostReadStore.Inbox inbox = getReadInbox();
+    if (inbox != null) {
+      manager.updateInboxReadState(GhostReadStore.readMessageId(accountId, chatId, topicId, inbox.readMessageId));
+      updateCounters(true);
+    }
   }
 
   public boolean isForumTopic () {
@@ -3189,7 +3216,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
       if (messageThread != null) {
         int unreadCount;
         if (messageThread.hasUnreadMessages(chat) && !areScheduledOnly()) {
-          unreadCount = messageThread.getUnreadMessageCount() != ThreadInfo.UNKNOWN_UNREAD_MESSAGE_COUNT ? messageThread.getUnreadMessageCount() : Tdlib.CHAT_MARKED_AS_UNREAD;
+          int localCount = getUnreadMessageCount();
+          unreadCount = localCount != ThreadInfo.UNKNOWN_UNREAD_MESSAGE_COUNT ? localCount : Tdlib.CHAT_MARKED_AS_UNREAD;
         } else {
           unreadCount = 0;
         }
@@ -3198,11 +3226,11 @@ public class MessagesController extends ViewController<MessagesController.Argume
         setReactionCountBadge(0);
       } else if (isForumTopic()) {
         TdApi.ForumTopic topic = getForumTopic();
-        setUnreadCountBadge(topic != null && !areScheduled ? topic.unreadCount : 0, animated);
+        setUnreadCountBadge(topic != null && !areScheduled ? getUnreadMessageCount() : 0, animated);
         setMentionCountBadge(topic != null && !areScheduled ? topic.unreadMentionCount : 0);
         setReactionCountBadge(topic != null && !areScheduled ? topic.unreadReactionCount : 0);
       } else {
-        setUnreadCountBadge(chat.unreadCount, animated);
+        setUnreadCountBadge(getUnreadMessageCount(), animated);
         setMentionCountBadge(chat.unreadMentionCount);
         setReactionCountBadge(chat.unreadReactionCount);
       }
@@ -3220,7 +3248,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
         manager.highlightMessage(messageId, MessagesManager.HIGHLIGHT_MODE_UNREAD_NEXT, null, true);
         return;
       }
-      if (chat != null && MessagesManager.canGoUnread(chat, messageThread, messageTopicId, getForumTopic())) {
+      if (chat != null && MessagesManager.canGoUnread(tdlib.id(), chat, messageThread, messageTopicId, getForumTopic())) {
         MessageId messageId = MessagesManager.getAnchorMessageId(tdlib.id(), chat, messageThread, messageTopicId, getForumTopic(), MessagesManager.HIGHLIGHT_MODE_UNREAD);
         int firstUnreadIndex = manager.indexOfFirstUnreadMessage();
         TGMessage bottom = manager.findBottomMessage();
@@ -4652,6 +4680,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
       tdlib.settings().removeJoinRequestsDismissListener(this);
       TGLegacyManager.instance().removeEmojiListener(this);
       MoexConfig.instance().removeSettingsListener(this);
+      GhostReadStore.removeListener(this);
       if (emojiLayout != null) {
         emojiLayout.destroy();
       }
@@ -8621,6 +8650,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public void onMessageThreadReadInbox (long chatId, TdApi.MessageTopic topicId, long lastReadInboxMessageId, int remainingUnreadCount) {
     if (messageThread != null && messageThread.belongsTo(chatId, topicId)) {
+      GhostReadStore.serverRead(tdlib.id(), chatId, topicId, lastReadInboxMessageId);
       updateCounters(true);
     }
   }

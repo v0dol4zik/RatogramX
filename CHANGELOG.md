@@ -21,6 +21,9 @@ in development build metadata.
 - Centered default topic icons and kept unread badges clear of the discussion button.
 - Ghost mode switches now reflect the master switch and restore the last selected
   submode when enabled again.
+- Ghost mode remembers local read positions and unread progress per account,
+  chat, and topic, including after restarting the client. Explicit Mark as read
+  actions retain their server behavior.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

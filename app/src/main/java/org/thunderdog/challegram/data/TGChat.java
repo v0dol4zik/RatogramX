@@ -64,6 +64,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.GhostReadStore;
 
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.animator.BounceAnimator;
@@ -395,7 +396,7 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
       unreadCount -= markedAsUnreadCount;
       return unreadCount > 0 ? unreadCount : markedAsUnreadCount > 0 ? Tdlib.CHAT_MARKED_AS_UNREAD : 0;
     } else {
-      return chat.unreadCount > 0 ? chat.unreadCount : chat.isMarkedAsUnread ? Tdlib.CHAT_MARKED_AS_UNREAD : 0;
+      return getUnreadCount();
     }
   }
 
@@ -622,6 +623,11 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
     return false;
   }
 
+  public void updateLocalReadState () {
+    setCounter(true);
+    setText();
+  }
+
   public boolean updateChatUnreadReactionCount (long chatId, int unreadReactionCount) {
     if (chat.id == chatId) {
       boolean hadBadge = chat.unreadReactionCount > 0;
@@ -746,7 +752,8 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
 
   public boolean showDraft () {
     // TODO rich message
-    return !isArchive() && chat.unreadCount == 0 && chat.draftMessage != null && chat.draftMessage.content.getConstructor() == TdApi.DraftMessageContentText.CONSTRUCTOR;
+    return !isArchive() && GhostReadStore.unreadCount(tdlib.id(), chat.id, null, GhostReadStore.Inbox.from(chat)) == 0 &&
+      chat.draftMessage != null && chat.draftMessage.content.getConstructor() == TdApi.DraftMessageContentText.CONSTRUCTOR;
   }
 
   public boolean isUnread () {
@@ -754,7 +761,7 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
       if (isOutgoing()) {
         return chat.lastMessage.id > chat.lastReadOutboxMessageId;
       } else {
-        return chat.lastMessage.id > chat.lastReadInboxMessageId;
+        return chat.lastMessage.id > GhostReadStore.readMessageId(tdlib.id(), chat.id, null, chat.lastReadInboxMessageId);
       }
     }
     return false;
@@ -832,7 +839,10 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
     } else if (getSource() != null) {
       return 0;
     } else {
-      return chat.unreadCount > 0 ? chat.unreadCount : chat.isMarkedAsUnread ? Tdlib.CHAT_MARKED_AS_UNREAD : 0;
+      int unreadCount = GhostReadStore.unreadCount(tdlib.id(), chat.id, null, GhostReadStore.Inbox.from(chat));
+      boolean markedAsUnread = chat.isMarkedAsUnread &&
+        GhostReadStore.readMessageId(tdlib.id(), chat.id, null, chat.lastReadInboxMessageId) == chat.lastReadInboxMessageId;
+      return unreadCount > 0 ? unreadCount : markedAsUnread ? Tdlib.CHAT_MARKED_AS_UNREAD : 0;
     }
   }
 

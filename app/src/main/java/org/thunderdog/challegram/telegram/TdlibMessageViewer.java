@@ -36,6 +36,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.function.LongBinaryOperator;
 
 import me.vkryl.core.BitwiseUtils;
 import me.vkryl.core.collection.LongSet;
@@ -46,6 +48,8 @@ import me.vkryl.core.reference.ReferenceList;
 import tgx.td.ChatId;
 import tgx.td.Td;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.GhostReadPolicy;
+import moe.kirao.mgx.utils.GhostReadStore;
 
 public class TdlibMessageViewer {
   private static final long TRACK_MESSAGE_TIMEOUT_MS = 1000;
@@ -105,7 +109,7 @@ public class TdlibMessageViewer {
     public final long chatId;
     public final long messageId;
     public final int date;
-    public final boolean isSent, shouldRestrictScreenshots, isScreenshotSensitive, isSponsored;
+    public final boolean isSent, isOutgoing, isScheduled, shouldRestrictScreenshots, isScreenshotSensitive, isSponsored;
     public final VisibilityState visibility = new VisibilityState(true);
     public @Flags long flags;
     public long viewId;
@@ -119,6 +123,8 @@ public class TdlibMessageViewer {
 
       this.date = message.date;
       this.isSent = message.sendingState == null;
+      this.isOutgoing = message.isOutgoing;
+      this.isScheduled = message.schedulingState != null;
       this.isSponsored = false;
       this.shouldRestrictScreenshots = !message.canBeSaved;
       this.isScreenshotSensitive = TD.isScreenshotSensitive(message);
@@ -132,6 +138,8 @@ public class TdlibMessageViewer {
 
       this.date = 0;
       this.isSent = false;
+      this.isOutgoing = false;
+      this.isScheduled = false;
       this.isSponsored = true;
       this.shouldRestrictScreenshots = false;
       this.isScreenshotSensitive = false;
@@ -497,6 +505,9 @@ public class TdlibMessageViewer {
     private final TdlibMessageViewer context;
 
     public final TdApi.MessageSource messageSource;
+    private @Nullable TdApi.MessageTopic readTopicId;
+    private @Nullable Supplier<GhostReadStore.Inbox> readInbox;
+    private @Nullable LongBinaryOperator incomingMessageCount;
     private final BaseActivity activity;
     public final List<VisibleChat> visibleChats = new ArrayList<>();
     private final ViewportState state = new ViewportState();
@@ -544,6 +555,12 @@ public class TdlibMessageViewer {
       this.context = context;
       this.messageSource = messageSource;
       this.activity = activity;
+    }
+
+    public void setReadContext (@Nullable TdApi.MessageTopic topicId, Supplier<GhostReadStore.Inbox> inbox, LongBinaryOperator incomingMessageCount) {
+      readTopicId = topicId;
+      readInbox = inbox;
+      this.incomingMessageCount = incomingMessageCount;
     }
 
     public void addIgnoreLock (FutureBool act) {
@@ -771,17 +788,13 @@ public class TdlibMessageViewer {
         // false. Use a non-history source in Ghost mode so media/view counters
         // are still updated without advancing the server read marker.
         TdApi.MessageSource effectiveSource = messageSource;
-        if (GhostModeUtils.shouldSuppressRead()) {
-          switch (messageSource.getConstructor()) {
-            case TdApi.MessageSourceChatHistory.CONSTRUCTOR:
-            case TdApi.MessageSourceMessageThreadHistory.CONSTRUCTOR:
-            case TdApi.MessageSourceForumTopicHistory.CONSTRUCTOR:
-              effectiveSource = new TdApi.MessageSourceOther();
-              break;
-          }
+        boolean suppressRead = GhostModeUtils.shouldSuppressRead();
+        if (suppressRead && GhostReadPolicy.isHistorySource(messageSource)) {
+          recordLocalRead(chatId, messageIds);
+          effectiveSource = new TdApi.MessageSourceOther();
         }
         context.tdlib.send(new TdApi.ViewMessages(chatId, messageIds, effectiveSource,
-          GhostModeUtils.shouldSuppressRead() ? false : forceRead), (ok, error) -> {
+          suppressRead ? false : forceRead), (ok, error) -> {
           if (after != null) {
             after.runWithBool(error == null);
           }
@@ -790,6 +803,30 @@ public class TdlibMessageViewer {
           }
         });
       }
+    }
+
+    private void recordLocalRead (long chatId, long[] messageIds) {
+      VisibleChat visibleChat = find(chatId);
+      if (visibleChat == null) return;
+      GhostReadStore.Inbox inbox = readInbox != null ? readInbox.get() : null;
+      if (inbox == null && readTopicId == null) {
+        TdApi.Chat chat = context.tdlib.chat(chatId);
+        if (chat != null) inbox = GhostReadStore.Inbox.from(chat);
+      }
+      if (inbox == null) inbox = new GhostReadStore.Inbox(0, -1, 0);
+      long previousReadId = GhostReadStore.readMessageId(context.tdlib.id(), chatId, readTopicId, inbox.readMessageId);
+      long readId = previousReadId;
+      int newlyReadCount = 0;
+      for (long messageId : messageIds) {
+        VisibleMessage message = visibleChat.find(messageId);
+        if (message == null || !message.isSent || message.isSponsored || message.isScheduled || messageId <= 0) continue;
+        readId = Math.max(readId, messageId);
+        if (!message.isOutgoing && messageId > previousReadId) newlyReadCount++;
+      }
+      if (incomingMessageCount != null && readId > previousReadId) {
+        newlyReadCount = Math.max(newlyReadCount, (int) incomingMessageCount.applyAsLong(previousReadId, readId));
+      }
+      GhostReadStore.record(context.tdlib.id(), chatId, readTopicId, inbox, readId, newlyReadCount, -1);
     }
 
     public void refreshMessageInteractionInfo (long chatId, long[] messageIds, @Nullable RunnableBool after) {

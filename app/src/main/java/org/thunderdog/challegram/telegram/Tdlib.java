@@ -148,6 +148,7 @@ import tgx.td.data.MessageWithProperties;
 
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.GhostReadStore;
 import moe.kirao.mgx.utils.ForumPaginationPolicy;
 
 public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, DateChangeListener {
@@ -1330,6 +1331,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
     if (prevStatus != Status.UNAUTHORIZED && newStatus == Status.UNAUTHORIZED) {
       Log.i("Performing account cleanup for accountId:%d", accountId);
+      GhostReadStore.clearAccount(accountId);
       listeners().performCleanup();
     } else if (newStatus == Status.READY) {
       onPerformStartup();
@@ -8463,6 +8465,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       chat.unreadCount = update.unreadCount;
       chatLists = chatListsImpl(chat.positions);
     }
+    GhostReadStore.serverRead(accountId, update.chatId, null, update.lastReadInboxMessageId);
     listeners.updateChatReadInbox(update, availabilityChanged, chat, chatLists);
   }
 
@@ -8602,7 +8605,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       }
       chat.isMarkedAsUnread = update.isMarkedAsUnread;
     }
-
+    if (update.isMarkedAsUnread) GhostReadStore.clear(accountId, update.chatId, null);
     listeners.updateChatIsMarkedAsUnread(update);
   }
 

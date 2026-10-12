@@ -45,7 +45,7 @@
   <string name="MessageEditHistory">Edit history</string>
   <string name="ViewMessageHistory">View saved history</string>
   <string name="GhostMode">Ghost mode (Beta)</string>
-  <string name="GhostModeInfo">Hide read receipts, typing activity, and your online status. This is an experimental client-only feature; Telegram may still receive activity in some flows.</string>
+  <string name="GhostModeInfo">Hide read receipts, typing activity, and your online status. Viewed messages are remembered on this device only. Explicit Mark as read actions still send read receipts. This is an experimental client-only feature; Telegram may still receive activity in some flows.</string>
   <string name="GhostNoRead">Hide read receipts</string>
   <string name="GhostNoTyping">Hide typing activity</string>
   <string name="GhostOffline">Appear offline</string>

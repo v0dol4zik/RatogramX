@@ -54,6 +54,7 @@ import me.vkryl.core.DateUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.RunnableData;
+import moe.kirao.mgx.utils.GhostReadStore;
 import tgx.td.ChatId;
 import tgx.td.MessageId;
 import tgx.td.Td;
@@ -164,6 +165,7 @@ public class MessagesLoader implements Client.ResultHandler {
     this.messageSource = newMessageSource();
     recycleMessageViewer();
     this.viewport = tdlib.messageViewer().createViewport(messageSource, manager.controller());
+    this.viewport.setReadContext(getMessageTopicId(), manager.controller()::getReadInbox, manager::countLoadedIncomingMessages);
   }
 
   private void recycleMessageViewer () {
@@ -1344,19 +1346,20 @@ public class MessagesLoader implements Client.ResultHandler {
     if (messageThread != null) {
       chatId = messageThread.getChatId();
       lastReadOutboxMessageId = messageThread.getLastReadOutboxMessageId();
-      lastReadInboxMessageId = messageThread.getLastReadInboxMessageId();
-      hasUnreadMessages = messageThread.hasUnreadMessages(chat);
+      lastReadInboxMessageId = GhostReadStore.readMessageId(tdlib.id(), chatId, messageThread.getMessageTopicId(), messageThread.getLastReadInboxMessageId());
+      hasUnreadMessages = messageThread.hasUnreadMessages(chat) &&
+        GhostReadStore.unreadCount(tdlib.id(), chatId, messageThread.getMessageTopicId(), GhostReadStore.Inbox.from(messageThread)) != 0;
     } else if (topicId != null && topicId.getConstructor() == TdApi.MessageTopicForum.CONSTRUCTOR) {
       TdApi.ForumTopic topic = manager.controller().getForumTopic();
       chatId = getChatId();
       lastReadOutboxMessageId = topic != null ? topic.lastReadOutboxMessageId : 0;
-      lastReadInboxMessageId = topic != null ? topic.lastReadInboxMessageId : 0;
-      hasUnreadMessages = topic != null && topic.unreadCount > 0;
+      lastReadInboxMessageId = GhostReadStore.readMessageId(tdlib.id(), chatId, topicId, topic != null ? topic.lastReadInboxMessageId : 0);
+      hasUnreadMessages = topic != null && GhostReadStore.unreadCount(tdlib.id(), chatId, topicId, GhostReadStore.Inbox.from(topic)) > 0;
     } else if (chat != null) {
       chatId = chat.id;
       lastReadOutboxMessageId = chat.lastReadOutboxMessageId;
-      lastReadInboxMessageId = chat.lastReadInboxMessageId;
-      hasUnreadMessages = chat.unreadCount > 0;
+      lastReadInboxMessageId = GhostReadStore.readMessageId(tdlib.id(), chatId, topicId, chat.lastReadInboxMessageId);
+      hasUnreadMessages = GhostReadStore.unreadCount(tdlib.id(), chatId, topicId, GhostReadStore.Inbox.from(chat)) > 0;
     } else {
       chatId = lastReadInboxMessageId = lastReadOutboxMessageId = 0;
       hasUnreadMessages = false;

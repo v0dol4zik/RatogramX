@@ -137,6 +137,7 @@ import tgx.td.ChatPosition;
 import tgx.td.Td;
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
+import moe.kirao.mgx.utils.GhostReadStore;
 
 public class ChatsController extends TelegramViewController<ChatsController.Arguments> implements Menu,
   View.OnClickListener, View.OnLongClickListener, ChatsRecyclerView.LoadMoreCallback,
@@ -150,7 +151,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
   ForceTouchView.PreviewDelegate, LiveLocationHelper.Callback,
   BaseView.LongPressInterceptor, TdlibCache.UserStatusChangeListener,
   Settings.ChatListModeChangeListener, CounterChangeListener,
-  TdlibSettingsManager.PreferenceChangeListener, SelectDelegate, MoreDelegate, DateChangeListener, ChatFolderListener, MoexConfig.SettingsChangeListener {
+  TdlibSettingsManager.PreferenceChangeListener, SelectDelegate, MoreDelegate, DateChangeListener, ChatFolderListener, MoexConfig.SettingsChangeListener, GhostReadStore.Listener {
 
   private static final int NO_CHAT_FOLDER_ID = 0;
 
@@ -640,6 +641,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     tdlib.context().dateManager().addListener(this);
     tdlib.listeners().addChatFolderListener(chatFolderId(), this);
     MoexConfig.instance().addSettingsListener(this);
+    GhostReadStore.addListener(this);
 
     tdlib.awaitMyUserOrUnauthorizedState(() -> {
       executeOnUiThreadOptional(() -> {
@@ -2835,9 +2837,21 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     tdlib.context().dateManager().removeListener(this);
     tdlib.listeners().removeChatFolderListener(chatFolderId(), this);
     MoexConfig.instance().removeSettingsListener(this);
+    GhostReadStore.removeListener(this);
   }
 
   // Updates
+
+  @Override
+  public void onLocalReadStateChanged (int accountId, long chatId, @Nullable TdApi.MessageTopic topicId, long readMessageId) {
+    if (isDestroyed() || accountId != tdlib.id() || topicId != null || chatsView == null || adapter == null) return;
+    int position = adapter.findChatItemPosition(chatId);
+    TGChat chat = adapter.getChatByItemPosition(position);
+    if (chat != null) {
+      chat.updateLocalReadState();
+      chatsView.invalidateViewAt(position);
+    }
+  }
 
   @Override
   public void onSettingsChanged (String key, Object newSettings, Object oldSettings) {

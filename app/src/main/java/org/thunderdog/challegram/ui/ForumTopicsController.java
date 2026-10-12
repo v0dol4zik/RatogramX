@@ -29,6 +29,7 @@ import org.thunderdog.challegram.v.CustomRecyclerView;
 import org.thunderdog.challegram.widget.DoubleTextView;
 import moe.kirao.mgx.utils.ForumPaginationPolicy;
 import moe.kirao.mgx.utils.ForumReadPolicy;
+import moe.kirao.mgx.utils.GhostReadStore;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Displays a forum's topics without mixing them with the chat message stream. */
-public class ForumTopicsController extends RecyclerViewController<Long> implements View.OnClickListener, ChatListener {
+public class ForumTopicsController extends RecyclerViewController<Long> implements View.OnClickListener, ChatListener, GhostReadStore.Listener {
   private static final int PAGE_SIZE = 100;
   private static final int PREFETCH_DISTANCE = 6;
   private static final long REFRESH_DEBOUNCE_MS = 250L;
@@ -129,13 +130,15 @@ public class ForumTopicsController extends RecyclerViewController<Long> implemen
       }
     });
     tdlib.listeners().subscribeToChatUpdates(getChatId(), this);
+    GhostReadStore.addListener(this);
     loadPage(true);
   }
 
   private CharSequence buildTopicStatus (@NonNull TdApi.ForumTopic topic) {
     StringBuilder status = new StringBuilder();
-    if (topic.unreadCount > 0) {
-      status.append(Lang.plural(R.string.xNewMessages, topic.unreadCount));
+    int unreadCount = GhostReadStore.unreadCount(tdlib.id(), getChatId(), new TdApi.MessageTopicForum(topic.info.forumTopicId), GhostReadStore.Inbox.from(topic));
+    if (unreadCount > 0) {
+      status.append(Lang.plural(R.string.xNewMessages, unreadCount));
     }
     if (topic.isPinned) {
       appendStatus(status, Lang.getString(R.string.ForumTopicPinned));
@@ -299,6 +302,12 @@ public class ForumTopicsController extends RecyclerViewController<Long> implemen
     }
   }
 
+  @Override
+  public void onLocalReadStateChanged (int accountId, long chatId, @Nullable TdApi.MessageTopic topicId, long readMessageId) {
+    if (isDestroyed() || accountId != tdlib.id() || chatId != getChatId() || !(topicId instanceof TdApi.MessageTopicForum)) return;
+    updateTopicRow(((TdApi.MessageTopicForum) topicId).forumTopicId);
+  }
+
   private void scheduleRefresh () {
     if (isDestroyed()) return;
     if (loading) {
@@ -335,6 +344,7 @@ public class ForumTopicsController extends RecyclerViewController<Long> implemen
     removeCallbacks(refreshRunnable);
     requestGeneration++;
     tdlib.listeners().unsubscribeFromChatUpdates(getChatId(), this);
+    GhostReadStore.removeListener(this);
     super.destroy();
   }
 }

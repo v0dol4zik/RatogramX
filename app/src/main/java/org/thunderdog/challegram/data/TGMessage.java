@@ -169,6 +169,7 @@ import tgx.td.Td;
 import tgx.td.TdExt;
 import tgx.td.data.MessageWithProperties;
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.GhostReadStore;
 
 public abstract class TGMessage implements InvalidateContentProvider, TdlibDelegate, FactorAnimator.Target, Comparable<TGMessage>, Counter.Callback, TGAvatars.Callback, TranslationsManager.Translatable, TdlibForumTopicManager.Observer {
   private static final int MAXIMUM_CHANNEL_MERGE_TIME_DIFF = 150;
@@ -5218,6 +5219,9 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
       lastReadMessageId = msg.isOutgoing ? chat.lastReadOutboxMessageId : chat.lastReadInboxMessageId;
     } else {
       return false;
+    }
+    if (!msg.isOutgoing) {
+      lastReadMessageId = GhostReadStore.readMessageId(tdlib.id(), msg.chatId, messagesController().getMessageTopicId(), lastReadMessageId);
     }
     return lastReadMessageId < getBiggestId();
   }

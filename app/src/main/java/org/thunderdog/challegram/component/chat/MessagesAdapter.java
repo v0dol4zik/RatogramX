@@ -527,7 +527,7 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesHolder> {
           if (messageThread != null) {
             message.setShowUnreadBadge(messageThread.hasUnreadMessages(chat));
           } else {
-            message.setShowUnreadBadge(chat.unreadCount > 0);
+            message.setShowUnreadBadge(message.messagesController().getUnreadMessageCount() > 0);
           }
         }
       }
@@ -688,7 +688,7 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesHolder> {
               if (messageThread != null) {
                 message.setShowUnreadBadge(messageThread.hasUnreadMessages(chat));
               } else {
-                message.setShowUnreadBadge(chat.unreadCount > 0);
+                message.setShowUnreadBadge(message.messagesController().getUnreadMessageCount() > 0);
               }
             }
             break;

@@ -34,6 +34,7 @@ import me.vkryl.core.reference.ReferenceLongMap;
 import me.vkryl.core.reference.ReferenceMap;
 import tgx.td.Td;
 import moe.kirao.mgx.utils.MessageHistoryStore;
+import moe.kirao.mgx.utils.GhostReadStore;
 
 public class TdlibListeners {
   private final Tdlib tdlib;
@@ -1346,6 +1347,7 @@ public class TdlibListeners {
   // updateForumTopic
 
   void updateForumTopic (TdApi.UpdateForumTopic update) {
+    GhostReadStore.serverRead(tdlib.id(), update.chatId, new TdApi.MessageTopicForum(update.forumTopicId), update.lastReadInboxMessageId);
     runForumUpdate(update.chatId, update.forumTopicId, listener ->
       listener.onForumTopicUpdated(update.chatId, update.forumTopicId, update.isPinned, update.lastReadInboxMessageId, update.lastReadOutboxMessageId, update.notificationSettings)
     );
