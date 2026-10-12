@@ -4950,11 +4950,21 @@ public class ProfileController extends ViewController<ProfileController.Args> im
 
   @Override
   public void performComplexPhotoOpen () {
-    if (tdlib.canChangeInfo(chat) || tdlib.canEditBotChat(chat.id)) {
-      changeProfilePhoto();
-    } else {
+    if (chat.photo != null && !TD.isFileEmpty(chat.photo.small)) {
       openPhoto();
+    } else if (canLongPressComplexPhoto()) {
+      changeProfilePhoto();
     }
+  }
+
+  @Override
+  public boolean canLongPressComplexPhoto () {
+    return tdlib.canChangeInfo(chat) || tdlib.canEditBotChat(chat.id);
+  }
+
+  @Override
+  public void performComplexPhotoLongPress () {
+    changeProfilePhoto();
   }
 
   private void openPhoto () {

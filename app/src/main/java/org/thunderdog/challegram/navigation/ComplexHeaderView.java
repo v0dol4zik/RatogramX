@@ -1123,11 +1123,20 @@ public class ComplexHeaderView extends BaseView implements RtlCheckListener, Sti
 
   @Override
   public boolean needLongPress (float x, float y) {
-    return super.needLongPress(x, y) || !isCollapsed() && (emojiStatusClickRect.contains(x, y) || BitwiseUtils.hasFlag(flags, FLAG_ALLOW_TITLE_CLICK) && trimmedTitleClickRect.contains(x, y));
+    return super.needLongPress(x, y) || canLongPressPhoto(x, y) || !isCollapsed() && (emojiStatusClickRect.contains(x, y) || BitwiseUtils.hasFlag(flags, FLAG_ALLOW_TITLE_CLICK) && trimmedTitleClickRect.contains(x, y));
+  }
+
+  private boolean canLongPressPhoto (float x, float y) {
+    return (flags & FLAG_PHOTO_OPEN_DISABLED) == 0 && callback != null && callback.canLongPressComplexPhoto() && checkCaught(x, y, false);
   }
 
   @Override
   public boolean onLongPressRequestedAt (View view, float x, float y) {
+    if (canLongPressPhoto(x, y)) {
+      flags &= ~FLAG_CAUGHT;
+      callback.performComplexPhotoLongPress();
+      return true;
+    }
     if (!isCollapsed() && emojiStatusClickRect.contains(x, y)) {
       TdApi.Sticker sticker = emojiStatusHelper.getSticker();
       if (sticker == null) {
@@ -1202,6 +1211,8 @@ public class ComplexHeaderView extends BaseView implements RtlCheckListener, Sti
 
   public interface Callback {
     void performComplexPhotoOpen ();
+    default boolean canLongPressComplexPhoto () { return false; }
+    default void performComplexPhotoLongPress () { }
   }
 
   @Override

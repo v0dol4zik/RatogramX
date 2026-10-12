@@ -2211,6 +2211,7 @@ public class MediaViewController extends ViewController<MediaViewController.Args
 
   private boolean loadedInitialChunk;
   private boolean isLoading;
+  private boolean profilePhotosEndReached;
 
   private static final int LOAD_THRESHOLD = 4;
   private static final int LOAD_COUNT = 40;
@@ -2239,7 +2240,10 @@ public class MediaViewController extends ViewController<MediaViewController.Args
           break;
         }
         case TdApi.Error.CONSTRUCTOR: {
-          UI.showError(result);
+          runOnUiThreadOptional(() -> {
+            isLoading = false;
+            UI.showError(result);
+          });
           break;
         }
       }
@@ -2285,6 +2289,7 @@ public class MediaViewController extends ViewController<MediaViewController.Args
         break;
       }
       case MODE_PROFILE: {
+        if (profilePhotosEndReached) break;
         long userId = Td.getSenderUserId(stack.getCurrent().getSourceSender());
         if (!loadedInitialChunk || (edgeReached && isEnd) || stack.getCurrentIndex() <= stack.getCurrentSize() - LOAD_THRESHOLD) {
           isLoading = true;
@@ -2302,7 +2307,10 @@ public class MediaViewController extends ViewController<MediaViewController.Args
                 break;
               }
               case TdApi.Error.CONSTRUCTOR: {
-                UI.showError(result);
+                runOnUiThreadOptional(() -> {
+                  isLoading = false;
+                  UI.showError(result);
+                });
                 break;
               }
             }
@@ -2314,7 +2322,12 @@ public class MediaViewController extends ViewController<MediaViewController.Args
   }
 
   private void addItems (TdApi.ChatPhotos photos) {
+    profilePhotosEndReached = photos.photos.length < LOAD_COUNT_PROFILE;
     if (photos.photos.length == 0) {
+      loadedInitialChunk = true;
+      isLoading = false;
+      stack.setEstimatedSize(0, 0);
+      headerCell.setSubtitle(genSubtitle());
       return;
     }
 

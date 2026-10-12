@@ -48,6 +48,7 @@ import org.thunderdog.challegram.data.TGMessage;
 import org.thunderdog.challegram.data.TGStickerSetInfo;
 import org.thunderdog.challegram.loader.AvatarReceiver;
 import org.thunderdog.challegram.loader.ImageGalleryFile;
+import org.thunderdog.challegram.mediaview.MediaViewController;
 import org.thunderdog.challegram.navigation.ActivityResultHandler;
 import org.thunderdog.challegram.navigation.BackHeaderButton;
 import org.thunderdog.challegram.navigation.ComplexHeaderView;
@@ -206,7 +207,8 @@ public class SettingsController extends ViewController<Void> implements
   @Override
   public void onMenuItemPressed (int id, View view) {
     if (id == R.id.menu_btn_more) {
-      showMore(new int[] {R.id.more_btn_logout}, new String[] {Lang.getString(R.string.LogOut)}, 0);
+      showMore(new int[] {R.id.btn_changePhotoGallery, R.id.more_btn_logout},
+        new String[] {Lang.getString(R.string.ProfilePhoto), Lang.getString(R.string.LogOut)}, 0);
     }
   }
 
@@ -245,7 +247,9 @@ public class SettingsController extends ViewController<Void> implements
 
   @Override
   public void onMoreItemPressed (int id) {
-    if (id == R.id.menu_btn_more) {
+    if (id == R.id.btn_changePhotoGallery) {
+      changeProfilePhoto();
+    } else if (id == R.id.menu_btn_more) {
       tdlib.ui().logOut(this, true);
     } else {
       tdlib.ui().handleProfileMore(this, id, tdlib.myUser(), null);
@@ -1154,8 +1158,22 @@ public class SettingsController extends ViewController<Void> implements
   public void performComplexPhotoOpen () {
     TdApi.User user = tdlib.myUser();
     if (user != null) {
-      changeProfilePhoto();
+      if (user.profilePhoto != null) {
+        MediaViewController.openFromProfile(this, user, headerCell);
+      } else {
+        changeProfilePhoto();
+      }
     }
+  }
+
+  @Override
+  public boolean canLongPressComplexPhoto () {
+    return tdlib.myUser() != null;
+  }
+
+  @Override
+  public void performComplexPhotoLongPress () {
+    changeProfilePhoto();
   }
 
   @Override

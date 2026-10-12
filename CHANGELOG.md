@@ -36,6 +36,9 @@ in development build metadata.
   including effects whose stickers finish loading while the popup is open.
 - With partial quotes enabled, tapping a reply centers and highlights its quoted
   text or caption, including messages loaded from history and other chats.
+- Tapping your profile photo opens its gallery directly; a long press opens
+  photo management. Editable group, channel, and bot avatars follow the same
+  behavior. Avatar galleries recover after empty responses and loading errors.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its
