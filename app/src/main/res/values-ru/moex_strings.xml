@@ -126,6 +126,17 @@
   <string name="Edit">Редактировать</string>
   <string name="ProfileNoteHint">Заметку видите только Вы.</string>
   <string name="SelectRoundVideos">Камера в видеосообщениях</string>
+  <string name="RoundVideoQuality">Качество видеосообщений</string>
+  <string name="RoundVideoQualityDataSaver">Экономия трафика • 240 пкс</string>
+  <string name="RoundVideoQualityStandard">Стандартное • 320 пкс</string>
+  <string name="RoundVideoQualityRecommended">Рекомендуемое • 384 пкс</string>
+  <string name="RoundVideoQualityMaximum">Максимальное • 480 пкс</string>
+  <string name="RoundVideoQualityInfo">Более высокое качество расходует больше трафика и требует более мощного устройства. Применяется к новым записям.</string>
+  <string name="VideoBitrate">Битрейт видео</string>
+  <string name="VideoBitrateAuto">Автоматический</string>
+  <string name="VideoBitrateHigh">Высокий</string>
+  <string name="VideoBitrateMaximum">Максимальный</string>
+  <string name="VideoBitrateInfo">Более высокий битрейт сохраняет больше деталей и увеличивает размер файла при сжатии видео. Исходное качество сохраняет битрейт оригинала.</string>
   <string name="frontCamera">Фронтальная</string>
   <string name="RearCamera">Основная</string>
   <string name="Ask">Спрашивать</string>

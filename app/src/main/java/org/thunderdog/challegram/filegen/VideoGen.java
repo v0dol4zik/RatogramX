@@ -61,6 +61,8 @@ import org.thunderdog.challegram.mediaview.crop.CropState;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.unsorted.AppContext;
 import org.thunderdog.challegram.unsorted.Settings;
+import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.VideoQualityPolicy;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -395,26 +397,13 @@ public class VideoGen {
       videoLimit = new Settings.VideoLimit();
 
     int inputVideoFrameRate = getVideoFrameRate(AppContext.get(), sourcePath);
-    int outputVideoFrameRate = videoLimit.getOutputFrameRate(inputVideoFrameRate);
-
-    int outputVideoSquare;
-    int outputHeightLimit;
-    if (!info.disableTranscoding() && !videoLimit.size.isUnlimited() && (inputVideoWidth * inputVideoHeight) > (videoLimit.size.majorSize * videoLimit.size.minorSize)) {
-      if (U.isRotated(inputVideoRotation)) {
-        outputHeightLimit = inputVideoWidth > inputVideoHeight ? videoLimit.size.majorSize : videoLimit.size.minorSize;
-      } else {
-        outputHeightLimit = inputVideoHeight > inputVideoWidth ? videoLimit.size.majorSize : videoLimit.size.minorSize;
-      }
-      outputVideoSquare = videoLimit.size.majorSize * videoLimit.size.minorSize;
-    } else {
-      outputHeightLimit = 0;
-      outputVideoSquare = inputVideoWidth * inputVideoHeight;
-    }
-    long outputVideoBitrate = Math.min(
-      (videoLimit.bitrate != Settings.VideoLimit.BITRATE_UNKNOWN ? videoLimit.bitrate :
-      (int) Math.round(outputVideoSquare * outputVideoFrameRate * Settings.VideoLimit.BITRATE_SCALE)),
-      inputVideoBitrate
-    );
+    int outputVideoFrameRate = info.disableTranscoding() && inputVideoFrameRate > 0 ? inputVideoFrameRate : videoLimit.getOutputFrameRate(inputVideoFrameRate);
+    boolean portrait = U.isRotated(inputVideoRotation) ? inputVideoWidth > inputVideoHeight : inputVideoHeight > inputVideoWidth;
+    Settings.VideoSize outputSize = info.disableTranscoding() ? null : videoLimit.getOutputSize(inputVideoWidth, inputVideoHeight);
+    int outputWidth = outputSize != null ? (portrait ? outputSize.minorSize : outputSize.majorSize) : inputVideoWidth;
+    int outputHeight = outputSize != null ? (portrait ? outputSize.majorSize : outputSize.minorSize) : inputVideoHeight;
+    long outputVideoBitrate = VideoQualityPolicy.outputBitrate(outputWidth, outputHeight, outputVideoFrameRate, videoLimit.bitrate,
+      inputVideoBitrate, MoexConfig.instance().getVideoBitrateMode(), info.disableTranscoding());
 
     MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
       .setUri(sourcePath);
@@ -431,11 +420,11 @@ public class VideoGen {
       .setRemoveAudio(info.needMute());
 
     List<Effect> videoEffects = new ArrayList<>();
-    if (outputVideoFrameRate != inputVideoFrameRate) {
+    if (!info.disableTranscoding() && outputVideoFrameRate != inputVideoFrameRate) {
       videoEffects.add(FrameDropEffect.createDefaultFrameDropEffect(outputVideoFrameRate));
     }
-    if (outputHeightLimit > 0) {
-      videoEffects.add(Presentation.createForHeight(outputHeightLimit));
+    if (outputSize != null) {
+      videoEffects.add(Presentation.createForWidthAndHeight(outputWidth, outputHeight, Presentation.LAYOUT_SCALE_TO_FIT));
     }
     CropState cropState = info.getCrop();
     if (CropEffectFactory.needScaleAndRotateEffect(cropState, info.getRotate())) {
@@ -486,7 +475,7 @@ public class VideoGen {
     if (!editedMediaItem.removeAudio) {
       transformerBuilder.setAudioMimeType(MimeTypes.AUDIO_AAC);
     }
-    if (inputVideoBitrate > outputVideoBitrate) {
+    if (outputVideoBitrate > 0) {
       VideoEncoderSettings videoEncoderSettings = new VideoEncoderSettings.Builder()
         .setBitrate((int) outputVideoBitrate)
         .build();

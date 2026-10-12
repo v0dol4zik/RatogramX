@@ -50,6 +50,15 @@
   <item name="channelBottomButtonAuto" type="id" />
   <item name="channelBottomButtonDiscuss" type="id" />
   <item name="channelBottomButtonMute" type="id" />
+  <item name="btn_roundVideoQuality" type="id" />
+  <item name="roundQualityDataSaver" type="id" />
+  <item name="roundQualityStandard" type="id" />
+  <item name="roundQualityRecommended" type="id" />
+  <item name="roundQualityMaximum" type="id" />
+  <item name="btn_videoBitrate" type="id" />
+  <item name="videoBitrateAuto" type="id" />
+  <item name="videoBitrateHigh" type="id" />
+  <item name="videoBitrateMaximum" type="id" />
   <item name="controller_details" type="id"/>
   <item name="btn_msgDetails" type="id"/>
   <item name="btn_chatIdDetails" type="id"/>

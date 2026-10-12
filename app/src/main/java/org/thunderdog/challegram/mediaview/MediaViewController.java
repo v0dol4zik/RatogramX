@@ -7741,7 +7741,7 @@ public class MediaViewController extends ViewController<MediaViewController.Args
     b.append(width > height ? scaled.majorSize + "x" + scaled.minorSize : scaled.minorSize + "x" + scaled.majorSize);
     b.append(" • ");
     b.append(outputFrameRate).append(" FPS");
-    b.append(" • ").append((outputBitrate + (file.shouldMuteVideo() ? 0 : 6200)) / 1000).append(" kbps");
+    b.append(" • ").append((outputBitrate + (file.shouldMuteVideo() ? 0 : 62000)) / 1000).append(" kbps");
     qualityInfo.setText(b.toString());
   }
 

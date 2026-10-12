@@ -120,6 +120,8 @@ import me.vkryl.core.unit.ByteUnit;
 import me.vkryl.core.util.Blob;
 import me.vkryl.core.util.BlobEntry;
 import me.vkryl.leveldb.LevelDB;
+import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.VideoQualityPolicy;
 import tgx.td.ChatId;
 import tgx.td.MessageId;
 import tgx.td.Td;
@@ -3387,24 +3389,14 @@ public class Settings {
     public static final double BITRATE_SCALE = 0.109;
 
     public long getOutputBitrate (Settings.VideoSize size, int frameRate, long inputBitrate) {
-      return Math.round((size.majorSize * size.minorSize * frameRate) * BITRATE_SCALE);
+      return VideoQualityPolicy.outputBitrate(size.majorSize, size.minorSize, frameRate, bitrate, inputBitrate,
+        MoexConfig.instance().getVideoBitrateMode(), this.size.isUnlimited());
     }
 
     @Nullable
     public VideoSize getOutputSize (int width, int height) {
-      int majorSize = Math.max(width, height);
-      int minorSize = Math.min(width, height);
-      float ratio = Math.min(
-        (float) this.size.majorSize / (float) majorSize,
-        (float) this.size.minorSize / (float) minorSize
-      );
-      if (ratio > 1f)
-        return null;
-      majorSize = (int) ((float) majorSize * ratio);
-      minorSize = (int) ((float) minorSize * ratio);
-      if (majorSize % 2 == 1) majorSize--;
-      if (minorSize % 2 == 1) minorSize--;
-      return new VideoSize(majorSize, minorSize);
+      int[] size = VideoQualityPolicy.outputSize(width, height, this.size.majorSize, this.size.minorSize);
+      return size != null ? new VideoSize(size[0], size[1]) : null;
     }
 
     public int[] toIntArray () {

@@ -29,6 +29,9 @@ in development build metadata.
 - Long videos resume from the last playback position when reopened. Bookmarks
   are kept locally per account, cleared on completion or logout, and excluded
   for secret, self-destructing, and view-once media.
+- Added four video-message quality presets, including 384 px at 1 Mbps, and
+  bitrate choices for compressed videos. Trimming in original quality keeps
+  source frame rate and bitrate; encoded dimensions match the quality preview.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

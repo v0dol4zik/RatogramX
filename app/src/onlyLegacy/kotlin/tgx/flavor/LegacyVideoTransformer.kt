@@ -103,17 +103,14 @@ fun legacyConvertVideoComplex(
       minorSize -= majorSize % 2
       videoLimit = videoLimit.changeSize(Settings.VideoSize(majorSize, minorSize))
     }
-    if (outputBitrate == DefaultVideoStrategy.BITRATE_UNKNOWN) {
-      val format = dataSource.getTrackFormat(TrackType.VIDEO)
-      if (format != null) {
-        val outputSize = videoLimit.getOutputSize(
-          format.getInteger(MediaFormat.KEY_WIDTH),
-        format.getInteger(MediaFormat.KEY_HEIGHT)
-        )
-        val inputFrameRate = getFrameRate(format)
-        outputFrameRate = videoLimit.getOutputFrameRate(inputFrameRate)
-        outputBitrate = videoLimit.getOutputBitrate(outputSize, outputFrameRate, videoLimit.bitrate)
-      }
+    val format = dataSource.getTrackFormat(TrackType.VIDEO)
+    if (format != null) {
+      val width = format.getInteger(MediaFormat.KEY_WIDTH)
+      val height = format.getInteger(MediaFormat.KEY_HEIGHT)
+      val outputSize = videoLimit.getOutputSize(width, height) ?: Settings.VideoSize(width, height)
+      val inputBitrate = if (format.containsKey(MediaFormat.KEY_BIT_RATE)) format.getInteger(MediaFormat.KEY_BIT_RATE).toLong() else -1L
+      outputFrameRate = videoLimit.getOutputFrameRate(getFrameRate(format))
+      outputBitrate = videoLimit.getOutputBitrate(outputSize, outputFrameRate, inputBitrate)
     }
     DefaultVideoStrategy
       .atMost(videoLimit.size.minorSize, videoLimit.size.majorSize)

@@ -39,7 +39,6 @@ import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.ui.camera.legacy.CameraApi;
-import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.video.Mp4Output;
 import org.thunderdog.challegram.video.old.Mp4Movie;
 import org.thunderdog.challegram.video.old.Mp4OutputImpl;
@@ -61,10 +60,16 @@ import javax.microedition.khronos.egl.EGLSurface;
 import javax.microedition.khronos.opengles.GL;
 
 import me.vkryl.core.BitwiseUtils;
+import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.VideoQualityPolicy;
 
 @RequiresApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
 public class RoundVideoRecorder {
   public interface Delegate {
+    default VideoQualityPolicy.RoundPreset getRoundVideoPreset () {
+      return VideoQualityPolicy.roundPreset(MoexConfig.instance().getRoundVideoQuality());
+    }
+
     /**
      * Start progress timer at this point, if still required
      * */
@@ -199,6 +204,7 @@ public class RoundVideoRecorder {
     if (!isCapturing) {
       this.isCapturing = true;
       this.mDelegate = delegate;
+      this.recordingQuality = delegate.getRoundVideoPreset();
       this.workingKey = key;
       this.outputPath = outputPath;
       boolean success = false;
@@ -354,6 +360,7 @@ public class RoundVideoRecorder {
   // Impl
 
   private File cameraFile;
+  private VideoQualityPolicy.RoundPreset recordingQuality;
 
   private boolean startCaptureImpl () throws Throwable {
     cameraFile = new File(outputPath);
@@ -767,16 +774,8 @@ public class RoundVideoRecorder {
 
     if (isCapturing()) {
       if (!recording) {
-        int resolution;
-        int bitrate;
-        if (Settings.instance().needHqRoundVideos()) {
-          resolution = 320;
-          bitrate = 600000;
-        } else {
-          resolution = 240;
-          bitrate = 400000;
-        }
-        videoEncoder.startRecording(cameraFile, resolution, bitrate, EGL14.eglGetCurrentContext());
+        videoEncoder.startRecording(cameraFile, recordingQuality.resolution, recordingQuality.videoBitrate,
+          recordingQuality.audioBitrate, EGL14.eglGetCurrentContext());
         recordStartTime = SystemClock.uptimeMillis();
         recording = true;
         int orientation = rotationAngle;
@@ -904,6 +903,7 @@ public class RoundVideoRecorder {
     private int videoWidth;
     private int videoHeight;
     private int videoBitrate;
+    private int audioBitrate;
     private boolean videoConvertFirstWrite = true;
     private boolean blendEnabled;
 
@@ -1019,11 +1019,12 @@ public class RoundVideoRecorder {
       }
     };
 
-    public void startRecording(File outputFile, int size, int bitRate, android.opengl.EGLContext sharedContext) {
+    public void startRecording(File outputFile, int size, int bitRate, int audioBitRate, android.opengl.EGLContext sharedContext) {
       videoFile = outputFile;
       videoWidth = size;
       videoHeight = size;
       videoBitrate = bitRate;
+      audioBitrate = audioBitRate;
       sharedEglContext = sharedContext;
 
       synchronized (sync) {
@@ -1326,7 +1327,7 @@ public class RoundVideoRecorder {
         audioFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
         audioFormat.setInteger(MediaFormat.KEY_SAMPLE_RATE, sampleRate);
         audioFormat.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 1);
-        audioFormat.setInteger(MediaFormat.KEY_BIT_RATE, 32000);
+        audioFormat.setInteger(MediaFormat.KEY_BIT_RATE, audioBitrate);
         audioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 2048 * 10);
 
         audioEncoder = MediaCodec.createEncoderByType(AUDIO_MIME_TYPE);

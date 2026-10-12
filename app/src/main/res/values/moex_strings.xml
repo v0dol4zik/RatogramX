@@ -142,6 +142,17 @@
   <string name="Edit">Edit</string>
   <string name="ProfileNoteHint">Notes are only visible for you.</string>
   <string name="SelectRoundVideos">Camera in round videos</string>
+  <string name="RoundVideoQuality">Video message quality</string>
+  <string name="RoundVideoQualityDataSaver">Data saver • 240 px</string>
+  <string name="RoundVideoQualityStandard">Standard • 320 px</string>
+  <string name="RoundVideoQualityRecommended">Recommended • 384 px</string>
+  <string name="RoundVideoQualityMaximum">Maximum • 480 px</string>
+  <string name="RoundVideoQualityInfo">Higher quality uses more data and needs a faster device. Applies to new recordings.</string>
+  <string name="VideoBitrate">Video bitrate</string>
+  <string name="VideoBitrateAuto">Automatic</string>
+  <string name="VideoBitrateHigh">High</string>
+  <string name="VideoBitrateMaximum">Maximum</string>
+  <string name="VideoBitrateInfo">A higher bitrate preserves more detail and increases file size when compressing videos. Original quality keeps the source bitrate.</string>
   <string name="frontCamera">Frontal</string>
   <string name="RearCamera">Rear</string>
   <string name="Ask">Ask</string>

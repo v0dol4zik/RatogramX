@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 
 import org.drinkmore.Tracer;
 import org.thunderdog.challegram.Log;
+import org.thunderdog.challegram.config.Device;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.unsorted.AppContext;
 import org.thunderdog.challegram.unsorted.Settings;
@@ -22,6 +23,7 @@ import org.json.JSONObject;
 import me.vkryl.core.reference.ReferenceList;
 import me.vkryl.leveldb.LevelDB;
 import moe.kirao.mgx.utils.SystemUtils;
+import moe.kirao.mgx.utils.VideoQualityPolicy;
 
 public class MoexConfig {
 
@@ -64,6 +66,8 @@ public class MoexConfig {
   public static final String KEY_CHANNEL_BOTTOM_BUTTON = "channel_bottom_button";
 
   public static final String KEY_ROUND_VIDEOS = "round_videos";
+  public static final String KEY_ROUND_VIDEO_QUALITY = "round_video_quality";
+  public static final String KEY_VIDEO_BITRATE_MODE = "video_bitrate_mode";
   public static final String KEY_DISABLE_PROXY_ON_VPN = "disable_proxy_on_vpn";
   /** Hide the channel advertised by an MTProto proxy from chat lists. */
   public static final String KEY_HIDE_PROXY_SPONSOR = "hide_proxy_sponsor";
@@ -95,7 +99,7 @@ public class MoexConfig {
   private static final String[] EXPORT_INT_KEYS = {
     KEY_DRAWER_ITEMS, KEY_CHANGE_SIZE_LIMIT, KEY_CHANGE_HEADER_TEXT, KEY_ROUND_VIDEOS,
     KEY_AUTO_PAUSE_MEDIA_TYPES, KEY_GHOST_MODE_FLAGS, KEY_FOLDER_TABS_STYLE,
-    KEY_CHANNEL_BOTTOM_BUTTON
+    KEY_CHANNEL_BOTTOM_BUTTON, KEY_ROUND_VIDEO_QUALITY, KEY_VIDEO_BITRATE_MODE
   };
   public static final int FOLDER_TABS_STYLE_UPSTREAM = -1;
   public static final int FOLDER_TABS_STYLE_TEXT = 0;
@@ -325,6 +329,8 @@ public class MoexConfig {
         if (key.equals(KEY_CHANGE_SIZE_LIMIT) && (value < SIZE_LIMIT_800 || value > SIZE_LIMIT_2560)) value = SIZE_LIMIT_1280;
         if (key.equals(KEY_FOLDER_TABS_STYLE) && (value < FOLDER_TABS_STYLE_UPSTREAM || value > FOLDER_TABS_STYLE_TEXT_ICONS)) value = FOLDER_TABS_STYLE_UPSTREAM;
         if (key.equals(KEY_CHANNEL_BOTTOM_BUTTON) && (value < CHANNEL_BOTTOM_BUTTON_AUTO || value > CHANNEL_BOTTOM_BUTTON_MUTE)) value = CHANNEL_BOTTOM_BUTTON_AUTO;
+        if (key.equals(KEY_ROUND_VIDEO_QUALITY)) value = normalizeRoundVideoQuality(value);
+        if (key.equals(KEY_VIDEO_BITRATE_MODE)) value = VideoQualityPolicy.normalizeBitrateMode(value);
         if (oldValue != value || !containsKey(key)) {
           putInt(key, value);
           notifyClientListeners(key, value, oldValue);
@@ -347,6 +353,8 @@ public class MoexConfig {
     if (KEY_FOLDER_TABS_STYLE.equals(key)) return FOLDER_TABS_STYLE_UPSTREAM;
     if (KEY_CHANNEL_BOTTOM_BUTTON.equals(key)) return CHANNEL_BOTTOM_BUTTON_AUTO;
     if (KEY_GHOST_MODE_FLAGS.equals(key)) return GHOST_MODE_ALL;
+    if (KEY_ROUND_VIDEO_QUALITY.equals(key)) return VideoQualityPolicy.defaultRoundQuality(Settings.instance().needHqRoundVideos());
+    if (KEY_VIDEO_BITRATE_MODE.equals(key)) return VideoQualityPolicy.BITRATE_AUTO;
     return 0;
   }
 
@@ -644,6 +652,33 @@ public class MoexConfig {
 
   public void setRoundVideos (int value) {
     putInt(KEY_ROUND_VIDEOS, value);
+  }
+
+  private static int normalizeRoundVideoQuality (int value) {
+    value = VideoQualityPolicy.normalizeRoundQuality(value, defaultInt(KEY_ROUND_VIDEO_QUALITY));
+    return Device.NEED_HQ_ROUND_VIDEOS && value == VideoQualityPolicy.ROUND_DATA_SAVER ? VideoQualityPolicy.ROUND_STANDARD : value;
+  }
+
+  public int getRoundVideoQuality () {
+    return normalizeRoundVideoQuality(getInt(KEY_ROUND_VIDEO_QUALITY, defaultInt(KEY_ROUND_VIDEO_QUALITY)));
+  }
+
+  public void setRoundVideoQuality (int value) {
+    value = normalizeRoundVideoQuality(value);
+    int oldValue = getRoundVideoQuality();
+    putInt(KEY_ROUND_VIDEO_QUALITY, value);
+    notifyClientListeners(KEY_ROUND_VIDEO_QUALITY, value, oldValue);
+  }
+
+  public int getVideoBitrateMode () {
+    return VideoQualityPolicy.normalizeBitrateMode(getInt(KEY_VIDEO_BITRATE_MODE, VideoQualityPolicy.BITRATE_AUTO));
+  }
+
+  public void setVideoBitrateMode (int value) {
+    value = VideoQualityPolicy.normalizeBitrateMode(value);
+    int oldValue = getVideoBitrateMode();
+    putInt(KEY_VIDEO_BITRATE_MODE, value);
+    notifyClientListeners(KEY_VIDEO_BITRATE_MODE, value, oldValue);
   }
 
   public void toggleDisableProxyOnVpn () {

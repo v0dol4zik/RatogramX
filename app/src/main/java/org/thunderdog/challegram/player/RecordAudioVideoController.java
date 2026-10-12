@@ -64,6 +64,7 @@ import org.thunderdog.challegram.ui.camera.CameraControlButton;
 import org.thunderdog.challegram.ui.camera.CameraController;
 import org.thunderdog.challegram.unsorted.Settings;
 import moe.kirao.mgx.MoexConfig;
+import moe.kirao.mgx.utils.VideoQualityPolicy;
 import org.thunderdog.challegram.util.HapticMenuHelper;
 import org.thunderdog.challegram.widget.CircleFrameLayout;
 import org.thunderdog.challegram.widget.NoScrollTextView;
@@ -98,9 +99,8 @@ public class RecordAudioVideoController implements
   TdlibFilesManager.SimpleListener,
   BaseActivity.ActivityListener,
   ThemeChangeListener {
-  private static final int MAX_HQ_ROUND_RESOLUTION = Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP ? 360 : 480;
-  private static final int MAX_ROUND_RESOLUTION = 280;
   private static final int MAX_ROUND_DURATION_MS = 59500;
+  private VideoQualityPolicy.RoundPreset roundVideoPreset = VideoQualityPolicy.roundPreset(VideoQualityPolicy.ROUND_RECOMMENDED);
 
   private final BaseActivity context;
 
@@ -1594,7 +1594,9 @@ public class RecordAudioVideoController implements
 
   private void setupCamera (boolean isOwned, boolean frontFace) {
     ownedCamera.getManager().setPreferFrontFacingCamera(frontFace);
-    ownedCamera.getManager().setMaxResolution(isOwned ? (Settings.instance().needHqRoundVideos() ? MAX_HQ_ROUND_RESOLUTION : MAX_ROUND_RESOLUTION) : 0);
+    int resolution = roundVideoPreset.cameraResolution;
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP && roundVideoPreset.resolution == 320) resolution = 360;
+    ownedCamera.getManager().setMaxResolution(isOwned ? resolution : 0);
     ownedCamera.getLegacyManager().setNoPreviewBlur(false);
     ownedCamera.getLegacyManager().setUseRoundRender(isOwned);
     ownedCamera.getLegacyManager().getView().setIgnoreAspectRatio(isOwned);
@@ -1614,6 +1616,7 @@ public class RecordAudioVideoController implements
     if (ownedCamera == null) {
       throw new IllegalStateException();
     }
+    if (savedRoundDurationSeconds == 0) roundVideoPreset = VideoQualityPolicy.roundPreset(MoexConfig.instance().getRoundVideoQuality());
     roundKey = "round" + SystemClock.uptimeMillis() + "_" + System.currentTimeMillis() + "_" + Math.random();
     tdlib.client().send(new TdApi.PreliminaryUploadFile(new TdApi.InputFileGenerated(null, roundKey, 0), ChatId.isSecret(targetChatId) ? new TdApi.FileTypeSecret() : new TdApi.FileTypeVideoNote(), 1), object -> {
       if (object.getConstructor() == TdApi.File.CONSTRUCTOR) {
@@ -1815,7 +1818,10 @@ public class RecordAudioVideoController implements
     tdlib.client().send(new TdApi.FinishFileGeneration(roundGenerationId, null), tdlib.silentHandler(after));
   }
 
-  private static final int VIDEO_NOTE_LENGTH = 360;
+  @Override
+  public VideoQualityPolicy.RoundPreset getRoundVideoPreset () {
+    return roundVideoPreset;
+  }
 
   @Override
   public void onVideoRecordingFinished (String key, long resultFileSize, long resultFileDuration, TimeUnit resultFileDurationUnit) {
@@ -1829,7 +1835,7 @@ public class RecordAudioVideoController implements
             finishFileGeneration(resultFileSize, null);
           } else {
             finishFileGeneration(resultFileSize, () ->
-              sendVideoNote(new TdApi.InputMessageVideoNote(new TdApi.InputVideoNote(new TdApi.InputFileId(roundFile.id), null, savedRoundDurationSeconds, VIDEO_NOTE_LENGTH), obtainSelfDestructType()), Td.newSendOptions(), roundFile)
+              sendVideoNote(new TdApi.InputMessageVideoNote(new TdApi.InputVideoNote(new TdApi.InputFileId(roundFile.id), null, savedRoundDurationSeconds, roundVideoPreset.resolution), obtainSelfDestructType()), Td.newSendOptions(), roundFile)
             );
           }
         } else {
@@ -1966,9 +1972,9 @@ public class RecordAudioVideoController implements
           0
         );
         TdApi.InputFileGenerated trimmedFile = new TdApi.InputFileGenerated(roundFile.local.path, conversion, 0);
-        sendVideoNote(new TdApi.InputMessageVideoNote(new TdApi.InputVideoNote(trimmedFile, null, (int) Math.round(endTimeSeconds - startTimeSeconds), VIDEO_NOTE_LENGTH), obtainSelfDestructType()), initialSendOptions, null);
+        sendVideoNote(new TdApi.InputMessageVideoNote(new TdApi.InputVideoNote(trimmedFile, null, (int) Math.round(endTimeSeconds - startTimeSeconds), roundVideoPreset.resolution), obtainSelfDestructType()), initialSendOptions, null);
       } else {
-        sendVideoNote(new TdApi.InputMessageVideoNote(new TdApi.InputVideoNote(new TdApi.InputFileId(roundFile.id), null, savedRoundDurationSeconds, VIDEO_NOTE_LENGTH), obtainSelfDestructType()), initialSendOptions, roundFile);
+        sendVideoNote(new TdApi.InputMessageVideoNote(new TdApi.InputVideoNote(new TdApi.InputFileId(roundFile.id), null, savedRoundDurationSeconds, roundVideoPreset.resolution), obtainSelfDestructType()), initialSendOptions, roundFile);
       }
     } else {
       tdlib.client().send(new TdApi.DeleteFile(roundFile.id), tdlib.silentHandler());

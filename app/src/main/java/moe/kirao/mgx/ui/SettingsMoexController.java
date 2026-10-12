@@ -293,6 +293,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(viewId);
     } else if (viewId == R.id.btn_rearRounds) {
       showRoundVideoCameraOptions();
+    } else if (viewId == R.id.btn_roundVideoQuality) {
+      VideoQualityUi.showRoundOptions(this, () -> adapter.updateValuedSettingById(R.id.btn_roundVideoQuality));
+    } else if (viewId == R.id.btn_videoBitrate) {
+      VideoQualityUi.showBitrateOptions(this, () -> adapter.updateValuedSettingById(R.id.btn_videoBitrate));
     } else if (viewId == R.id.btn_toggleEdgeAnimSide) {
       handleSettingClick(v, adapter);
     }
@@ -690,6 +694,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
               view.setData(R.string.Ask);
               break;
           }
+        } else if (itemId == R.id.btn_roundVideoQuality) {
+          view.setData(VideoQualityUi.roundLabel());
+        } else if (itemId == R.id.btn_videoBitrate) {
+          view.setData(VideoQualityUi.bitrateLabel());
         }
       }
     };
@@ -766,6 +774,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_hideMessagePanelButtons, 0, R.string.HideMessagePanelButtons));
         items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_rearRounds, 0, R.string.SelectRoundVideos));
+        if (Config.ROUND_VIDEOS_RECORD_SUPPORTED) {
+          items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+          items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_roundVideoQuality, 0, R.string.RoundVideoQuality));
+        }
         items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_hideBottomBar, 0, R.string.HideBottomBar));
         break;
@@ -821,6 +833,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.Other));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
         items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_changeSizeLimit, 0, R.string.changeSizeLimit));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_videoBitrate, 0, R.string.VideoBitrate));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, Lang.getMarkdownString(this, R.string.changeSizeLimitInfo), false));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
