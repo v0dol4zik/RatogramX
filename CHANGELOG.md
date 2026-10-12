@@ -34,6 +34,8 @@ in development build metadata.
   source frame rate and bitrate; encoded dimensions match the quality preview.
 - Automatic unread reaction effects wait until an overlapping popup closes,
   including effects whose stickers finish loading while the popup is open.
+- With partial quotes enabled, tapping a reply centers and highlights its quoted
+  text or caption, including messages loaded from history and other chats.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

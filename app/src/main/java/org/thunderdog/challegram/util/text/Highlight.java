@@ -25,6 +25,7 @@ import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.util.CustomTypefaceSpan;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import me.vkryl.core.StringUtils;
@@ -74,6 +75,7 @@ public class Highlight {
 
   public final List<Part> parts = new ArrayList<>();
   private TextColorSet customColorSet = null;
+  private @Nullable Highlight additionalHighlight;
 
   public Highlight (String text, String highlight) {
     this(text, 0, text.length(), highlight, 0, highlight.length());
@@ -90,7 +92,27 @@ public class Highlight {
   }
 
   public Highlight offset (int offset) {
-    return new Highlight(parts, offset);
+    Highlight result = new Highlight(parts, offset);
+    result.customColorSet = customColorSet;
+    result.additionalHighlight = additionalHighlight != null ? additionalHighlight.offset(offset) : null;
+    return result;
+  }
+
+  public static Highlight range (int start, int end) {
+    if (start < 0 || end <= start) throw new IllegalArgumentException();
+    return new Highlight(Collections.singletonList(new Part(start, end, 0)), 0);
+  }
+
+  public static @Nullable Highlight combine (@Nullable Highlight first, @Nullable Highlight second) {
+    if (first == null) return second;
+    if (second == null) return first;
+    Highlight result = first.offset(0);
+    result.additionalHighlight = combine(result.additionalHighlight, second);
+    return result;
+  }
+
+  public @Nullable Highlight getAdditionalHighlight () {
+    return additionalHighlight;
   }
 
   public TextColorSet getColorSet () {

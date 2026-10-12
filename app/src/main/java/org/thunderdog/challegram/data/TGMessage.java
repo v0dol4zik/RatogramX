@@ -170,6 +170,7 @@ import tgx.td.TdExt;
 import tgx.td.data.MessageWithProperties;
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostReadStore;
+import moe.kirao.mgx.utils.QuoteNavigationPolicy;
 
 public abstract class TGMessage implements InvalidateContentProvider, TdlibDelegate, FactorAnimator.Target, Comparable<TGMessage>, Counter.Callback, TGAvatars.Callback, TranslationsManager.Translatable, TdlibForumTopicManager.Observer {
   private static final int MAXIMUM_CHANNEL_MERGE_TIME_DIFF = 150;
@@ -2969,12 +2970,14 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
                 if (replyToMessage.chatId == 0 || replyToMessage.messageId == 0) {
                   buildContentHint(view, getReplyLocationProvider(), false).show(tdlib, Lang.getString(R.string.MessageReplyPrivate));
                 } else {
-                  tdlib.ui().openMessage(controller(), replyToMessage.chatId, new MessageId(replyToMessage), openParameters());
+                  tdlib.ui().openChat(controller(), replyToMessage.chatId, new TdlibUi.ChatOpenParameters().keepStack()
+                    .highlightMessage(new MessageId(replyToMessage), replyToMessage.quote).ensureHighlightAvailable().urlOpenParameters(openParameters()));
                 }
               } else if (isScheduled()) {
-                tdlib.ui().openMessage(controller(), replyToMessage.chatId, new MessageId(replyToMessage), openParameters());
+                tdlib.ui().openChat(controller(), replyToMessage.chatId, new TdlibUi.ChatOpenParameters().keepStack()
+                  .highlightMessage(new MessageId(replyToMessage), replyToMessage.quote).ensureHighlightAvailable().urlOpenParameters(openParameters()));
               } else {
-                highlightOtherMessage(new MessageId(replyToMessage));
+                manager.controller().highlightMessage(new MessageId(replyToMessage), toMessageId(), replyToMessage.quote);
               }
             }
           }
@@ -6761,12 +6764,24 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   // Highlight
 
   public void drawHighlight (View view, Canvas c) {
-    if (highlightFactor != 0f) {
+    if (highlightFactor != 0f && !quoteHighlighted) {
       c.drawRect(0, findTopEdge(), view.getMeasuredWidth(), findBottomEdge(), Paints.fillingPaint(getSelectionColor(highlightFactor)));
     }
   }
 
   public void highlight (boolean revoke) {
+    highlightQuote(null, 0, revoke);
+  }
+
+  public void highlightQuote (@Nullable TdApi.TextQuote quote, long messageId, boolean revoke) {
+    quote = Settings.instance().isPartialQuotesExperimentEnabled() ? quote : null;
+    if (highlightQuote != quote || highlightQuoteMessageId != messageId) {
+      highlightQuote = quote;
+      highlightQuoteMessageId = quote != null ? messageId : 0;
+      quoteHighlighted = false;
+      onUpdateHighlightedText();
+      invalidate();
+    }
     cancelHighlightRevoke();
     setHighlight(1f);
     if (revoke) {
@@ -6777,11 +6792,20 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   private void setHighlight (float highlight) {
     if (this.highlightFactor != highlight) {
       this.highlightFactor = highlight;
+      if (highlight == 0f && highlightQuote != null) {
+        highlightQuote = null;
+        highlightQuoteMessageId = 0;
+        quoteHighlighted = false;
+        onUpdateHighlightedText();
+      }
       invalidateParentOrSelf(false);
     }
   }
 
   private @Nullable String highlightedText = null;
+  private @Nullable TdApi.TextQuote highlightQuote;
+  private long highlightQuoteMessageId;
+  private boolean quoteHighlighted;
   private final Highlight.Pool searchResultsHighlightPool = new Highlight.Pool();
 
   private void setHighlightedText (@Nullable String text) {
@@ -6794,18 +6818,59 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   protected final @Nullable Highlight getHighlightedText (int key, String in) {
-    Highlight highlight = Highlight.valueOf(in, highlightedText);
-    if (highlight == null) return null;
+    return getHighlightedText(key, in, getId());
+  }
 
-    highlight.setCustomColorSet(getSearchHighlightColorSet());
-    int mostRelevantKey = searchResultsHighlightPool.getMostRelevantHighlightKey();
-    searchResultsHighlightPool.add(key, highlight);
-    if (mostRelevantKey != Highlight.Pool.KEY_NONE && mostRelevantKey != searchResultsHighlightPool.getMostRelevantHighlightKey()) {
-      UI.post(this::onUpdateHighlightedText);
-      android.util.Log.i("HIGHLIGHT", "UPDATE");
+  protected final @Nullable Highlight getHighlightedText (int key, String in, long sourceMessageId) {
+    Highlight highlight = Highlight.valueOf(in, highlightedText);
+    if (highlight != null) {
+      highlight.setCustomColorSet(getSearchHighlightColorSet());
+      int mostRelevantKey = searchResultsHighlightPool.getMostRelevantHighlightKey();
+      searchResultsHighlightPool.add(key, highlight);
+      if (mostRelevantKey != Highlight.Pool.KEY_NONE && mostRelevantKey != searchResultsHighlightPool.getMostRelevantHighlightKey()) {
+        UI.post(this::onUpdateHighlightedText);
+      }
+      if (!searchResultsHighlightPool.isMostRelevant(key)) highlight = null;
     }
 
-    return searchResultsHighlightPool.isMostRelevant(key) ? highlight : null;
+    if (key == Highlight.Pool.KEY_TEXT || key == Highlight.Pool.KEY_MEDIA_CAPTION || key == Highlight.Pool.KEY_FILE_CAPTION) {
+      int[] range = getHighlightQuoteRange(in, sourceMessageId);
+      if (range != null) {
+        quoteHighlighted = true;
+        Highlight quoteHighlight = Highlight.range(range[0], range[1]);
+        quoteHighlight.setCustomColorSet(new TextColorSetOverride(getTextColorSet()) {
+          @Override
+          public int backgroundColor (boolean isPressed) {
+            return ColorUtils.alphaColor(highlightFactor, Theme.getColor(ColorId.textSelectionHighlight));
+          }
+
+          @Override
+          public int backgroundColorId (boolean isPressed) {
+            return ColorId.textSelectionHighlight;
+          }
+        });
+        highlight = Highlight.combine(highlight, quoteHighlight);
+      }
+    }
+    return highlight;
+  }
+
+  protected final @Nullable int[] getHighlightQuoteRange (String in, long sourceMessageId) {
+    if (highlightQuote == null || highlightQuoteMessageId != sourceMessageId || Td.isEmpty(highlightQuote.text) ||
+        !Settings.instance().isPartialQuotesExperimentEnabled()) return null;
+    return QuoteNavigationPolicy.findRange(in, highlightQuote.text.text, highlightQuote.position);
+  }
+
+  protected final int getHighlightQuoteY (@Nullable TextWrapper wrapper, long sourceMessageId) {
+    Text text = wrapper != null ? wrapper.getCurrent() : null;
+    int[] range = text != null ? getHighlightQuoteRange(text.getText(), sourceMessageId) : null;
+    if (range == null) return -1;
+    int y = text.getCharY(range[0]);
+    return y >= 0 ? y + text.getLineHeight() / 2 : -1;
+  }
+
+  public int getHighlightQuoteY () {
+    return -1;
   }
 
   public void checkHighlightedText () {

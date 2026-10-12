@@ -134,7 +134,7 @@ public class TGMessageFile extends TGMessage {
                 invalidateTextMediaReceiver(text, specificMedia);
               }
             })
-            .setHighlightText(getHighlightedText(Highlight.Pool.KEY_FILE_CAPTION, caption.text))
+            .setHighlightText(getHighlightedText(Highlight.Pool.KEY_FILE_CAPTION, caption.text, messageId))
             .addTextFlags(Text.FLAG_BIG_EMOJI)
             .setClickCallback(clickCallback());
           wrapper.setViewProvider(currentViews);
@@ -503,6 +503,18 @@ public class TGMessageFile extends TGMessage {
       file.updateCaption(needAnimateChanges(), true);
     }
     rebuildContent();
+  }
+
+  @Override
+  public int getHighlightQuoteY () {
+    for (ListAnimator.Entry<CaptionedFile> entry : files) {
+      int y = getHighlightQuoteY(entry.item.captionWrapper, entry.item.messageId);
+      if (y >= 0) {
+        return getContentY() + Math.round(entry.getRectF().top + entry.getSpacingStart()) +
+          entry.item.component.getHeight() + Screen.dp(TEXT_MARGIN) + y;
+      }
+    }
+    return -1;
   }
 
   @Override

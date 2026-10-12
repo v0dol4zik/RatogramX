@@ -2473,6 +2473,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
           outState.putLong(keyPrefix + "message_id", args.highlightMessageId.getMessageId());
           outState.putLong(keyPrefix + "message_chat_id", args.highlightMessageId.getChatId());
         }
+        if (args.highlightQuote != null) {
+          Td.put(outState, keyPrefix + "highlightQuote", new TdApi.InputTextQuote(args.highlightQuote.text, args.highlightQuote.position));
+        }
       }
       if (args.constructor == 2) {
         outState.putInt(keyPrefix + "mode", args.previewMode);
@@ -2537,6 +2540,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
     if (args != null) {
       super.restoreInstanceState(in, keyPrefix);
       args.areScheduled = in.getBoolean(keyPrefix + "scheduled", false);
+      TdApi.InputTextQuote quote = Td.restoreInputTextQuote(in, keyPrefix + "highlightQuote");
+      if (quote != null) args.highlightQuote = new TdApi.TextQuote(quote.text, quote.position, true);
       setArguments(args);
       return true;
     }
@@ -2549,6 +2554,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     public final TdApi.Chat chat;
     public final TdApi.ChatList chatList;
     public MessageId highlightMessageId;
+    public @Nullable TdApi.TextQuote highlightQuote;
     public int highlightMode;
 
     public final boolean inPreviewMode;
@@ -2791,7 +2797,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     this.previewSearchQuery = args.searchQuery;
     this.previewSearchSender = args.searchSender;
     this.previewSearchFilter = args.searchFilter;
-    this.manager.setHighlightMessageId(args.highlightMessageId, args.highlightMode);
+    this.manager.setHighlightMessageId(args.highlightMessageId, args.highlightMode, args.highlightQuote);
     this.inPreviewMode = args.inPreviewMode;
     this.previewMode = args.previewMode;
     this.openKeyboard = args.openKeyboard;
@@ -6880,10 +6886,14 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public void highlightMessage (MessageId messageId, @Nullable TdlibUi.UrlOpenParameters parameters) {
+    highlightMessage(messageId, parameters, null);
+  }
+
+  public void highlightMessage (MessageId messageId, @Nullable TdlibUi.UrlOpenParameters parameters, @Nullable TdApi.TextQuote quote) {
     if (parameters != null && parameters.messageId != null && parameters.messageId.getChatId() == messageId.getChatId()) {
-      highlightMessage(messageId, parameters.messageId);
+      highlightMessage(messageId, parameters.messageId, quote);
     } else {
-      highlightMessage(messageId);
+      highlightMessage(messageId, (long[]) null, quote);
     }
   }
 
@@ -6897,21 +6907,30 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public void highlightMessage (MessageId messageId, MessageId fromMessageId) {
+    highlightMessage(messageId, fromMessageId, null);
+  }
+
+  public void highlightMessage (MessageId messageId, MessageId fromMessageId, @Nullable TdApi.TextQuote quote) {
     if (inOnlyFoundMode()) {
-      manager.setHighlightMessageId(messageId, MessagesManager.HIGHLIGHT_MODE_NORMAL);
+      manager.setHighlightMessageId(messageId, MessagesManager.HIGHLIGHT_MODE_NORMAL, quote);
       onSetSearchFilteredShowMode(false);
       return;
     }
     long[] returnToMessageIds = manager.extendReturnToMessageIdStack(fromMessageId);
-    highlightMessage(messageId, returnToMessageIds);
+    highlightMessage(messageId, returnToMessageIds, quote);
   }
 
   public void highlightMessage (MessageId messageId, long[] returnToMessageIds) {
+    highlightMessage(messageId, returnToMessageIds, null);
+  }
+
+  private void highlightMessage (MessageId messageId, long[] returnToMessageIds, @Nullable TdApi.TextQuote quote) {
     if (inPreviewSearchMode()) {
-      tdlib.ui().openMessage(this, getChatId(), messageId, null);
+      tdlib.ui().openChat(this, getChatId(), new TdlibUi.ChatOpenParameters().keepStack()
+        .highlightMessage(messageId, quote).ensureHighlightAvailable());
       return;
     }
-    manager.highlightMessage(messageId, MessagesManager.HIGHLIGHT_MODE_NORMAL, returnToMessageIds, pagerScrollPosition == 0);
+    manager.highlightMessage(messageId, MessagesManager.HIGHLIGHT_MODE_NORMAL, returnToMessageIds, pagerScrollPosition == 0, quote);
     showMessagesListIfNeeded();
   }
 

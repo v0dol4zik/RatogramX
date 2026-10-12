@@ -352,7 +352,7 @@ public class TGMessageMedia extends TGMessage {
               invalidateTextMediaReceiver(text, specificMedia);
             }
           })
-          .setHighlightText(getHighlightedText(Highlight.Pool.KEY_MEDIA_CAPTION, fText.text))
+          .setHighlightText(getHighlightedText(Highlight.Pool.KEY_MEDIA_CAPTION, fText.text, captionMessageId))
           .addTextFlags(Text.FLAG_BIG_EMOJI)
           .setClickCallback(clickCallback());
         this.wrapper.setViewProvider(currentViews);
@@ -635,6 +635,12 @@ public class TGMessageMedia extends TGMessage {
   }
 
   private static float TEXT_MARGIN = 10f;
+
+  @Override
+  public int getHighlightQuoteY () {
+    int y = getHighlightQuoteY(wrapper, captionMessageId);
+    return y >= 0 ? getContentY() + mosaicWrapper.getHeight() + Screen.dp(TEXT_MARGIN) + y : -1;
+  }
 
   private int getTextX (View view, @NonNull TextWrapper wrapper, boolean rtl) {
     if (rtl) {

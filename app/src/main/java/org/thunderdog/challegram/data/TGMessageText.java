@@ -321,6 +321,17 @@ public class TGMessageText extends TGMessage {
 
   private TextWrapper effectiveWrapper;
 
+  @Override
+  public int getHighlightQuoteY () {
+    int y = getHighlightQuoteY(effectiveWrapper, getId());
+    if (y < 0) return -1;
+    int top = getContentY() + getTextTopOffset();
+    if (linkPreview != null && linkPreviewAboveText.getFloatValue() > .5f) {
+      top = getWebY() + linkPreview.getHeight() + Screen.dp(8f);
+    }
+    return top + y;
+  }
+
   private static final int MAX_WEB_PAGE_MEDIA_COUNT = Integer.MAX_VALUE / 4;
   private long textMediaKeyOffset;
 

@@ -136,9 +136,10 @@ public class FormattedText {
   }
 
   public FormattedText highlight (Highlight highlight) {
-    if (highlight == null || highlight.isEmpty()) {
+    if (highlight == null) {
       return this;
     }
+    if (highlight.isEmpty()) return highlight(highlight.getAdditionalHighlight());
     if (entities == null) {
       // Easy path: just create entities corresponding to highlight.parts
       TextEntity[] entities = new TextEntity[highlight.parts.size()];
@@ -146,20 +147,20 @@ public class FormattedText {
         Highlight.Part part = highlight.parts.get(i);
         entities[i] = TextEntity.valueOf(text, part, highlight.getColorSet());
       }
-      return new FormattedText(text, entities);
+      return new FormattedText(text, entities).highlight(highlight.getAdditionalHighlight());
     }
     List<TextEntity> newEntities = new ArrayList<>();
-    Collections.addAll(newEntities, entities);
+    for (TextEntity entity : entities) newEntities.add(entity.createCopy().setTag(entity.getTag()));
     for (Highlight.Part part : highlight.parts) {
       addHighlight(newEntities, part, highlight.getColorSet());
     }
-    return new FormattedText(text, newEntities.toArray(new TextEntity[0]));
+    return new FormattedText(text, newEntities.toArray(new TextEntity[0])).highlight(highlight.getAdditionalHighlight());
   }
 
   private void addHighlight (List<TextEntity> out, Highlight.Part part, @NonNull TextColorSet highlightColorSet) {
     List<TextEntity> intersectingEntities = new ArrayList<>();
     for (TextEntity entity : out) {
-      if (entity.start <= part.end && entity.end >= part.start) {
+      if (entity.start < part.end && entity.end > part.start) {
         intersectingEntities.add(entity);
       }
     }
@@ -184,6 +185,7 @@ public class FormattedText {
       if (highlighted < entity.start) {
         // highlight highlighted .. entity.start
         TextEntity highlightEntity = TextEntity.valueOf(text, part, highlightColorSet);
+        highlightEntity.start = highlighted;
         highlightEntity.end = entity.start;
         out.add(entityIndex, highlightEntity);
         entityIndex++;
@@ -203,7 +205,7 @@ public class FormattedText {
         int entityEnd = entity.end;
 
         if (highlighted > entityStart) {
-          TextEntity entityCopy = entity.createCopy();
+          TextEntity entityCopy = entity.createCopy().setTag(entity.getTag());
           entityCopy.end = highlighted;
           out.add(entityIndex, entityCopy);
           entityIndex++;
@@ -215,7 +217,7 @@ public class FormattedText {
           entity.setCustomColorSet(highlightColorSet);
           highlighted = entity.end;
         } else if (part.end < entity.end) {
-          TextEntity highlightEntity = entity.createCopy();
+          TextEntity highlightEntity = entity.createCopy().setTag(entity.getTag());
           highlightEntity.setCustomColorSet(highlightColorSet);
           highlightEntity.end = part.end;
           out.add(entityIndex, highlightEntity);
@@ -228,6 +230,7 @@ public class FormattedText {
     if (highlighted < part.end) {
       // highlight lastEntity.end .. part.end
       TextEntity highlightEntity = TextEntity.valueOf(text, part, highlightColorSet);
+      highlightEntity.start = highlighted;
       int bestIndex = 0;
       for (TextEntity entity : out) {
         if (entity.start > highlighted) {

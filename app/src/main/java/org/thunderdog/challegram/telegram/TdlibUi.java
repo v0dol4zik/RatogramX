@@ -1760,6 +1760,7 @@ public class TdlibUi extends Handler {
     public boolean highlightSet;
     public int highlightMode;
     public MessageId highlightMessageId;
+    public @Nullable TdApi.TextQuote highlightQuote;
 
     public String searchQuery;
     public MessageId foundMessage;
@@ -1794,6 +1795,9 @@ public class TdlibUi extends Handler {
         outState.putInt(keyPrefix + "cp_highlightMode", highlightMode);
       if (highlightMessageId != null)
         TD.saveMessageId(outState, keyPrefix + "cp_highlightMessageId", highlightMessageId);
+      if (highlightQuote != null) {
+        Td.put(outState, keyPrefix + "cp_highlightQuote", new TdApi.InputTextQuote(highlightQuote.text, highlightQuote.position));
+      }
       if (chatList != null)
         outState.putString(keyPrefix + "cp_chatList", TD.makeChatListKey(chatList));
       if (threadInfo != null)
@@ -1809,6 +1813,8 @@ public class TdlibUi extends Handler {
       params.highlightSet = in.getBoolean(keyPrefix + "cp_highlightSet", false);
       params.highlightMode = in.getInt(keyPrefix + "cp_highlightMode", 0);
       params.highlightMessageId = TD.restoreMessageId(in, keyPrefix + "cp_highlightMessageId");
+      TdApi.InputTextQuote quote = Td.restoreInputTextQuote(in, keyPrefix + "cp_highlightQuote");
+      if (quote != null) params.highlightQuote = new TdApi.TextQuote(quote.text, quote.position, true);
       params.chatList = TD.chatListFromKey(in.getString(keyPrefix + "cp_chatList", null));
       ThreadInfo threadInfo = ThreadInfo.restoreFrom(tdlib, in, keyPrefix + "cp_messageThread");
       if (threadInfo == ThreadInfo.INVALID)
@@ -1937,6 +1943,13 @@ public class TdlibUi extends Handler {
       this.highlightSet = true;
       this.highlightMode = MessagesManager.HIGHLIGHT_MODE_NORMAL;
       this.highlightMessageId = highlightMessageId;
+      this.highlightQuote = null;
+      return this;
+    }
+
+    public ChatOpenParameters highlightMessage (MessageId highlightMessageId, @Nullable TdApi.TextQuote quote) {
+      highlightMessage(highlightMessageId);
+      this.highlightQuote = Settings.instance().isPartialQuotesExperimentEnabled() ? quote : null;
       return this;
     }
 
@@ -1944,6 +1957,7 @@ public class TdlibUi extends Handler {
       this.highlightSet = true;
       this.highlightMode = highlightMode;
       this.highlightMessageId = highlightMessageId;
+      this.highlightQuote = null;
       return this;
     }
   }
@@ -2231,7 +2245,7 @@ public class TdlibUi extends Handler {
     if (context instanceof MessagesController && !((MessagesController) context).inPreviewMode() && ((MessagesController) context).compareChat(chat.id, messageThread, messageTopicId, onlyScheduled)) {
       boolean doneSomething = false;
       if (highlightMode == MessagesManager.HIGHLIGHT_MODE_NORMAL && highlightMessageId != null) {
-        ((MessagesController) context).highlightMessage(highlightMessageId, urlOpenParameters);
+        ((MessagesController) context).highlightMessage(highlightMessageId, urlOpenParameters, params != null ? params.highlightQuote : null);
         doneSomething = true;
       }
       if (shareItem != null) {
@@ -2261,7 +2275,7 @@ public class TdlibUi extends Handler {
     if (!doneOpen && highlightMode == MessagesManager.HIGHLIGHT_MODE_NORMAL && highlightMessageId != null) {
       ViewController<?> c = context.context().navigation().getCurrentStackItem();
       if (c != null && c != context && c.tdlib() == context.tdlib() && c instanceof MessagesController && !((MessagesController) c).inPreviewMode() && ((MessagesController) c).compareChat(chat.id, messageThread, messageTopicId, onlyScheduled)) {
-        ((MessagesController) c).highlightMessage(highlightMessageId, urlOpenParameters);
+        ((MessagesController) c).highlightMessage(highlightMessageId, urlOpenParameters, params != null ? params.highlightQuote : null);
         doneOpen = true;
       }
     }
@@ -2334,6 +2348,7 @@ public class TdlibUi extends Handler {
     } else {
       arguments = new MessagesController.Arguments(tdlib, chatList, chat, messageThread, messageTopicId, filter);
     }
+    arguments.highlightQuote = params != null ? params.highlightQuote : null;
     controller.setArguments(arguments
       .setForumTopic(forumTopic)
       .setScheduled(onlyScheduled)

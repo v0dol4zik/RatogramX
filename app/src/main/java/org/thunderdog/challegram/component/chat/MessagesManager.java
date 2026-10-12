@@ -551,6 +551,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
     highlightMode = 0;
     tdlib.settings().removePinnedMessageDismissListener(this);
     highlightMessageId = null;
+    highlightQuote = null;
     hasScrolled = false;
     lastViewedMentionMessageId = 0;
     lastViewedReactionMessageId = 0;
@@ -812,9 +813,12 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void resetByMessage (MessageId highlightMessageId, int highlightMode) {
+    resetByMessage(highlightMessageId, highlightMode, null);
+  }
+
+  private void resetByMessage (MessageId highlightMessageId, int highlightMode, @Nullable TdApi.TextQuote quote) {
     clearHeaderMessage();
-    this.highlightMessageId = highlightMessageId;
-    this.highlightMode = highlightMode;
+    setHighlightMessageId(highlightMessageId, highlightMode, quote);
     loadFromMessage(highlightMessageId, highlightMode, false);
   }
 
@@ -1261,6 +1265,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
             manager.scrollToPosition(scrollPosition);
           }
         } else {
+          if (highlightMode == HIGHLIGHT_MODE_NORMAL) highlightQuoteIfNeeded(scrollMessage, false);
           scrollToMessage(scrollPosition, scrollMessage, highlightMode == HIGHLIGHT_MODE_NONE ? HIGHLIGHT_MODE_START : highlightMode, false, false);
         }
         if (!willRepeat) {
@@ -2753,10 +2758,23 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   public static final int HIGHLIGHT_MODE_NORMAL_NEXT = 5;
 
   private MessageId highlightMessageId;
+  private @Nullable TdApi.TextQuote highlightQuote;
   private int highlightMode;
   public void setHighlightMessageId (MessageId messageId, int highlightMode) {
+    setHighlightMessageId(messageId, highlightMode, null);
+  }
+
+  public void setHighlightMessageId (MessageId messageId, int highlightMode, @Nullable TdApi.TextQuote quote) {
     this.highlightMessageId = messageId;
     this.highlightMode = highlightMode;
+    this.highlightQuote = Settings.instance().isPartialQuotesExperimentEnabled() ? quote : null;
+  }
+
+  private boolean highlightQuoteIfNeeded (TGMessage message, boolean revoke) {
+    if (highlightQuote == null || highlightMessageId == null || message.getChatId() != highlightMessageId.getChatId() ||
+        message.getMessage(highlightMessageId.getMessageId()) == null) return false;
+    message.highlightQuote(highlightQuote, highlightMessageId.getMessageId(), revoke);
+    return true;
   }
 
   // Empty text
@@ -3154,6 +3172,12 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
       fullHeight = ((TGMessageVideo) scrollMessage).getVideoMessageTargetHeight(true);
     }
 
+    int quoteY = highlightMode == HIGHLIGHT_MODE_NORMAL ? scrollMessage.getHighlightQuoteY() : -1;
+    if (quoteY >= 0) {
+      scrollToPositionWithOffset(index, height / 2 - fullHeight + quoteY, smooth, isPlayingRoundMessage);
+      return;
+    }
+
     if (fullHeight > height - offset) {
       height -= offset;
     }
@@ -3209,12 +3233,15 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void highlightMessage (MessageId messageId, int highlightMode, long[] returnToMessageIds, boolean allowSmooth) {
+    highlightMessage(messageId, highlightMode, returnToMessageIds, allowSmooth, null);
+  }
+
+  public void highlightMessage (MessageId messageId, int highlightMode, long[] returnToMessageIds, boolean allowSmooth, @Nullable TdApi.TextQuote quote) {
     if (isEventLog()) {
       return;
     }
 
-    this.highlightMessageId = messageId;
-    this.highlightMode = highlightMode;
+    setHighlightMessageId(messageId, highlightMode, quote);
     if (!Arrays.equals(this.returnToMessageIds, returnToMessageIds)) {
       this.returnToMessageIds = returnToMessageIds;
       saveScrollPosition();
@@ -3222,13 +3249,13 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
     }
     int index = adapter.indexOfMessageContainer(messageId);
     if (index == -1) {
-      resetByMessage(messageId, highlightMode);
+      resetByMessage(messageId, highlightMode, highlightQuote);
     } else {
       if ((highlightMode == HIGHLIGHT_MODE_UNREAD_NEXT || highlightMode == HIGHLIGHT_MODE_NORMAL_NEXT) && index > 0) {
         index--;
       }
       TGMessage msg = adapter.getMessage(index);
-      msg.highlight(true);
+      if (!highlightQuoteIfNeeded(msg, true)) msg.highlight(true);
       scrollToMessage(index, msg, highlightMode, allowSmooth, false);
     }
   }

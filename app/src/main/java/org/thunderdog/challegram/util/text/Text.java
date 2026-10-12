@@ -630,6 +630,20 @@ public class Text implements Runnable, Emoji.CountLimiter, CounterTextPart, List
     return originalText;
   }
 
+  /** Vertical position of the rendered line containing a UTF-16 offset. */
+  public int getCharY (int offset) {
+    if (parts == null || offset < 0 || offset >= originalText.length()) return -1;
+    TextPart closest = null;
+    for (TextPart part : parts) {
+      if (!originalText.equals(part.getLine())) continue;
+      if (offset >= part.getStart() && offset < part.getEnd()) {
+        return part.getY() + getPartVerticalOffset(part);
+      }
+      if (part.getStart() >= offset && (closest == null || part.getStart() < closest.getStart())) closest = part;
+    }
+    return closest != null ? closest.getY() + getPartVerticalOffset(closest) : -1;
+  }
+
   public int getEntityCount () {
     return entities != null ? entities.length : 0;
   }
