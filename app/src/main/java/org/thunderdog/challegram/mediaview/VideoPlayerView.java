@@ -69,6 +69,7 @@ import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.CancellableRunnable;
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.AudioFocusHelper;
+import moe.kirao.mgx.utils.VideoPositionStore;
 import tgx.td.data.HlsVideo;
 
 public class VideoPlayerView implements Player.Listener, CallManager.CurrentCallListener, Runnable {
@@ -168,6 +169,7 @@ public class VideoPlayerView implements Player.Listener, CallManager.CurrentCall
     if (this.currentItem == mediaItem) {
       return;
     }
+    saveVideoPosition();
     this.currentItem = mediaItem;
     if (isDetached) {
       return;
@@ -254,6 +256,9 @@ public class VideoPlayerView implements Player.Listener, CallManager.CurrentCall
     if (seekToSavedPosition) {
       seekToSavedPosition = false;
       player.seekTo(savedPosition);
+    } else if (!forceLooping) {
+      long position = VideoPositionStore.get(mediaItem);
+      if (position != 0) player.seekTo(position);
     }
     if (forcePlay) {
       setPlaying(true);
@@ -421,6 +426,16 @@ public class VideoPlayerView implements Player.Listener, CallManager.CurrentCall
 
   private boolean destroyed;
 
+  private void saveVideoPosition () {
+    if (player != null && currentItem != null && !isDetached && !forceLooping) {
+      if (player.getPlaybackState() == Player.STATE_ENDED) {
+        VideoPositionStore.clear(currentItem);
+      } else {
+        VideoPositionStore.save(currentItem, player.getCurrentPosition(), player.getDuration());
+      }
+    }
+  }
+
   public void destroy () {
     destroyed = true;
     setVideo(null);
@@ -445,7 +460,7 @@ public class VideoPlayerView implements Player.Listener, CallManager.CurrentCall
   public void detach () {
     if (!isDetached) {
       detachedItem = currentItem;
-      savedPosition = lastPosition;
+      savedPosition = player != null ? player.getCurrentPosition() : lastPosition;
       if (player != null) {
         player.setPlayWhenReady(false);
       }
@@ -471,6 +486,7 @@ public class VideoPlayerView implements Player.Listener, CallManager.CurrentCall
       if (isLooping && player != null) {
         player.seekTo(0);
       } else {
+        VideoPositionStore.clear(currentItem);
         reset();
       }
     }

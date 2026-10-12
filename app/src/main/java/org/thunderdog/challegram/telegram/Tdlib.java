@@ -149,6 +149,7 @@ import tgx.td.data.MessageWithProperties;
 import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
 import moe.kirao.mgx.utils.GhostReadStore;
+import moe.kirao.mgx.utils.VideoPositionStore;
 import moe.kirao.mgx.utils.ForumPaginationPolicy;
 
 public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, DateChangeListener {
@@ -1332,6 +1333,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     if (prevStatus != Status.UNAUTHORIZED && newStatus == Status.UNAUTHORIZED) {
       Log.i("Performing account cleanup for accountId:%d", accountId);
       GhostReadStore.clearAccount(accountId);
+      VideoPositionStore.clearAccount(accountId);
       listeners().performCleanup();
     } else if (newStatus == Status.READY) {
       onPerformStartup();

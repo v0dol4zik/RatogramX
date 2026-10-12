@@ -26,6 +26,9 @@ in development build metadata.
   actions retain their server behavior.
 - Unread badges in ordinary chats decrease while scrolling through loaded
   incoming messages, including while TDLib repairs a stale unread count.
+- Long videos resume from the last playback position when reopened. Bookmarks
+  are kept locally per account, cleared on completion or logout, and excluded
+  for secret, self-destructing, and view-once media.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its
