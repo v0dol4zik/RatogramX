@@ -5386,7 +5386,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
       }
 
       String author = tdlib.messageAuthor(msg);
-      if (msg.viaBotUserId != 0) {
+      if (msg.guestBotCallerId != null && msg.forwardInfo == null) {
+        b.append(Lang.getString(R.string.MessageGuestBotFor, tdlib.senderNameWithUsername(msg.senderId), tdlib.senderNameWithUsername(msg.guestBotCallerId)));
+      } else if (msg.viaBotUserId != 0) {
         b.append(Lang.getString(R.string.message_nameViaBot, author, "@" + tdlib.cache().userUsername(msg.viaBotUserId)));
       } else {
         b.append(author);

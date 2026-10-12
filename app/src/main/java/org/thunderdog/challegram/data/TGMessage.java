@@ -786,7 +786,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     boolean isChannel = isChannel();
 
     TdApi.Message topMessage = top.getMessage();
-    if (top.headerDisabled() || top.isSponsoredMessage() != isSponsoredMessage() || (flags & FLAG_SHOW_BADGE) != 0 || !tdlib.isSameSender(topMessage, msg) || !TD.isSameSource(topMessage, msg, forceForwardOrImportInfo()) || topMessage.viaBotUserId != msg.viaBotUserId || !StringUtils.equalsOrBothEmpty(topMessage.authorSignature, msg.authorSignature) || mergeDisabled() || (useBubbles ? top.isOutgoingBubble() != isOutgoingBubble() : top.getMessage().mediaAlbumId != msg.mediaAlbumId || msg.mediaAlbumId != 0)) {
+    if (top.headerDisabled() || top.isSponsoredMessage() != isSponsoredMessage() || (flags & FLAG_SHOW_BADGE) != 0 || !tdlib.isSameSender(topMessage, msg) || !Td.equalsTo(topMessage.guestBotCallerId, msg.guestBotCallerId) || !TD.isSameSource(topMessage, msg, forceForwardOrImportInfo()) || topMessage.viaBotUserId != msg.viaBotUserId || !StringUtils.equalsOrBothEmpty(topMessage.authorSignature, msg.authorSignature) || mergeDisabled() || (useBubbles ? top.isOutgoingBubble() != isOutgoingBubble() : top.getMessage().mediaAlbumId != msg.mediaAlbumId || msg.mediaAlbumId != 0)) {
       setHeaderEnabled(!headerDisabled());
       top.setIsBottom(true);
       return false;
@@ -1506,7 +1506,8 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
           return isEventLog() || (tdlib.isSupergroupChat(chat) && !isOutgoing());
         }
         case TdApi.ChatTypePrivate.CONSTRUCTOR: {
-          return ((flags & FLAG_SELF_CHAT) != 0 && !isOutgoing()) || isRepliesChat();
+          return ((flags & FLAG_SELF_CHAT) != 0 && !isOutgoing()) || isRepliesChat() || msg.guestBotCallerId != null ||
+            (!isOutgoing() && (!sender.isUser() || sender.getUserId() != ((TdApi.ChatTypePrivate) chat.type).userId));
         }
       }
     }
@@ -1533,6 +1534,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   private boolean needName (boolean allowVia) {
+    if (msg.guestBotCallerId != null) return true;
     if (!useBubbles() ||
       (useBubble() && ((msg.viaBotUserId != 0 && !useForward() && allowVia) ||
       ((flags & FLAG_SELF_CHAT) != 0 && !isOutgoing())))) {
@@ -3227,7 +3229,14 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   private boolean onNameClick (View view, Text text, TextPart part, @Nullable TdlibUi.UrlOpenParameters openParameters) {
-    if (part.getEntity() != null && part.getEntity().getTag() instanceof Long) {
+    Object tag = part.getEntity() != null ? part.getEntity().getTag() : null;
+    if (tag instanceof TdApi.MessageSenderUser) {
+      tdlib.ui().openPrivateProfile(controller(), ((TdApi.MessageSenderUser) tag).userId, openParameters);
+      return true;
+    } else if (tag instanceof TdApi.MessageSenderChat) {
+      tdlib.ui().openChatProfile(controller(), ((TdApi.MessageSenderChat) tag).chatId, null, openParameters);
+      return true;
+    } else if (tag instanceof Long) {
       manager.controller().setInputInlineBot(msg.viaBotUserId, viaBotUsername);
       return true;
     } else if (needDrawChannelIconInHeader()) {
@@ -3281,6 +3290,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     if (maxWidth <= 0)
       return null;
     boolean hasBot = viaBotUserId != 0;
+    boolean isGuestBot = !isForward && !forceForwardOrImportInfo() && msg.forwardInfo == null && msg.guestBotCallerId != null;
     TdApi.User viaBot = viaBotUserId != 0 ? tdlib.cache().user(viaBotUserId) : null;
     String viaBotUsername = "";
     if (hasBot) {
@@ -3295,7 +3305,14 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     int textRes = isPsa ? (hasBot ? R.string.PsaFromXViaBot : R.string.PsaFromX) : (hasBot ? hideName ? R.string.message_viaBot : R.string.message_nameViaBot : 0);
     CharSequence text;
     boolean allActive = textRes == R.string.PsaFromXViaBot || textRes == R.string.PsaFromX, allBold = false;
-    if (textRes == 0) {
+    if (isGuestBot) {
+      text = Lang.getString(R.string.MessageGuestBotFor,
+        (target, argStart, argEnd, argIndex, needFakeBold) ->
+          new TextEntityCustom(controller(), tdlib, target.toString(), argStart, argEnd,
+            TextEntityCustom.FLAG_CLICKABLE | TextEntityCustom.FLAG_BOLD, openParameters())
+            .setTag(argIndex == 0 ? msg.senderId : msg.guestBotCallerId),
+        tdlib.senderNameWithUsername(msg.senderId), tdlib.senderNameWithUsername(msg.guestBotCallerId));
+    } else if (textRes == 0) {
       if (hideName) {
         return null;
       }
@@ -3341,7 +3358,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
       colorTheme = getChatAuthorColorSet();
     }
 
-    if (!(tdlib.isSelfChat(chat) && forwardInfo != null) && !hasBot && !isForward && sender.isUser()) {
+    if (!(tdlib.isSelfChat(chat) && forwardInfo != null) && !hasBot && !isGuestBot && !isForward && sender.isUser()) {
       hAuthorEmojiStatus = EmojiStatusHelper.makeDrawable(null, tdlib, tdlib.cache().user(sender.getUserId()), colorTheme, (text1, specificMedia) -> invalidateEmojiStatusReceiver());
       hAuthorEmojiStatus.invalidateTextMedia();
       maxWidth -= hAuthorEmojiStatus.getWidth(Screen.dp(3));

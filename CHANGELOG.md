@@ -39,6 +39,8 @@ in development build metadata.
 - Tapping your profile photo opens its gallery directly; a long press opens
   photo management. Editable group, channel, and bot avatars follow the same
   behavior. Avatar galleries recover after empty responses and loading errors.
+- Guest bot messages show the bot and its caller as clickable names, retain
+  that attribution when copied, and do not merge across different callers.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

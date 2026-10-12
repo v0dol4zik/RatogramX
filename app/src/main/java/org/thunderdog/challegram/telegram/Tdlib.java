@@ -3942,6 +3942,11 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     return senderName(sender, false);
   }
 
+  public String senderNameWithUsername (TdApi.MessageSender sender) {
+    String username = senderUsername(sender);
+    return !StringUtils.isEmpty(username) ? "@" + username : senderName(sender);
+  }
+
   public String senderName (TdApi.MessageSender sender, boolean shorten) {
     switch (sender.getConstructor()) {
       case TdApi.MessageSenderChat.CONSTRUCTOR: {
