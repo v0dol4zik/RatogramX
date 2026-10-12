@@ -24,6 +24,8 @@ in development build metadata.
 - Ghost mode remembers local read positions and unread progress per account,
   chat, and topic, including after restarting the client. Explicit Mark as read
   actions retain their server behavior.
+- Unread badges in ordinary chats decrease while scrolling through loaded
+  incoming messages, including while TDLib repairs a stale unread count.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

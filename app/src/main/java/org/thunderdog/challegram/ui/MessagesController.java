@@ -1920,7 +1920,12 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   public int getUnreadMessageCount () {
     GhostReadStore.Inbox inbox = getReadInbox();
-    return inbox != null ? GhostReadStore.unreadCount(tdlib.id(), getChatId(), getMessageTopicId(), inbox) : 0;
+    int unreadCount = inbox != null ? GhostReadStore.unreadCount(tdlib.id(), getChatId(), getMessageTopicId(), inbox) : 0;
+    return manager.getUnreadMessageCount(unreadCount);
+  }
+
+  public void refreshUnreadCounters () {
+    if (contentView != null && !isDestroyed()) updateCounters(true);
   }
 
   @Override
@@ -11344,6 +11349,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   public void onChatReadInbox(final long chatId, final long lastReadInboxMessageId, final int unreadCount, boolean availabilityChanged) {
     tdlib.ui().post(() -> {
       if (getChatId() == chatId) {
+        manager.onChatReadInbox(lastReadInboxMessageId, unreadCount);
         updateCounters(true);
       }
     });

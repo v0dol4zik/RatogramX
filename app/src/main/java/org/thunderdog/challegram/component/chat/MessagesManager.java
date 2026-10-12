@@ -92,6 +92,7 @@ import moe.kirao.mgx.MoexConfig;
 import moe.kirao.mgx.utils.GhostModeUtils;
 import moe.kirao.mgx.utils.GhostReadPolicy;
 import moe.kirao.mgx.utils.GhostReadStore;
+import moe.kirao.mgx.utils.UnreadCounterEstimate;
 import moe.kirao.mgx.utils.ForumReadPolicy;
 import tgx.td.ChatId;
 import tgx.td.MessageId;
@@ -120,6 +121,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   private boolean isScrolling;
   private boolean wasScrollByUser;
   private int userScrollActionsCount;
+  private @Nullable UnreadCounterEstimate unreadCounterEstimate;
 
   public MessagesManager (final MessagesController controller) {
     this.controller = controller;
@@ -716,6 +718,8 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void openChat (TdApi.Chat chat, @Nullable ThreadInfo messageThread, @Nullable TdApi.MessageTopic topicId, TdApi.SearchMessagesFilter filter, MessagesController context, boolean areScheduled, boolean needPinnedMessages) {
+    unreadCounterEstimate = messageThread == null && topicId == null && filter == null && !areScheduled ?
+      new UnreadCounterEstimate(chat.lastReadInboxMessageId, chat.unreadCount) : null;
     if (chat.id != 0) {
       if (Log.isEnabled(Log.TAG_MESSAGES_LOADER)) {
         Log.i(Log.TAG_MESSAGES_LOADER, "[CREATE] chatId:%d", chat.id);
@@ -3351,6 +3355,31 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
   // Unread
 
+  public int getUnreadMessageCount (int fallback) {
+    return unreadCounterEstimate != null && canRead() && !GhostModeUtils.shouldSuppressRead() ?
+      Math.min(fallback, unreadCounterEstimate.unreadCount()) : fallback;
+  }
+
+  public void onChatReadInbox (long readId, int unreadCount) {
+    if (unreadCounterEstimate == null) return;
+    int pending = countLoadedIncomingMessages(readId, unreadCounterEstimate.viewedReadId());
+    int confirmed = countLoadedIncomingMessages(unreadCounterEstimate.viewedReadId(), readId);
+    unreadCounterEstimate.updateServer(readId, unreadCount, pending, confirmed);
+  }
+
+  void onHistoryMessagesViewed (long readId) {
+    if (unreadCounterEstimate == null || !canRead() || !isFocused || GhostModeUtils.shouldSuppressRead()) return;
+    TdApi.Chat chat = tdlib.chat(loader.getChatId());
+    if (chat == null) return;
+    onChatReadInbox(chat.lastReadInboxMessageId, chat.unreadCount);
+    long previousReadId = unreadCounterEstimate.viewedReadId();
+    long nextReadId = Math.max(previousReadId, readId);
+    int newlyRead = countLoadedIncomingMessages(previousReadId, nextReadId);
+    int remaining = loader.canLoadBottom() ? -1 : countLoadedIncomingMessages(nextReadId, Long.MAX_VALUE);
+    unreadCounterEstimate.view(nextReadId, newlyRead, remaining, chat.lastMessage != null ? chat.lastMessage.id : 0);
+    controller.refreshUnreadCounters();
+  }
+
   public static final int CHATS_THRESHOLD = 1;
 
   public static boolean canGoUnread (TdApi.Chat chat, @Nullable ThreadInfo threadInfo) {
@@ -3849,7 +3878,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   private void checkGhostUnreadCounter (int firstVisibleItemPosition) {
-    if (!canRead() || !isFocused || firstVisibleItemPosition < 0 || loader.canLoadBottom()) return;
+    if (!canRead() || !isFocused || firstVisibleItemPosition < 0 || loader.canLoadBottom() || loader.hasSearchFilter()) return;
     GhostReadStore.Inbox inbox = controller.getReadInbox();
     if (inbox == null) return;
     long chatId = loader.getChatId();

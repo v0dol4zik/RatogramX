@@ -165,7 +165,8 @@ public class MessagesLoader implements Client.ResultHandler {
     this.messageSource = newMessageSource();
     recycleMessageViewer();
     this.viewport = tdlib.messageViewer().createViewport(messageSource, manager.controller());
-    this.viewport.setReadContext(getMessageTopicId(), manager.controller()::getReadInbox, manager::countLoadedIncomingMessages);
+    this.viewport.setReadContext(getMessageTopicId(), manager.controller()::getReadInbox,
+      manager::countLoadedIncomingMessages, manager::onHistoryMessagesViewed);
   }
 
   private void recycleMessageViewer () {
@@ -1100,7 +1101,7 @@ public class MessagesLoader implements Client.ResultHandler {
   private boolean foundUnreadAtLeastOnce;
   private final Object lock = new Object();
 
-  private boolean hasSearchFilter () {
+  boolean hasSearchFilter () {
     return searchFilter != null;
   }
 

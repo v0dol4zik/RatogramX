@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.function.LongBinaryOperator;
+import java.util.function.LongConsumer;
 
 import me.vkryl.core.BitwiseUtils;
 import me.vkryl.core.collection.LongSet;
@@ -508,6 +509,7 @@ public class TdlibMessageViewer {
     private @Nullable TdApi.MessageTopic readTopicId;
     private @Nullable Supplier<GhostReadStore.Inbox> readInbox;
     private @Nullable LongBinaryOperator incomingMessageCount;
+    private @Nullable LongConsumer onHistoryRead;
     private final BaseActivity activity;
     public final List<VisibleChat> visibleChats = new ArrayList<>();
     private final ViewportState state = new ViewportState();
@@ -557,10 +559,12 @@ public class TdlibMessageViewer {
       this.activity = activity;
     }
 
-    public void setReadContext (@Nullable TdApi.MessageTopic topicId, Supplier<GhostReadStore.Inbox> inbox, LongBinaryOperator incomingMessageCount) {
+    public void setReadContext (@Nullable TdApi.MessageTopic topicId, Supplier<GhostReadStore.Inbox> inbox,
+                               LongBinaryOperator incomingMessageCount, LongConsumer onHistoryRead) {
       readTopicId = topicId;
       readInbox = inbox;
       this.incomingMessageCount = incomingMessageCount;
+      this.onHistoryRead = onHistoryRead;
     }
 
     public void addIgnoreLock (FutureBool act) {
@@ -792,6 +796,9 @@ public class TdlibMessageViewer {
         if (suppressRead && GhostReadPolicy.isHistorySource(messageSource)) {
           recordLocalRead(chatId, messageIds);
           effectiveSource = new TdApi.MessageSourceOther();
+        } else if (forceRead && onHistoryRead != null && GhostReadPolicy.isHistorySource(messageSource)) {
+          long readId = viewedReadMessageId(chatId, messageIds);
+          if (readId != 0) onHistoryRead.accept(readId);
         }
         context.tdlib.send(new TdApi.ViewMessages(chatId, messageIds, effectiveSource,
           suppressRead ? false : forceRead), (ok, error) -> {
@@ -827,6 +834,19 @@ public class TdlibMessageViewer {
         newlyReadCount = Math.max(newlyReadCount, (int) incomingMessageCount.applyAsLong(previousReadId, readId));
       }
       GhostReadStore.record(context.tdlib.id(), chatId, readTopicId, inbox, readId, newlyReadCount, -1);
+    }
+
+    private long viewedReadMessageId (long chatId, long[] messageIds) {
+      VisibleChat visibleChat = find(chatId);
+      if (visibleChat == null) return 0;
+      long readId = 0;
+      for (long messageId : messageIds) {
+        VisibleMessage message = visibleChat.find(messageId);
+        if (message != null && message.isSent && !message.isSponsored && !message.isScheduled && messageId > readId) {
+          readId = messageId;
+        }
+      }
+      return readId;
     }
 
     public void refreshMessageInteractionInfo (long chatId, long[] messageIds, @Nullable RunnableBool after) {
