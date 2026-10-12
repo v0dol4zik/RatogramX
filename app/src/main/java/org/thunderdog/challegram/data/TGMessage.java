@@ -9383,21 +9383,56 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   public void startReactionBubbleAnimation (TdApi.ReactionType reactionType) {
-    View view = findCurrentView();
+    startReactionBubbleAnimation(reactionType, null);
+  }
+
+  private boolean canPlayUnreadReactionAnimation () {
+    return manager.isFocused() && !context().isWindowPopupShowing();
+  }
+
+  private void deferUnreadReactionAnimation (TdApi.UnreadReaction reaction) {
+    if (isDestroyed()) return;
+    ArrayList<TdApi.UnreadReaction> reactions = new ArrayList<>();
+    if (savedUnreadReactions != null) Collections.addAll(reactions, savedUnreadReactions);
+    String key = TD.makeReactionKey(reaction.type);
+    boolean found = false;
+    for (TdApi.UnreadReaction pending : reactions) {
+      if (key.equals(TD.makeReactionKey(pending.type))) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) reactions.add(reaction);
+    savedUnreadReactions = reactions.toArray(new TdApi.UnreadReaction[0]);
+    needHighlightUnreadReactions = true;
+    readyHighlightUnreadReactions = false;
+    if (canPlayUnreadReactionAnimation()) invalidate();
+  }
+
+  private void startReactionBubbleAnimation (TdApi.ReactionType reactionType, @Nullable TdApi.UnreadReaction unreadReaction) {
+    if (unreadReaction != null && !canPlayUnreadReactionAnimation()) {
+      deferUnreadReactionAnimation(unreadReaction);
+      return;
+    }
     TGReaction tgReaction = tdlib.getReaction(reactionType);
-    if (tgReaction == null || view == null) {
+    if (tgReaction == null || isDestroyed()) {
       return;
     }
 
-    Point reactionPosition = getReactionPosition(tgReaction);
-
-    int[] positionCords = new int[2];
-    view.getLocationOnScreen(positionCords);
-    int bubbleX = positionCords[0] + reactionPosition.x;
-    int bubbleY = positionCords[1] + reactionPosition.y;
-
-    messageReactions.startAnimation(tgReaction.key);
     RunnableData<TGStickerObj> act = overlaySticker -> {
+      if (isDestroyed()) return;
+      View view = findCurrentView();
+      if (unreadReaction != null && (!canPlayUnreadReactionAnimation() || view == null)) {
+        deferUnreadReactionAnimation(unreadReaction);
+        return;
+      }
+      if (view == null) return;
+      Point reactionPosition = getReactionPosition(tgReaction);
+      int[] positionCords = new int[2];
+      view.getLocationOnScreen(positionCords);
+      int bubbleX = positionCords[0] + reactionPosition.x;
+      int bubbleY = positionCords[1] + reactionPosition.y;
+      messageReactions.startAnimation(tgReaction.key);
       context().reactionsOverlayManager().addOverlay(
         new ReactionsOverlayView.ReactionInfo(context().reactionsOverlayManager())
           .setSticker(overlaySticker, true)
@@ -9427,6 +9462,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
 
   private boolean readyHighlightUnreadReactions = false;
   private void highlightUnreadReactionsIfNeeded () {
+    if (!canPlayUnreadReactionAnimation()) return;
     if (readyHighlightUnreadReactions) {
       highlightUnreadReactionsImpl();
       readyHighlightUnreadReactions = false;
@@ -9464,13 +9500,12 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
       }
     }
 
-    for (TdApi.UnreadReaction reaction : reactions) {
-      // TODO support reaction.isBig
-      startReactionBubbleAnimation(reaction.type);
-    }
-
     needHighlightUnreadReactions = false;
     savedUnreadReactions = null;
+    for (TdApi.UnreadReaction reaction : reactions) {
+      // TODO support reaction.isBig
+      startReactionBubbleAnimation(reaction.type, reaction);
+    }
   }
 
   private static class NextReactionAnimation {

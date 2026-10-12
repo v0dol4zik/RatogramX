@@ -32,6 +32,8 @@ in development build metadata.
 - Added four video-message quality presets, including 384 px at 1 Mbps, and
   bitrate choices for compressed videos. Trimming in original quality keeps
   source frame rate and bitrate; encoded dimensions match the quality preview.
+- Automatic unread reaction effects wait until an overlapping popup closes,
+  including effects whose stickers finish loading while the popup is open.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

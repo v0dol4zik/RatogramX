@@ -2069,6 +2069,31 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
     return windows != null && !windows.isEmpty();
   }
 
+  public interface PopupWindowListener {
+    void onPopupWindowShowingChanged (boolean isShowing);
+  }
+
+  private final ReferenceList<PopupWindowListener> popupWindowListeners = new ReferenceList<>();
+  private boolean popupWindowShowing;
+
+  public void addPopupWindowListener (PopupWindowListener listener) {
+    popupWindowListeners.add(listener);
+  }
+
+  public void removePopupWindowListener (PopupWindowListener listener) {
+    popupWindowListeners.remove(listener);
+  }
+
+  private void notifyPopupWindowShowingChanged () {
+    boolean isShowing = isWindowPopupShowing();
+    if (popupWindowShowing != isShowing) {
+      popupWindowShowing = isShowing;
+      for (PopupWindowListener listener : popupWindowListeners) {
+        listener.onPopupWindowShowingChanged(isShowing);
+      }
+    }
+  }
+
   public View getContentView () {
     return contentView;
   }
@@ -2473,6 +2498,7 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
       hideContextualPopups(false);
     }
     windows.add(window);
+    notifyPopupWindowShowingChanged();
     checkDisallowScreenshots();
     window.showBoundWindow(rootView);
     notifyBackPressAvailabilityChanged();
@@ -2500,6 +2526,7 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
     if (!windows.remove(window)) {
       completelyForgetThisWindow(window);
     }
+    notifyPopupWindowShowingChanged();
     notifyBackPressAvailabilityChanged();
     checkDisallowScreenshots();
   }
@@ -2540,6 +2567,7 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
       }
       forgottenWindows.put(i, window);
     }
+    notifyPopupWindowShowingChanged();
     notifyBackPressAvailabilityChanged();
   }
 
@@ -2564,6 +2592,7 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
         windows.add(putAtIndex, window);
       }
       forgottenWindows.remove(oldIndex);
+      notifyPopupWindowShowingChanged();
       checkDisallowScreenshots();
       notifyBackPressAvailabilityChanged();
     }

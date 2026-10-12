@@ -99,7 +99,7 @@ import tgx.td.MessageId;
 import tgx.td.Td;
 
 public class MessagesManager implements Client.ResultHandler, MessagesSearchManager.Delegate,
-  MessageListener, MessageEditListener, MessageThreadListener, Comparator<TGMessage>, TGPlayerController.PlayListBuilder, BaseActivity.PasscodeListener, TdlibCache.ChatMemberStatusChangeListener, TdlibSettingsManager.DismissMessageListener {
+  MessageListener, MessageEditListener, MessageThreadListener, Comparator<TGMessage>, TGPlayerController.PlayListBuilder, BaseActivity.PasscodeListener, BaseActivity.PopupWindowListener, TdlibCache.ChatMemberStatusChangeListener, TdlibSettingsManager.DismissMessageListener {
   private final MessagesController controller;
   private final Tdlib tdlib;
   private MessagesAdapter adapter;
@@ -126,6 +126,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   public MessagesManager (final MessagesController controller) {
     this.controller = controller;
     controller.context().addPasscodeListener(this);
+    controller.context().addPopupWindowListener(this);
     this.tdlib = controller.tdlib();
     this.searchMiddleware = new MessagesSearchManagerMiddleware(tdlib);
     this.loader = new MessagesLoader(this, searchMiddleware);
@@ -493,6 +494,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
   public void release () {
     controller.context().removePasscodeListener(this);
+    controller.context().removePopupWindowListener(this);
   }
 
   public void dismissPinnedMessage () {
@@ -2520,7 +2522,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
     if (Log.isEnabled(Log.TAG_MESSAGES_LOADER)) {
       Log.i(Log.TAG_MESSAGES_LOADER, "MessagesManager checkFocus parentFocused:%b, parentPaused:%b, isFocused:%b, passcodeShowing:%b", parentFocused, parentPaused, isFocused, passcodeShowing);
     }
-    setFocused(parentFocused && !parentPaused && !passcodeShowing);
+    setFocused(parentFocused && !parentPaused && !passcodeShowing && !controller.context().isWindowPopupShowing());
   }
 
   public boolean needRemoveDuplicates () {
@@ -2538,6 +2540,11 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
   @Override
   public void onPasscodeShowing (BaseActivity context, boolean isShowing) {
+    checkFocus();
+  }
+
+  @Override
+  public void onPopupWindowShowingChanged (boolean isShowing) {
     checkFocus();
   }
 
@@ -2722,6 +2729,16 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
     viewMessages(false);
     saveScrollPosition();
     checkSponsoredMessages();
+    RecyclerView recyclerView = controller.getMessagesView();
+    if (recyclerView != null) {
+      for (int i = 0; i < recyclerView.getChildCount(); i++) {
+        View view = recyclerView.getChildAt(i);
+        if (view instanceof MessageProvider) {
+          TGMessage message = ((MessageProvider) view).getMessage();
+          if (message != null) message.invalidate();
+        }
+      }
+    }
   }
 
   // Highlight message id
