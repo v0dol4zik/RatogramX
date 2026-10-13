@@ -42,12 +42,15 @@ import me.vkryl.leveldb.LevelDB;
 import tgx.td.Td;
 import tgx.td.TdConstants;
 
+import moe.kirao.mgx.utils.WallpaperAppearance;
+
 public class TGBackground {
   private final int accountId;
   private final String name;
   private TdApi.BackgroundType type;
   private final String customPath;
   private final boolean isVector;
+  private WallpaperAppearance appearance;
 
   private int legacyWallpaperId;
   private String legacyRemoteId;
@@ -59,11 +62,8 @@ public class TGBackground {
   public static TGBackground newBlurredWallpaper (Tdlib tdlib, @Nullable TGBackground base, boolean blurIfSupported) {
     if (base == null) {
       return newEmptyWallpaper(tdlib);
-    } else if (base.isCustom()) {
-      return base;
     }
-
-    return new TGBackground(tdlib, base.name, makeBlurredBackgroundType(base.type, blurIfSupported), base.isVector, base.legacyWallpaperId, base.legacyRemoteId);
+    return base.withParameters(tdlib, makeBlurredBackgroundType(base.type, blurIfSupported), base.appearance.withBlur(blurIfSupported));
   }
 
   public static TdApi.BackgroundType makeBlurredBackgroundType (TdApi.BackgroundType base, boolean isBlurred) {
@@ -103,14 +103,23 @@ public class TGBackground {
   }
 
   public TGBackground (Tdlib tdlib, @Nullable String localPath) {
+    this(tdlib, localPath, WallpaperAppearance.DEFAULT);
+  }
+
+  private TGBackground (Tdlib tdlib, @Nullable String localPath, WallpaperAppearance appearance) {
     this.accountId = tdlib.id();
     this.name = null;
-    this.type = null;
+    this.type = StringUtils.isEmpty(localPath) ? null : new TdApi.BackgroundTypeWallpaper(appearance.blurRadius > 0, false);
+    this.appearance = appearance;
     this.legacyWallpaperId = 0;
     this.customPath = localPath;
     this.isVector = false;
     if (!StringUtils.isEmpty(localPath)) {
-      setTarget(new ImageFileLocal(localPath), false);
+      setTarget(new ImageFileLocal(localPath) {
+        @Override protected String buildImageKey () {
+          return super.buildImageKey() + "_wallpaper_blur_" + TGBackground.this.appearance.blurRadius;
+        }
+      }, appearance.blurRadius > 0);
       ImageFileLocal preview = new ImageFileLocal(localPath);
       preview.setSize(Screen.dp(105f));
       setPreview(preview);
@@ -122,11 +131,17 @@ public class TGBackground {
   }
 
   private TGBackground (Tdlib tdlib, String name, TdApi.BackgroundType type, boolean isVector, int legacyWallpaperId, String legacyRemoteIdKey) {
+    this(tdlib, name, type, isVector, legacyWallpaperId, legacyRemoteIdKey, WallpaperAppearance.forBlurred(isBlurred(type)));
+  }
+
+  private TGBackground (Tdlib tdlib, String name, TdApi.BackgroundType type, boolean isVector, int legacyWallpaperId,
+                        String legacyRemoteIdKey, WallpaperAppearance appearance) {
     this.accountId = tdlib.id();
     this.name = name;
     this.type = type;
     this.customPath = null;
     this.isVector = isVector;
+    this.appearance = appearance;
     this.legacyWallpaperId = legacyWallpaperId;
     this.legacyRemoteId = StringUtils.isEmpty(legacyRemoteIdKey) ? null : Settings.instance().getString(legacyRemoteIdKey, null);
 
@@ -152,7 +167,7 @@ public class TGBackground {
       needImages = true;
     }
 
-    String additionalSuffix = needBlur ? "_blurred" : "";
+    String additionalSuffix = needBlur ? "_blurred_" + appearance.blurRadius : "";
 
     if (needImages) {
       setTarget(new ImageFileRemote(tdlib, null, "background_" + name + additionalSuffix) {
@@ -214,6 +229,7 @@ public class TGBackground {
     this.accountId = tdlib.id();
     this.name = background.name;
     this.type = background.type;
+    this.appearance = WallpaperAppearance.forBlurred(blur);
     this.customPath = null;
     this.isVector = background.document != null && TdConstants.BACKGROUND_PATTERN_MIME_TYPE.equals(background.document.mimeType);
     this.legacyWallpaperId = resolveLegacyWallpaperId(background.name, background.type);
@@ -280,6 +296,7 @@ public class TGBackground {
         if (blur) {
           target.setSize(160);
           target.setNeedBlur();
+          target.setBlur(appearance.blurRadius);
         } else {
           target.setSize(Math.min(1480, Screen.widestSide()));
           target.setNoBlur();
@@ -319,6 +336,8 @@ public class TGBackground {
     if (a == null || b == null || a.isEmpty() != b.isEmpty() || a.isCustom() != b.isCustom() || !Td.equalsTo(a.type, b.type, true))
       return false;
     if (!ignoreAdditionalInfo && isBlurred(a.type) != isBlurred(b.type))
+      return false;
+    if (!ignoreAdditionalInfo && !a.appearance.equals(b.appearance))
       return false;
     if (a.isCustom())
       return StringUtils.equalsOrBothEmpty(a.getCustomPath(), b.getCustomPath());
@@ -391,6 +410,32 @@ public class TGBackground {
 
   public TdApi.BackgroundType getType() {
     return type;
+  }
+
+  public WallpaperAppearance getAppearance () {
+    return appearance;
+  }
+
+  public TGBackground withParameters (Tdlib tdlib, @Nullable TdApi.BackgroundType newType, WallpaperAppearance appearance) {
+    TGBackground copy;
+    if (isCustom()) {
+      copy = new TGBackground(tdlib, customPath, appearance);
+      copy.type = newType;
+    } else {
+      copy = new TGBackground(tdlib, name, newType, isVector, legacyWallpaperId, null, appearance);
+    }
+    copy.legacyRemoteId = legacyRemoteId;
+    return copy;
+  }
+
+  public @Nullable TdApi.BackgroundFill getFill () {
+    if (isPattern()) return ((TdApi.BackgroundTypePattern) type).fill;
+    if (isFill()) return ((TdApi.BackgroundTypeFill) type).fill;
+    return null;
+  }
+
+  public boolean isInverted () {
+    return isPattern() && ((TdApi.BackgroundTypePattern) type).isInverted;
   }
 
   public boolean isNetwork() {
@@ -612,6 +657,12 @@ public class TGBackground {
 
     SharedPreferences.Editor editor = Settings.instance().edit();
 
+    editor.putInt(key + "_dim", appearance.dim)
+      .putInt(key + "_blur_radius", appearance.blurRadius)
+      .putInt(key + "_tint_color", appearance.tintColor)
+      .putInt(key + "_tint_intensity", appearance.tintIntensity)
+      .putInt(key + "_tint_blend", appearance.tintBlend);
+
     if (StringUtils.isEmpty(legacyRemoteId))
       editor.remove(key + "_remote_id");
     else
@@ -729,10 +780,17 @@ public class TGBackground {
     final int accountId = tdlib.accountId();
     final String key = (accountId != 0 ? "wallpaper_" + accountId : "wallpaper") + Settings.getWallpaperIdentifierSuffix(usageIdentifier);
     final SharedPreferences prefs = Settings.instance().pmc();
+    WallpaperAppearance appearance = new WallpaperAppearance(prefs.getInt(key + "_dim", 0),
+      prefs.getInt(key + "_blur_radius", prefs.getBoolean(key + "_blurred", false) ? 3 : 0),
+      prefs.getInt(key + "_tint_color", 0), prefs.getInt(key + "_tint_intensity", 0),
+      prefs.getInt(key + "_tint_blend", WallpaperAppearance.BLEND_NORMAL));
     if (prefs.getBoolean(key + "_empty", false))
       return newEmptyWallpaper(tdlib);
-    if (prefs.getBoolean(key + "_custom", false))
-      return new TGBackground(tdlib, prefs.getString(key + "_path", null));
+    if (prefs.getBoolean(key + "_custom", false)) {
+      TGBackground custom = new TGBackground(tdlib, prefs.getString(key + "_path", null), appearance);
+      if (custom.isCustom()) custom.type = new TdApi.BackgroundTypeWallpaper(appearance.blurRadius > 0, prefs.getBoolean(key + "_moving", false));
+      return custom;
+    }
     String name = prefs.getString(key + "_name", null);
     boolean isVector = prefs.getBoolean(key + "_vector", false);
     TdApi.BackgroundType type;
@@ -746,7 +804,7 @@ public class TGBackground {
         break;
       }
       case BACKGROUND_TYPE_WALLPAPER:
-        type = new TdApi.BackgroundTypeWallpaper(prefs.getBoolean(key + "_blurred", false), prefs.getBoolean(key + "_moving", false));
+        type = new TdApi.BackgroundTypeWallpaper(appearance.blurRadius > 0, prefs.getBoolean(key + "_moving", false));
         break;
       case BACKGROUND_TYPE_PATTERN: {
         int intensity = prefs.getInt(key + "_intensity", 0);
@@ -767,7 +825,7 @@ public class TGBackground {
       default:
         return null;
     }
-    return new TGBackground(tdlib, name, type, isVector, resolveLegacyWallpaperId(name, type), key + "_legacy_id");
+    return new TGBackground(tdlib, name, type, isVector, resolveLegacyWallpaperId(name, type), key + "_legacy_id", appearance);
   }
 
   public static void migrateLegacyWallpaper (SharedPreferences.Editor editor, String prefix, int legacyWallpaperId, int color, String persistentId) {

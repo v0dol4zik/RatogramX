@@ -306,6 +306,7 @@ import moe.kirao.mgx.utils.QuoteSelectionPolicy;
 import moe.kirao.mgx.utils.ForumReadPolicy;
 import moe.kirao.mgx.utils.BotWebAppLauncher;
 import moe.kirao.mgx.ui.MessageTextSelection;
+import moe.kirao.mgx.utils.WallpaperColorInput;
 import org.thunderdog.challegram.data.TGMessageText;
 import org.thunderdog.challegram.telegram.TdlibForumTopicManager;
 
@@ -388,8 +389,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
   private HapticMenuHelper sendAsMenu;
   private MessageSenderButton messageSenderButton;
 
-  private WallpaperView wallpaperViewBlurPreview;
   private WallpaperParametersView backgroundParamsView;
+  private boolean wallpaperApplyInProgress;
+  private int wallpaperEditingUsageIdentifier;
 
   private CircleCounterBadgeView goToNextFoundMessageButtonBadge, goToPrevFoundMessageButtonBadge;
   private FrameLayoutFix scrollToBottomButtonWrap, mentionButtonWrap, reactionsButtonWrap;
@@ -1456,55 +1458,23 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
     if (inWallpaperMode()) {
       TdApi.Background currentBackgroundObj = getArgumentsStrict().wallpaperObject;
-      TGBackground currentBackground = tdlib.settings().getWallpaper(Theme.getWallpaperIdentifier());
-      boolean shouldUseParams = !inWallpaperPreviewMode() || currentBackgroundObj != null && currentBackgroundObj.type.getConstructor() == TdApi.BackgroundTypeWallpaper.CONSTRUCTOR;
-
-      if (shouldUseParams) {
-        int height = Screen.dp(49f);
-        backgroundParamsView = new WallpaperParametersView(context);
-        params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, height);
-        params.addRule(RelativeLayout.ABOVE, R.id.msg_bottom);
-        backgroundParamsView.setLayoutParams(params);
-
-        wallpaperViewBlurPreview = new WallpaperView(context, manager, tdlib);
-        wallpaperViewBlurPreview.setLayoutParams(new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        wallpaperViewBlurPreview.setAlpha(0f);
-
-        if (inWallpaperPreviewMode() && currentBackgroundObj != null) {
-          backgroundParamsView.initWith(currentBackgroundObj, new WallpaperParametersView.WallpaperParametersListener() {
-            @Override
-            public void onBlurValueAnimated (float factor) {
-              wallpaperViewBlurPreview.setAlpha(MathUtils.clamp(factor));
-            }
-          });
-
-          wallpaperViewBlurPreview.initWithCustomWallpaper(new TGBackground(tdlib, currentBackgroundObj, !backgroundParamsView.isBlurred()));
-          messagesView.setTranslationY(-height);
-        } else {
-          backgroundParamsView.initWith(currentBackground, new WallpaperParametersView.WallpaperParametersListener() {
-            @Override
-            public void onParametersViewScaleChanged (float factor) {
-              float clamped = MathUtils.clamp(factor);
-              backgroundParamsView.setTranslationY(height * (1f - clamped));
-              messagesView.setTranslationY(-(height * clamped));
-            }
-
-            @Override
-            public void onBlurValueAnimated (float factor) {
-              wallpaperViewBlurPreview.setAlpha(MathUtils.clamp(factor));
-            }
-          });
-
-          boolean previewBlurValue = !backgroundParamsView.isBlurred();
-          wallpaperViewBlurPreview.initWithCustomWallpaper(TGBackground.newBlurredWallpaper(tdlib, currentBackground, previewBlurValue));
-          wallpaperViewBlurPreview.setSelfBlur(previewBlurValue);
-          wallpaperView.setSelfBlur(!previewBlurValue);
-          backgroundParamsView.setParametersAvailability(currentBackground != null && currentBackground.isWallpaper(), false);
-          if (currentBackground != null && currentBackground.isWallpaper()) {
-            messagesView.setTranslationY(-height);
-          }
+      wallpaperEditingUsageIdentifier = Theme.getWallpaperIdentifier();
+      TGBackground currentBackground = inWallpaperPreviewMode() && currentBackgroundObj != null ?
+        new TGBackground(tdlib, currentBackgroundObj) : tdlib.settings().getWallpaper(wallpaperEditingUsageIdentifier);
+      backgroundParamsView = new WallpaperParametersView(context, tdlib);
+      params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, backgroundParamsView.getPanelHeight());
+      params.addRule(RelativeLayout.ABOVE, R.id.msg_bottom);
+      backgroundParamsView.setLayoutParams(params);
+      backgroundParamsView.initWith(currentBackground, new WallpaperParametersView.WallpaperParametersListener() {
+        @Override public void onParametersChanged (@Nullable TGBackground background) {
+          wallpaperView.previewParameters(background);
+          if (manager.getAdapter() != null) manager.getAdapter().invalidateAllMessages();
         }
-      }
+        @Override public void onEditColors (boolean tint) { editWallpaperColors(tint); }
+        @Override public void onParametersHeightChanged (int height) { updateWallpaperPanelHeight(); }
+        @Override public void onParametersViewScaleChanged (float factor) { updateWallpaperPanelHeight(); }
+      }, !inWallpaperPreviewMode());
+      updateWallpaperPanelHeight();
     }
 
     // Bottom bar
@@ -1534,9 +1504,6 @@ public class MessagesController extends ViewController<MessagesController.Argume
     // Setup
 
     contentView.addView(wallpaperView);
-    if (wallpaperViewBlurPreview != null) {
-      contentView.addView(wallpaperViewBlurPreview);
-    }
     if (!inPreviewMode) {
       contentView.addView(replyBarView);
     }
@@ -2194,25 +2161,26 @@ public class MessagesController extends ViewController<MessagesController.Argume
     } else if (viewId == R.id.btn_unpinAll) {
       dismissPinnedMessage();
     } else if (viewId == R.id.btn_applyWallpaper) {
-      TdApi.BackgroundType newBackgroundType = getArgumentsStrict().wallpaperObject.type;
-
-      if (newBackgroundType.getConstructor() == TdApi.BackgroundTypeWallpaper.CONSTRUCTOR && backgroundParamsView != null) {
-        ((TdApi.BackgroundTypeWallpaper) newBackgroundType).isBlurred = backgroundParamsView.isBlurred();
-      }
-
+      if (wallpaperApplyInProgress) return;
+      TGBackground edited = backgroundParamsView != null ? backgroundParamsView.getEditedBackground() : null;
+      if (edited == null) edited = new TGBackground(tdlib, getArgumentsStrict().wallpaperObject);
+      final TGBackground desired = edited;
+      final boolean forDarkTheme = Theme.isDark();
+      final int usageIdentifier = wallpaperEditingUsageIdentifier;
+      wallpaperApplyInProgress = true;
       tdlib().send(new TdApi.SetDefaultBackground(
         new TdApi.InputBackgroundRemote(getArgumentsStrict().wallpaperObject.id),
-        newBackgroundType,
-        Theme.isDark()
+        desired.getType(),
+        forDarkTheme
       ), (result, error) -> {
-        if (result != null) {
-          runOnUiThread(() -> {
-            TGBackground bg = new TGBackground(tdlib(), result);
-            tdlib.wallpaper().addBackground(bg, Theme.isDark());
-            tdlib.settings().setWallpaper(bg, true, Theme.getWallpaperIdentifier());
-            navigateBack();
-          });
-        }
+        UI.post(() -> {
+          wallpaperApplyInProgress = false;
+          if (error != null) { UI.showError(error); return; }
+          TGBackground bg = new TGBackground(tdlib(), result).withParameters(tdlib(), result.type, desired.getAppearance());
+          tdlib.wallpaper().addBackground(bg, forDarkTheme);
+          tdlib.settings().setWallpaper(bg, true, usageIdentifier);
+          if (!isDestroyed() && isFocused()) navigateBack();
+        });
       });
     } else if (viewId == R.id.btn_silent) {
       if (tdlib.isChannel(chat.id)) {
@@ -2363,7 +2331,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
       return;
     }
     if (id == R.id.btn_copyLink || id == R.id.btn_share) {
-      tdlib.client().send(new TdApi.GetBackgroundUrl(getArgumentsStrict().wallpaperObject.name, TGBackground.makeBlurredBackgroundType(getArgumentsStrict().wallpaperObject.type, backgroundParamsView != null && backgroundParamsView.isBlurred())), result -> {
+      TGBackground edited = backgroundParamsView != null ? backgroundParamsView.getEditedBackground() : null;
+      tdlib.client().send(new TdApi.GetBackgroundUrl(getArgumentsStrict().wallpaperObject.name, edited != null ? edited.getType() : getArgumentsStrict().wallpaperObject.type), result -> {
         if (result.getConstructor() == TdApi.HttpUrl.CONSTRUCTOR) {
           TdApi.HttpUrl url = (TdApi.HttpUrl) result;
           runOnUiThreadOptional(() -> {
@@ -2765,6 +2734,77 @@ public class MessagesController extends ViewController<MessagesController.Argume
   private TdApi.InternalLinkTypeVideoChat voiceChatInvitation;
   private TdApi.FormattedText fillDraft;
   private boolean openKeyboard;
+
+  private void updateWallpaperPanelHeight () {
+    if (backgroundParamsView == null) return;
+    int height = backgroundParamsView.getPanelHeight();
+    ViewGroup.LayoutParams params = backgroundParamsView.getLayoutParams();
+    if (params != null && params.height != height) {
+      params.height = height;
+      backgroundParamsView.setLayoutParams(params);
+    }
+    float factor = backgroundParamsView.getAvailabilityFactor();
+    backgroundParamsView.setTranslationY(height * (1f - factor));
+    messagesView.setTranslationY(-height * factor);
+  }
+
+  private void editWallpaperColors (boolean tint) {
+    TGBackground original = backgroundParamsView.getOriginalBackground();
+    TGBackground edited = backgroundParamsView.getEditedBackground();
+    if (edited == null) return;
+    String value = tint ? WallpaperColorInput.formatColor(edited.getAppearance().tintIntensity == 0 ?
+      Theme.getColor(ColorId.textLink) : edited.getAppearance().tintColor) : WallpaperColorInput.formatFill(edited.getFill());
+    openInputAlert(Lang.getString(tint ? R.string.WallpaperTintColor : R.string.WallpaperFillColors),
+      Lang.getString(tint ? R.string.WallpaperTintColorHint : R.string.WallpaperFillColorsHint), R.string.Save, R.string.Cancel,
+      value, (input, result) -> {
+        if (isDestroyed() || backgroundParamsView.getOriginalBackground() != original) return true;
+        try {
+          if (tint) backgroundParamsView.setTintColor(WallpaperColorInput.color(result));
+          else backgroundParamsView.setFill(WallpaperColorInput.fill(result));
+          return true;
+        } catch (IllegalArgumentException error) {
+          input.setInErrorState(true);
+          return false;
+        }
+      }, true);
+  }
+
+  private void saveWallpaperParameters () {
+    if (!inWallpaperMode() || inWallpaperPreviewMode() || backgroundParamsView == null || !backgroundParamsView.hasChanges()) return;
+    int usageIdentifier = backgroundParamsView.getUsageIdentifier();
+    TGBackground current = tdlib.settings().getWallpaper(usageIdentifier);
+    if (!TGBackground.compare(current, backgroundParamsView.getOriginalBackground(), false)) return;
+    TGBackground desired = backgroundParamsView.getEditedBackground();
+    if (desired == null) return;
+    boolean syncType = !desired.isCustom() && !Td.equalsTo(current.getType(), desired.getType(), true);
+    tdlib.settings().setWallpaper(desired, true, usageIdentifier);
+    if (!syncType) return;
+    final boolean forDarkTheme = Theme.isDark();
+    if (desired.isFill()) {
+      syncWallpaperParameters(desired, null, usageIdentifier, forDarkTheme);
+    } else if (!StringUtils.isEmpty(desired.getName())) {
+      tdlib.send(new TdApi.SearchBackground(desired.getName()), (background, error) -> {
+        if (error != null) { UI.showError(error); return; }
+        UI.post(() -> {
+          if (TGBackground.compare(tdlib.settings().getWallpaper(usageIdentifier), desired, false)) {
+            syncWallpaperParameters(desired, new TdApi.InputBackgroundRemote(background.id), usageIdentifier, forDarkTheme);
+          }
+        });
+      });
+    }
+  }
+
+  private void syncWallpaperParameters (TGBackground desired, @Nullable TdApi.InputBackground input, int usageIdentifier, boolean forDarkTheme) {
+    tdlib.send(new TdApi.SetDefaultBackground(input, desired.getType(), forDarkTheme), (background, error) -> {
+      if (error != null) { UI.showError(error); return; }
+      UI.post(() -> {
+        if (!TGBackground.compare(tdlib.settings().getWallpaper(usageIdentifier), desired, false)) return;
+        TGBackground saved = new TGBackground(tdlib, background).withParameters(tdlib, background.type, desired.getAppearance());
+        tdlib.wallpaper().addBackground(saved, forDarkTheme);
+        tdlib.settings().setWallpaper(saved, true, usageIdentifier);
+      });
+    });
+  }
 
   public boolean inWallpaperMode () {
     return inPreviewMode && (previewMode == PREVIEW_MODE_WALLPAPER || previewMode == PREVIEW_MODE_WALLPAPER_OBJECT);
@@ -3315,6 +3355,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   @Override
   protected void onFocusStateChanged () {
+    if (wallpaperView != null) wallpaperView.setMotionActive(isFocused() && !isPaused());
     checkRoundVideo();
     checkInlineResults();
     checkBroadcastingSomeAction();
@@ -4529,6 +4570,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public void onActivityPause () {
     super.onActivityPause();
+    if (wallpaperView != null) wallpaperView.setMotionActive(false);
     checkBroadcastingSomeAction();
     unregisterRaiseListener();
     manager.setParentPaused(true);
@@ -4548,6 +4590,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public void onActivityResume () {
     super.onActivityResume();
+    if (wallpaperView != null) wallpaperView.setMotionActive(isFocused());
     checkBroadcastingSomeAction();
     registerRaiseListener();
     manager.setParentPaused(false);
@@ -4559,6 +4602,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public void destroy () {
     closeMessageTextSelection();
+    saveWallpaperParameters();
     resetSelectableControl();
     if (forumTopicKey != null) tdlib.topics().stopObserving(forumTopicKey, this);
     forumTopicKey = null;
@@ -4598,19 +4642,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
       emojiLayout.reset();
     }
 
-    if (wallpaperViewBlurPreview != null) {
-      wallpaperViewBlurPreview.performDestroy();
-    }
-
     if (backgroundParamsView != null) {
       backgroundParamsView.performDestroy();
-
-      if (inWallpaperMode() && !inWallpaperPreviewMode()) {
-        TGBackground background = tdlib.settings().getWallpaper(Theme.getWallpaperIdentifier());
-        if (background != null && background.isWallpaper()) {
-          tdlib.settings().setWallpaper(TGBackground.newBlurredWallpaper(tdlib, background, backgroundParamsView.isBlurred()), true, Theme.getWallpaperIdentifier());
-        }
-      }
     }
 
     botStartArgument = null;

@@ -48,6 +48,8 @@ in development build metadata.
   actions. Media captions and translated text retain the separate quote selector.
 - A basic theme editor with twelve color groups, related accent tones, readable
   surface/header/bubble text, parent-color reset and access to the full editor.
+- Wallpaper controls now include local dimming, four blur strengths and photo
+  tinting, plus pattern intensity, inversion, fill colors and optional tilt motion.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

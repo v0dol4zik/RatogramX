@@ -16,6 +16,9 @@ package org.thunderdog.challegram.component.chat;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.view.View;
 
 import androidx.annotation.Nullable;
@@ -36,13 +39,18 @@ import org.thunderdog.challegram.theme.ThemeChangeListener;
 import org.thunderdog.challegram.theme.ThemeDelegate;
 import org.thunderdog.challegram.theme.ThemeManager;
 import org.thunderdog.challegram.tool.DrawAlgorithms;
+import org.thunderdog.challegram.tool.Paints;
 import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.UI;
+import org.thunderdog.challegram.unsorted.Settings;
 
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.animator.FactorAnimator;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.lambda.Destroyable;
+
+import moe.kirao.mgx.ui.WallpaperMotion;
+import moe.kirao.mgx.utils.WallpaperAppearance;
 
 public class WallpaperView extends View implements ThemeChangeListener, ChatStyleChangeListener, FactorAnimator.Target, TdlibCache.MyUserDataChangeListener, Destroyable {
   private final MessagesManager manager;
@@ -55,12 +63,39 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
   TGBackground wallpaper, previewWallpaper;
 
   private boolean inSetupMode, inSelfBlurMode, selfBlurValue;
+  private final WallpaperMotion motion;
+  private boolean motionActive, motionAttached, destroyed;
 
   public WallpaperView (Context context, MessagesManager manager, Tdlib tdlib) {
     super(context);
     this.manager = manager;
     this.tdlib = tdlib;
     this.receiver = new DoubleImageReceiver(this, 0);
+    this.motion = new WallpaperMotion(this);
+  }
+
+  public void setMotionActive (boolean active) {
+    motionActive = active;
+    updateMotion();
+  }
+
+  private void updateMotion () {
+    motion.setEnabled(!destroyed && motionActive && motionAttached && hasWindowFocus() &&
+      manager.useBubbles() && wallpaper != null && wallpaper.isMoving() && !Settings.instance().needReduceMotion());
+  }
+
+  @Override protected void onAttachedToWindow () { super.onAttachedToWindow(); motionAttached = true; updateMotion(); }
+  @Override protected void onDetachedFromWindow () { motionAttached = false; motion.setEnabled(false); super.onDetachedFromWindow(); }
+  @Override public void onWindowFocusChanged (boolean focus) { super.onWindowFocusChanged(focus); updateMotion(); }
+
+  public void previewParameters (@Nullable TGBackground wallpaper) {
+    if (animator != null) { animator.cancel(); animator.forceFactor(0f); }
+    previewWallpaper = null;
+    factor = 0f;
+    this.wallpaper = wallpaper;
+    requestFiles(receiver, wallpaper);
+    updateMotion();
+    invalidate();
   }
 
   public void initWithSetupMode (boolean inSetupMode) {
@@ -118,6 +153,8 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
       } else {
         this.wallpaper = wallpaper;
         requestFiles(receiver, wallpaper);
+        updateMotion();
+        invalidate();
         if (manager.useBubbles() && manager.getAdapter() != null) {
           manager.getAdapter().invalidateAllMessages();
         }
@@ -167,6 +204,7 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
   public void onChatStyleChanged (Tdlib tdlib, int newChatStyle) {
     if (this.tdlib == tdlib) {
       requestFiles(receiver, this.wallpaper);
+      updateMotion();
       manager.controller().updateShadowColor();
     }
   }
@@ -253,6 +291,7 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
       factor = 0f;
 
       preview.clear();
+      updateMotion();
 
       if (manager.useBubbles() && manager.getAdapter() != null) {
         manager.getAdapter().invalidateAllMessages();
@@ -263,6 +302,8 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
 
   @Override
   public void performDestroy () {
+    destroyed = true;
+    motion.setEnabled(false);
     receiver.destroy();
     if (preview != null) {
       preview.destroy();
@@ -277,6 +318,25 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
   }
 
   private final DrawAlgorithms.GradientCache gradientCache = new DrawAlgorithms.GradientCache();
+  private static final Paint maskPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private static final Paint tintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+  private static final Paint layerPaint = new Paint();
+
+  static {
+    maskPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+  }
+
+  private static void drawFill (TGBackground wallpaper, Canvas c, DrawAlgorithms.GradientCache cache,
+                                DoubleImageReceiver receiver, int defaultColor, float alpha) {
+    if (wallpaper.isFillGradient() || wallpaper.isPatternBackgroundGradient()) {
+      DrawAlgorithms.drawGradient(c, cache, receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), wallpaper.getTopColor(), wallpaper.getBottomColor(), wallpaper.getRotationAngle(), alpha);
+    } else if (wallpaper.isFillFreeformGradient() || wallpaper.isPatternBackgroundFreeformGradient()) {
+      c.drawColor(ColorUtils.alphaColor(alpha, wallpaper.getBackgroundColor(defaultColor)));
+      DrawAlgorithms.drawMulticolorGradient(c, cache, receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), wallpaper.getFreeformColors(), alpha);
+    } else {
+      c.drawColor(ColorUtils.alphaColor(alpha, wallpaper.getBackgroundColor(defaultColor)));
+    }
+  }
 
   private static void drawWallpaper (TGBackground wallpaper, Canvas c, DrawAlgorithms.GradientCache gradientCache, ThemeDelegate theme, DoubleImageReceiver receiver, float alpha) {
     final int defaultColor = getWallpaperBackground(theme);
@@ -290,33 +350,54 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
       c.drawColor(ColorUtils.alphaColor(alpha, wallpaper.getBackgroundColor(defaultColor)));
       DrawAlgorithms.drawMulticolorGradient(c, gradientCache, receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), wallpaper.getFreeformColors(), alpha);
     } else if (wallpaper.isPattern()) {
-      if (wallpaper.isPatternBackgroundGradient()) {
-        DrawAlgorithms.drawGradient(c, gradientCache, receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), wallpaper.getTopColor(), wallpaper.getBottomColor(), wallpaper.getRotationAngle(), alpha);
-      } else if (wallpaper.isPatternBackgroundFreeformGradient()) {
-        c.drawColor(ColorUtils.alphaColor(alpha, wallpaper.getBackgroundColor(defaultColor)));
-        DrawAlgorithms.drawMulticolorGradient(c, gradientCache, receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), wallpaper.getFreeformColors(), alpha);
-      } else {
-        c.drawColor(ColorUtils.alphaColor(alpha, wallpaper.getBackgroundColor(defaultColor)));
-      }
-      receiver.getReceiver().setPorterDuffColorFilter(wallpaper.getPatternColor());
-      alpha *= wallpaper.getPatternIntensity();
-      if (alpha != 1f)
-        receiver.setPaintAlpha(alpha);
-      receiver.getReceiver().draw(c);
-      if (alpha != 1f)
+      if (wallpaper.isInverted()) {
+        c.drawColor(ColorUtils.alphaColor(alpha, 0xff000000));
+        layerPaint.setAlpha(Math.round(alpha * 255));
+        int layer = c.saveLayer(receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), layerPaint, Canvas.ALL_SAVE_FLAG);
+        drawFill(wallpaper, c, gradientCache, receiver, defaultColor, 1f);
+        int mask = c.saveLayer(receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), maskPaint, Canvas.ALL_SAVE_FLAG);
+        receiver.getReceiver().setPorterDuffColorFilter(0xffffffff);
+        receiver.setPaintAlpha(wallpaper.getPatternIntensity());
+        receiver.getReceiver().draw(c);
         receiver.restorePaintAlpha();
+        c.restoreToCount(mask);
+        c.restoreToCount(layer);
+      } else {
+        drawFill(wallpaper, c, gradientCache, receiver, defaultColor, alpha);
+        receiver.getReceiver().setPorterDuffColorFilter(wallpaper.getPatternColor());
+        receiver.setPaintAlpha(alpha * wallpaper.getPatternIntensity());
+        receiver.getReceiver().draw(c);
+        receiver.restorePaintAlpha();
+      }
     } else {
+      WallpaperAppearance appearance = wallpaper.getAppearance();
+      int tintLayer = -1;
+      if (appearance.tintIntensity > 0) {
+        layerPaint.setAlpha(Math.round(alpha * 255));
+        tintLayer = c.saveLayer(receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), layerPaint, Canvas.ALL_SAVE_FLAG);
+      }
+      float imageAlpha = tintLayer != -1 ? 1f : alpha;
       if (receiver.needPlaceholder()) {
-        c.drawColor(ColorUtils.alphaColor(alpha, defaultColor));
+        c.drawColor(ColorUtils.alphaColor(imageAlpha, defaultColor));
       }
       receiver.disablePorterDuffColorFilter();
-      if (alpha != 1f) {
-        receiver.setPaintAlpha(alpha);
+      if (imageAlpha != 1f) {
+        receiver.setPaintAlpha(imageAlpha);
       }
       receiver.draw(c);
-      if (alpha != 1f) {
+      if (imageAlpha != 1f) {
         receiver.restorePaintAlpha();
       }
+      if (tintLayer != -1) {
+        PorterDuff.Mode[] modes = {PorterDuff.Mode.SRC_ATOP, PorterDuff.Mode.MULTIPLY, PorterDuff.Mode.SCREEN};
+        tintPaint.setColor(ColorUtils.color(Math.round(appearance.tintIntensity * 2.55f), appearance.tintColor));
+        tintPaint.setXfermode(new PorterDuffXfermode(modes[appearance.tintBlend]));
+        c.drawRect(receiver.getLeft(), receiver.getTop(), receiver.getRight(), receiver.getBottom(), tintPaint);
+        c.restoreToCount(tintLayer);
+      }
+    }
+    if (wallpaper != null && wallpaper.getAppearance().dim > 0) {
+      c.drawColor(ColorUtils.color(Math.round(wallpaper.getAppearance().dim * 2.55f * alpha), 0));
     }
   }
 
@@ -363,6 +444,15 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
   protected void onDraw (Canvas c) {
     if (manager.useBubbles()) {
       layoutReceivers();
+      int motionSave = -1;
+      if (wallpaper != null && wallpaper.isMoving() && !Settings.instance().needReduceMotion()) {
+        motionSave = c.save();
+        c.clipRect(0, 0, getWidth(), getHeight());
+        float margin = Screen.dp(12f);
+        float scale = Math.max((getWidth() + margin * 2) / Math.max(1, getWidth()), (getHeight() + margin * 2) / Math.max(1, getHeight()));
+        c.translate(motion.getX(), motion.getY());
+        c.scale(scale, scale, getWidth() / 2f, getHeight() / 2f);
+      }
       if (!isAnimatingChanges()) {
         drawWallpaper(wallpaper, c, gradientCache, ThemeManager.instance().currentTheme(), receiver, 1f);
       } else if (factor == 0f) {
@@ -373,6 +463,7 @@ public class WallpaperView extends View implements ThemeChangeListener, ChatStyl
         drawWallpaper(wallpaper, c, gradientCache, ThemeManager.instance().previousTheme(), receiver, 1f);
         drawWallpaper(previewWallpaper, c, gradientCache, ThemeManager.instance().appliedTheme(), preview, factor);
       }
+      if (motionSave != -1) c.restoreToCount(motionSave);
     } else {
       c.drawColor(Theme.getColor(ColorId.chatBackground));
     }
