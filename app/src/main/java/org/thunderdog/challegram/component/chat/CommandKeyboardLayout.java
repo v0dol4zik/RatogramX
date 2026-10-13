@@ -182,6 +182,10 @@ public class CommandKeyboardLayout extends ViewGroup implements ViewTreeObserver
         callback.onRequestContact(oneTime);
         break;
       }
+      case TdApi.KeyboardButtonTypeWebApp.CONSTRUCTOR: {
+        callback.onOpenWebApp(button.text, ((TdApi.KeyboardButtonTypeWebApp) button.type).url);
+        break;
+      }
     }
   }
 
@@ -314,6 +318,7 @@ public class CommandKeyboardLayout extends ViewGroup implements ViewTreeObserver
     void onRequestLocation (boolean oneTime);
     void onRequestContact (boolean oneTime);
     void onRequestPoll (boolean oneTime, boolean forceQuiz, boolean forceRegular);
+    void onOpenWebApp (String buttonText, String url);
     void onDestroyCommandKeyboard ();
     void onResizeCommandKeyboard (int size);
   }

@@ -89,6 +89,15 @@ public class TdlibSettingsManager implements CleanupStartupDelegate {
   private static final String LOCAL_CHAT_ID_PREFIX = "local_chat_id_"; // remote -> local
   private static final String REMOTE_CHAT_ID_PREFIX = "remote_chat_id_"; // local -> remote
   private static final String LOCAL_CHAT_IDS_COUNT = "local_chat_ids";
+  private static final String WEB_APP_CONSENT_PREFIX = "web_app_consent_";
+
+  public boolean hasWebAppConsent (long botUserId) {
+    return Settings.instance().getBoolean(key(WEB_APP_CONSENT_PREFIX, tdlib.id()) + botUserId, false);
+  }
+
+  public void setWebAppConsent (long botUserId) {
+    Settings.instance().putBoolean(key(WEB_APP_CONSENT_PREFIX, tdlib.id()) + botUserId, true);
+  }
 
   private @ThemeId Integer _globalTheme, _globalThemeDaylight, _globalThemeNight;
 
@@ -187,7 +196,8 @@ public class TdlibSettingsManager implements CleanupStartupDelegate {
       notificationDataPrefix,
       conversionPrefix,
       localChatIdPrefix,
-      remoteChatIdPrefix
+      remoteChatIdPrefix,
+      key(WEB_APP_CONSENT_PREFIX, accountId)
     }, editor);
     editor.apply();
 

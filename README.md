@@ -35,6 +35,9 @@ Ratogram X features and branding.
   the tabs.
 - **Profile management** for birthdays, personal channels, and profile music.
   Music can be added or removed from the player menu.
+- **Bot Mini Apps** with initial support for buttons and Telegram links,
+  native main/back controls and the current theme. See
+  [supported features and requirements](docs/MINI_APPS.md).
 - **Profile visibility controls** to locally hide phone numbers, music,
   birthdays, or personal channels from profile screens.
 - **Nine launcher icons** with matching legacy, adaptive, round, and themed

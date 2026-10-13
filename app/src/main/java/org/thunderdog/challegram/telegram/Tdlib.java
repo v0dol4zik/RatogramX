@@ -8962,7 +8962,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
 
   @TdlibThread
   private void updateWebAppMessageSent (TdApi.UpdateWebAppMessageSent update) {
-    // TODO
+    listeners().updateWebAppMessageSent(update.webAppLaunchId);
   }
 
   // Updates: NOTIFICATIONS

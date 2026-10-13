@@ -61,6 +61,7 @@ public class TdlibListeners {
   final ReferenceIntMap<GroupCallListener> specificGroupCallListeners;
   final ReferenceList<SessionListener> sessionListeners;
   final ReferenceList<DownloadsListUpdateListener> downloadsListListener;
+  final ReferenceList<WebAppListener> webAppListeners = new ReferenceList<>(true);
 
   final ReferenceList<AnimatedEmojiListener> animatedEmojiListeners;
 
@@ -518,6 +519,20 @@ public class TdlibListeners {
   @AnyThread
   public void unsubscribeFromDownloadsListUpdates (DownloadsListUpdateListener listener) {
     downloadsListListener.remove(listener);
+  }
+
+  public void addWebAppListener (WebAppListener listener) {
+    webAppListeners.add(listener);
+  }
+
+  public void removeWebAppListener (WebAppListener listener) {
+    webAppListeners.remove(listener);
+  }
+
+  void updateWebAppMessageSent (long launchId) {
+    for (WebAppListener listener : webAppListeners) {
+      listener.onWebAppMessageSent(launchId);
+    }
   }
 
   public void updateFileAddedToDownloads (TdApi.UpdateFileAddedToDownloads update) {

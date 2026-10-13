@@ -304,6 +304,7 @@ import moe.kirao.mgx.utils.GhostModeUtils;
 import moe.kirao.mgx.utils.GhostReadStore;
 import moe.kirao.mgx.utils.QuoteSelectionPolicy;
 import moe.kirao.mgx.utils.ForumReadPolicy;
+import moe.kirao.mgx.utils.BotWebAppLauncher;
 import org.thunderdog.challegram.telegram.TdlibForumTopicManager;
 
 public class MessagesController extends ViewController<MessagesController.Arguments> implements
@@ -2248,7 +2249,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
       manager.scrollToNextUnreadReaction();
     } else if (viewId == R.id.msg_command) {
       // FIXME: rely on some state, not on icon id
-      if (lastCmdResource == R.drawable.deproko_baseline_bots_command_26) {
+      if (lastCmdResource == R.drawable.baseline_apps_24 && botMenuButton != null) {
+        openBotMenuWebApp();
+      } else if (lastCmdResource == R.drawable.deproko_baseline_bots_command_26) {
         onCommandClick();
       } else if (lastCmdResource == R.drawable.deproko_baseline_bots_keyboard_26 ||
         lastCmdResource == R.drawable.baseline_direction_arrow_down_24 ||
@@ -2398,6 +2401,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
       Settings.instance().resetChatFontSize();
       updateFontSliderValue(fontSliderView);
       manager.rebuildLayouts();
+    } else if (id == R.id.btn_botWebApp && botMenuButton != null) {
+      openBotMenuWebApp();
     } else if (id == R.id.btn_botHelp || id == R.id.btn_botSettings) {
       if (chat != null) {
         if (tdlib.chatFullyBlocked(chat.id)) {
@@ -3164,6 +3169,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     }
 
     // Loading bot information after the messages to display them faster
+    botMenuButton = null;
 
     boolean isMultiChat = tdlib.isMultiChat(chat.id);
 
@@ -4779,6 +4785,10 @@ public class MessagesController extends ViewController<MessagesController.Argume
       }
 
       if (tdlib.isBotChat(chat) && botHelper != null) {
+        if (botMenuButton != null) {
+          ids.append(R.id.btn_botWebApp);
+          strings.append(R.string.BotWebAppOpen);
+        }
         if (botHelper.findHelpCommand() != null) {
           ids.append(R.id.btn_botHelp);
           strings.append(R.string.BotHelp);
@@ -7949,6 +7959,22 @@ public class MessagesController extends ViewController<MessagesController.Argume
   // Markup utils
 
   private int lastCmdResource;
+  private @Nullable TdApi.BotMenuButton botMenuButton;
+
+  public void setBotMenuButton (@Nullable TdApi.BotMenuButton button) {
+    botMenuButton = button != null && !StringUtils.isEmpty(button.url) ? button : null;
+    if (commandButton != null && commandsKeyboard == null) {
+      updateCommandButton(R.drawable.deproko_baseline_bots_command_26);
+      updateCommandButton(botMenuButton != null || (botHelper != null && botHelper.hasCommands()));
+    }
+  }
+
+  private void openBotMenuWebApp () {
+    if (botMenuButton == null) return;
+    ReplyInfo replyInfo = getCurrentReplyId();
+    BotWebAppLauncher.open(this, tdlib.chatUserId(getChatId()), botMenuButton.url, getMessageTopicId(replyInfo),
+      replyInfo != null ? replyInfo.toInputMessageReply() : null);
+  }
 
   private boolean setCameraVisible (boolean isVisible) {
     int visibility = isVisible ? View.VISIBLE : View.INVISIBLE;
@@ -7957,6 +7983,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public void updateCommandButton (boolean isVisible) {
+    isVisible = isVisible || botMenuButton != null;
     boolean ok = setCameraVisible(!isVisible || !ChatId.isUserChat(getChatId()));
     if (commandButton.setVisible(isVisible) || ok) {
       attachButtons.updatePivot();
@@ -7964,6 +7991,9 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   private void updateCommandButton (int resource) {
+    if (resource == R.drawable.deproko_baseline_bots_command_26 && botMenuButton != null) {
+      resource = R.drawable.baseline_apps_24;
+    }
     if (resource == 0) {
       if (commandButton.setVisible(false)) {
         attachButtons.updatePivot();
@@ -8170,6 +8200,13 @@ public class MessagesController extends ViewController<MessagesController.Argume
     pickDateOrProceed(Td.newSendOptions(), (sendOptions, disableMarkdown) ->
       sendText(command, false, true, false, sendOptions)
     );
+  }
+
+  @Override
+  public void onOpenWebApp (String buttonText, String url) {
+    if (chat != null && tdlib.isBotChat(chat)) {
+      BotWebAppLauncher.openKeyboard(this, tdlib.chatUserId(chat), url, buttonText);
+    }
   }
 
   @Override

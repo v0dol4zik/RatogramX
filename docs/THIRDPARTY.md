@@ -22,6 +22,7 @@
 * [ogg](https://gitlab.xiph.org/xiph/ogg)
 
 * [AndroidX](https://developer.android.com/jetpack/androidx): various basic Android stuff + CameraX
+* [AndroidX WebKit](https://developer.android.com/jetpack/androidx/releases/webkit): Apache-2.0-licensed origin-scoped messaging and document-start scripts for bot Mini Apps
 * [Play Core](https://developer.android.com/reference/com/google/android/play/core/release-notes): used for in-app update system
 * [Google Play Services](https://developers.google.com/android/guides/releases): maps and location services
 * [Firebase Messaging](https://firebase.google.com/support/release-notes/android): notifications

@@ -138,6 +138,7 @@ public class WebkitController<T> extends ViewController<T> {
     onCreateWebView(headerCell, webView);
 
     contentView.addView(webView);
+    onCreateWebContent(contentView, webView);
 
     return contentView;
   }
@@ -158,6 +159,8 @@ public class WebkitController<T> extends ViewController<T> {
     webView.loadUrl(url);
   }
 
+  protected void onCreateWebContent (FrameLayoutFix contentView, WebView webView) { }
+
   protected void onPageProgress (float progress) {
     if (headerCell != null) {
       headerCell.animateProgress(progress);
@@ -167,7 +170,10 @@ public class WebkitController<T> extends ViewController<T> {
   @Override
   public void destroy () {
     super.destroy();
-    webView.destroy();
+    if (webView != null) {
+      webView.destroy();
+      webView = null;
+    }
   }
 
   @Override

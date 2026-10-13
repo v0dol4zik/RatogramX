@@ -74,6 +74,7 @@ import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.CancellableRunnable;
 import me.vkryl.core.lambda.RunnableData;
 import tgx.td.Td;
+import moe.kirao.mgx.utils.BotWebAppLauncher;
 
 public class TGInlineKeyboard {
   private static final float CURRENCY_TEXT_SIZE_DP = 10f;
@@ -1104,9 +1105,18 @@ public class TGInlineKeyboard {
       switch (type.getConstructor()) {
         case TdApi.InlineKeyboardButtonTypeBuy.CONSTRUCTOR:
         case TdApi.InlineKeyboardButtonTypeCopyText.CONSTRUCTOR:
-        case TdApi.InlineKeyboardButtonTypeWebApp.CONSTRUCTOR:
           // TODO
           break;
+
+        case TdApi.InlineKeyboardButtonTypeWebApp.CONSTRUCTOR: {
+          TdApi.Message msg = parent.getMessage();
+          MessagesController controller = context.context.messagesController();
+          if (controller != null) {
+            BotWebAppLauncher.open(controller, msg.viaBotUserId != 0 ? msg.viaBotUserId : Td.getSenderUserId(msg),
+              ((TdApi.InlineKeyboardButtonTypeWebApp) type).url, controller.getMessageTopicId(), null);
+          }
+          break;
+        }
 
         case TdApi.InlineKeyboardButtonTypeCallbackWithPassword.CONSTRUCTOR: {
           final TdApi.InlineKeyboardButtonTypeCallbackWithPassword callbackWithPassword = (TdApi.InlineKeyboardButtonTypeCallbackWithPassword) type;

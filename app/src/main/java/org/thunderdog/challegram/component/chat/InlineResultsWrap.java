@@ -78,6 +78,7 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 import tgx.td.ChatId;
+import moe.kirao.mgx.utils.BotWebAppLauncher;
 
 public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickListener, StickerSmallView.StickerMovementCallback, InlineResultsAdapter.HeightProvider, FactorAnimator.Target, View.OnLongClickListener, TGLegacyManager.EmojiLoadListener, BaseView.CustomControllerProvider, RootFrameLayout.MarginModifier {
   private RecyclerView recyclerView;
@@ -933,6 +934,12 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
 
     final ViewController<?> c = UI.getCurrentStackItem(getContext());
     long sourceChatId = 0;
+    if (button.data().type instanceof TdApi.InlineQueryResultsButtonTypeWebApp) {
+      if (c != null) {
+        BotWebAppLauncher.openKeyboard(c, button.getUserId(), ((TdApi.InlineQueryResultsButtonTypeWebApp) button.data().type).url, null);
+      }
+      return;
+    }
     if (c instanceof MessagesController) {
       if (((MessagesController) c).comparePrivateUserId(button.getUserId())) {
         ((MessagesController) c).onSwitchPm(button);

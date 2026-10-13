@@ -127,6 +127,14 @@
   <string name="ProfileNoteHint">Заметку видите только Вы.</string>
   <string name="SelectRoundVideos">Камера в видеосообщениях</string>
   <string name="MessageGuestBotFor">%1$s для %2$s</string>
+  <string name="BotWebApp">Мини-приложение</string>
+  <string name="BotWebAppOpen">Открыть мини-приложение</string>
+  <string name="BotWebAppConsent">%1$s предлагает стороннее мини-приложение. При открытии этому боту передаются данные вашего профиля Telegram, включая имя, имя пользователя и фото профиля.</string>
+  <string name="BotWebAppUnsupported">Обновите Android System WebView для запуска мини-приложений. Требуется Android 5.0 или новее.</string>
+  <string name="BotWebAppInvalidUrl">Мини-приложение вернуло некорректный или небезопасный адрес.</string>
+  <string name="BotWebAppSecretChat">Мини-приложения нельзя открывать в секретных чатах.</string>
+  <string name="BotWebAppCloseConfirm">Закрыть мини-приложение? Несохранённые изменения могут быть потеряны.</string>
+  <string name="BotWebAppClose">Закрыть мини-приложение</string>
   <string name="RoundVideoQuality">Качество видеосообщений</string>
   <string name="RoundVideoQualityDataSaver">Экономия трафика • 240 пкс</string>
   <string name="RoundVideoQualityStandard">Стандартное • 320 пкс</string>

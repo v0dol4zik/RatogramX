@@ -11,6 +11,7 @@
     com.google.android.recaptcha
     com.google.android.play.core.integrity.client
     androidx.annotation.experimental
+    androidx.webkit (Mini Apps are gated on API 21 and WebView features)
     androidx.media3.datasource
     androidx.media3.muxer
     androidx.media3.extractor
@@ -30,6 +31,7 @@
     com.google.android.recaptcha,
     com.google.android.play.core.integrity.client,
     androidx.annotation.experimental,
+    androidx.webkit,
     androidx.media3.transformer,
     androidx.media3.effect,
     androidx.media3.datasource,

@@ -192,6 +192,7 @@ import me.vkryl.core.lambda.RunnableLong;
 import me.vkryl.core.unit.ByteUnit;
 import me.vkryl.core.util.ConditionalExecutor;
 import moe.kirao.mgx.utils.NetworkUtils;
+import moe.kirao.mgx.utils.BotWebAppLauncher;
 import moe.kirao.mgx.utils.RecentChannelsTracker;
 import tgx.td.ChatId;
 import tgx.td.ChatPosition;
@@ -4162,13 +4163,26 @@ public class TdlibUi extends Handler {
         break;
       }
 
+      case TdApi.InternalLinkTypeWebApp.CONSTRUCTOR:
+      case TdApi.InternalLinkTypeMainWebApp.CONSTRUCTOR: {
+        ViewController<?> owner = context instanceof ViewController ? (ViewController<?>) context : UI.getCurrentStackItem(context.context());
+        if (owner != null) {
+          if (linkType instanceof TdApi.InternalLinkTypeMainWebApp) {
+            TdApi.InternalLinkTypeMainWebApp link = (TdApi.InternalLinkTypeMainWebApp) linkType;
+            BotWebAppLauncher.openLink(owner, link.botUsername, null, link.startParameter, link.mode);
+          } else {
+            TdApi.InternalLinkTypeWebApp link = (TdApi.InternalLinkTypeWebApp) linkType;
+            BotWebAppLauncher.openLink(owner, link.botUsername, link.webAppShortName, link.startParameter, link.mode);
+          }
+        }
+        break;
+      }
+
       case TdApi.InternalLinkTypeStory.CONSTRUCTOR:
       case TdApi.InternalLinkTypeLiveStory.CONSTRUCTOR:
       case TdApi.InternalLinkTypeStoryAlbum.CONSTRUCTOR:
 
       case TdApi.InternalLinkTypeAttachmentMenuBot.CONSTRUCTOR:
-      case TdApi.InternalLinkTypeWebApp.CONSTRUCTOR:
-      case TdApi.InternalLinkTypeMainWebApp.CONSTRUCTOR:
 
       case TdApi.InternalLinkTypeInvoice.CONSTRUCTOR:
 
