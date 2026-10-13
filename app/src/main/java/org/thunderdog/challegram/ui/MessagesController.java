@@ -305,6 +305,8 @@ import moe.kirao.mgx.utils.GhostReadStore;
 import moe.kirao.mgx.utils.QuoteSelectionPolicy;
 import moe.kirao.mgx.utils.ForumReadPolicy;
 import moe.kirao.mgx.utils.BotWebAppLauncher;
+import moe.kirao.mgx.ui.MessageTextSelection;
+import org.thunderdog.challegram.data.TGMessageText;
 import org.thunderdog.challegram.telegram.TdlibForumTopicManager;
 
 public class MessagesController extends ViewController<MessagesController.Arguments> implements
@@ -349,6 +351,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   private LinearLayout bottomWrap;
   private FillingSpace bottomSpace;
   private MessagesRecyclerView messagesView;
+  private @Nullable MessageTextSelection messageTextSelection;
 
   private final MessagesManager manager;
   private BotHelper botHelper;
@@ -3714,6 +3717,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   @Override
   public boolean canSlideBackFrom (NavigationController navigationController, float x, float y) {
+    if (messageTextSelection != null) return false;
     if (context().getRecordAudioVideoController().isOpen()) {
       return false;
     }
@@ -4468,6 +4472,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   @Override
   public void onBlur () {
+    closeMessageTextSelection();
     saveDraft();
 
     super.onBlur();
@@ -4553,6 +4558,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   @Override
   public void destroy () {
+    closeMessageTextSelection();
     resetSelectableControl();
     if (forumTopicKey != null) tdlib.topics().stopObserving(forumTopicKey, this);
     forumTopicKey = null;
@@ -6053,12 +6059,14 @@ public class MessagesController extends ViewController<MessagesController.Argume
           }
         }));
         return true;
-      } else if (id == R.id.btn_messageQuote) {
+      } else if (id == R.id.btn_messageQuote || id == R.id.btn_selectMessageText) {
         if (!Settings.instance().isPartialQuotesExperimentEnabled()) {
           return true;
         }
         TdApi.Message message = selectedMessage.getNewestMessage();
-        showQuoteSelector(selectedMessage, message);
+        if (id != R.id.btn_selectMessageText || !startMessageTextSelection(selectedMessage, message)) {
+          showQuoteSelector(selectedMessage, message);
+        }
         return true;
       } else if (id == R.id.btn_messageReplies) {
         cancelSheduledKeyboardOpeningAndHideAllKeyboards();
@@ -6242,6 +6250,62 @@ public class MessagesController extends ViewController<MessagesController.Argume
     };
   }
 
+  private boolean startMessageTextSelection (TGMessage selectedMessage, TdApi.Message message) {
+    if (!(selectedMessage instanceof TGMessageText) || message == null || ChatId.isSecret(message.chatId)) return false;
+    TdApi.FormattedText source = Td.textOrCaption(message.content);
+    Text text = ((TGMessageText) selectedMessage).getSelectableText();
+    View target = manager.findMessageView(message.chatId, message.id);
+    MessageView messageView = target instanceof MessageView ? (MessageView) target :
+      target instanceof MessageViewGroup ? ((MessageViewGroup) target).getMessageView() : null;
+    if (messageView == null || messageView.getMessage() != selectedMessage || text == null || Td.isEmpty(source)) return false;
+    closeMessageTextSelection();
+    messagesView.stopScroll();
+    hideAllKeyboards();
+    messageTextSelection = new MessageTextSelection(messageView, (TGMessageText) selectedMessage, text, source,
+      new MessageTextSelection.Callback() {
+        @Override public void onQuote (int start, int end) {
+          quoteSelectedText(selectedMessage, message, source.text, start, end);
+        }
+
+        @Override public void onClosed (MessageTextSelection selection) {
+          if (messageTextSelection == selection) messageTextSelection = null;
+          removeThemeListenerByTarget(selection);
+          context().notifyBackPressAvailabilityChanged();
+        }
+      });
+    messageTextSelection.setLayoutParams(new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    contentView.addView(messageTextSelection);
+    ViewSupport.setHigherElevation(messageTextSelection, bottomBar != null ? bottomBar : messagesView, true);
+    addThemeInvalidateListener(messageTextSelection);
+    context().notifyBackPressAvailabilityChanged();
+    return true;
+  }
+
+  private void closeMessageTextSelection () {
+    if (messageTextSelection != null) messageTextSelection.close();
+  }
+
+  private void quoteSelectedText (TGMessage selectedMessage, TdApi.Message message, String originalText, int start, int end) {
+    TdApi.Message current = selectedMessage.getMessage(message.id);
+    TdApi.FormattedText source = current != null ? Td.textOrCaption(current.content) : null;
+    if (!Settings.instance().isPartialQuotesExperimentEnabled() || getChatId() != message.chatId ||
+        ChatId.isSecret(message.chatId) || Td.isEmpty(source) || !originalText.equals(source.text)) return;
+    TdApi.InputTextQuote quote = createMessageQuote(current, start, end);
+    if (quote == null) {
+      UI.showToast(R.string.QuoteSelectText, Toast.LENGTH_SHORT);
+      return;
+    }
+    selectedMessage.getMessageProperties(message.id, properties -> runOnUiThreadOptional(() -> {
+      TdApi.Message latest = selectedMessage.getMessage(message.id);
+      TdApi.FormattedText latestText = latest != null ? Td.textOrCaption(latest.content) : null;
+      if (properties != null && properties.canBeReplied && isFocused() && getChatId() == message.chatId &&
+          Settings.instance().isPartialQuotesExperimentEnabled() && !Td.isEmpty(latestText) && originalText.equals(latestText.text)) {
+        showReply(new MessageWithProperties(latest, properties), quote, 0, "", true, true);
+        if (inputView.isEmpty()) Keyboard.show(inputView);
+      }
+    }));
+  }
+
   private void showQuoteSelector (TGMessage selectedMessage, TdApi.Message message) {
     if (message == null || ChatId.isSecret(message.chatId)) {
       return;
@@ -6347,14 +6411,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
           return;
         }
         popupLayout.hideWindow(true);
-        selectedMessage.getMessageProperties(message.id, properties -> runOnUiThreadOptional(() -> {
-          if (properties != null) {
-            showReply(new MessageWithProperties(message, properties), quote, 0, "", true, true);
-            if (inputView.isEmpty()) {
-              Keyboard.show(inputView);
-            }
-          }
-        }));
+        quoteSelectedText(selectedMessage, message, source.text, start, end);
       };
 
       TextView quoteAction = OptionsLayout.genOptionView(context(), R.id.btn_messageQuote,
@@ -9343,6 +9400,10 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   @Override
   public boolean performOnBackPressed (boolean fromTop, boolean commit) {
+    if (messageTextSelection != null) {
+      if (commit) closeMessageTextSelection();
+      return true;
+    }
     BaseActivity context = context();
     if (context.getRecordAudioVideoController().isOpen()) {
       if (commit) {
@@ -9626,6 +9687,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public final void onMessagesFrameChanged () {
+    if (messageTextSelection != null) messageTextSelection.invalidate();
     context().updateHackyOverlaysPositions();
     manager.onViewportMeasure();
     if (attachedFiles != null && attachedFiles.getParent() != null) {

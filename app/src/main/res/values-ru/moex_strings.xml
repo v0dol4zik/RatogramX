@@ -127,6 +127,7 @@
   <string name="ProfileNoteHint">Заметку видите только Вы.</string>
   <string name="SelectRoundVideos">Камера в видеосообщениях</string>
   <string name="MessageGuestBotFor">%1$s для %2$s</string>
+  <string name="MessageSelectText">Выделить текст</string>
   <string name="BotWebApp">Мини-приложение</string>
   <string name="BotWebAppOpen">Открыть мини-приложение</string>
   <string name="BotWebAppConsent">%1$s предлагает стороннее мини-приложение. При открытии этому боту передаются данные вашего профиля Telegram, включая имя, имя пользователя и фото профиля.</string>

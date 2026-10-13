@@ -20,4 +20,18 @@ public class QuoteSelectionPolicyTest {
     assertEquals(emoji, range[0]);
     assertEquals(emoji + 2, range[1]);
   }
+
+  @Test public void draggedBoundariesNeverSplitSurrogatePairs() {
+    String text = "a😀b";
+    assertEquals(1, QuoteSelectionPolicy.boundary(text, 2, false));
+    assertEquals(3, QuoteSelectionPolicy.boundary(text, 2, true));
+    assertEquals(1, QuoteSelectionPolicy.boundary(text, 1, true));
+    assertEquals(3, QuoteSelectionPolicy.boundary(text, 3, false));
+  }
+
+  @Test public void clampsDraggedBoundariesAtTextEnds() {
+    assertEquals(0, QuoteSelectionPolicy.boundary("😀", -1, false));
+    assertEquals(2, QuoteSelectionPolicy.boundary("😀", 3, true));
+    assertEquals(0, QuoteSelectionPolicy.boundary("", 1, true));
+  }
 }

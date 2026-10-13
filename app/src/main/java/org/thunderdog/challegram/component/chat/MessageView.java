@@ -86,6 +86,7 @@ import me.vkryl.core.lambda.Destroyable;
 import me.vkryl.core.lambda.RunnableData;
 import tgx.td.ChatId;
 import tgx.td.Td;
+import moe.kirao.mgx.ui.MessageTextSelection;
 
 public class MessageView extends SparseDrawableView implements Destroyable, DrawableProvider, MessagesManager.MessageProvider {
   private static final int FLAG_USE_COMMON_RECEIVER = 1;
@@ -98,6 +99,24 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
   private static final int FLAG_IGNORE_PARENT_ON_MEASURE = 1 << 8;
 
   private @Nullable TGMessage msg;
+  private @Nullable MessageTextSelection textSelection;
+
+  public void setTextSelection (@Nullable MessageTextSelection selection) {
+    textSelection = selection;
+    invalidate();
+  }
+
+  public int getTouchedTextOffset (Text text) {
+    return text.getSelectionOffset(touchX, touchY, true, true);
+  }
+
+  public void drawTextSelection (Canvas c, @Nullable Text text, int startX, int endX, int endXBottomPadding, int startY) {
+    if (textSelection != null) textSelection.drawHighlight(c, text, startX, endX, endXBottomPadding, startY);
+  }
+
+  private void clearTextSelection () {
+    if (textSelection != null) textSelection.close();
+  }
 
   private int flags;
 
@@ -175,6 +194,7 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
 
   @Override
   public void performDestroy () {
+    clearTextSelection();
     avatarReceiver.destroy();
     avatarsReceiver.performDestroy();
     giveawayAvatarsReceiver.performDestroy();
@@ -288,6 +308,7 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
   }
 
   public void setMessage (TGMessage message) {
+    clearTextSelection();
     int desiredHeight = message.getHeight();
     int currentHeight = getCurrentHeight();
 
@@ -427,6 +448,7 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
   @Override
   public void onDraw (Canvas c) {
     msg.draw(this, c, avatarReceiver, replyReceiver, replyTextMediaReceiver, previewReceiver, contentReceiver, gifReceiver, complexReceiver);
+    if (textSelection != null) textSelection.invalidate();
   }
 
   public AvatarReceiver getAvatarReceiver () {
@@ -509,6 +531,7 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
   }
 
   public void onDetachedFromRecyclerView () {
+    clearTextSelection();
     if (isAttached) {
       isAttached = false;
       avatarReceiver.detach();
@@ -816,6 +839,11 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
           ids.append(R.id.btn_messageQuote);
           strings.append(R.string.TextFormatQuote);
           icons.append(R.drawable.baseline_format_quote_close_24);
+          if (msg instanceof TGMessageText && ((TGMessageText) msg).getSelectableText() != null) {
+            ids.append(R.id.btn_selectMessageText);
+            strings.append(R.string.MessageSelectText);
+            icons.append(R.drawable.baseline_format_text_24);
+          }
         }
       }
 

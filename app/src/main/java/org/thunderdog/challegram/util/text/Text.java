@@ -644,6 +644,143 @@ public class Text implements Runnable, Emoji.CountLimiter, CounterTextPart, List
     return closest != null ? closest.getY() + getPartVerticalOffset(closest) : -1;
   }
 
+  private boolean isSelectionPart (TextPart part) {
+    return part.getStart() < part.getEnd() && originalText.equals(part.getLine());
+  }
+
+  private void getSelectionPartBounds (TextPart part, RectF out, int startX, int endX, int endXBottomPadding, int startY) {
+    int x;
+    if ((textFlags & FLAG_ALIGN_CENTER) != 0) {
+      int cx = startX + maxWidth / 2;
+      int width = getLineWidth(part.getLineIndex());
+      x = part.makeX(cx - width / 2, cx + width / 2, 0);
+    } else {
+      x = part.makeX(startX, endX, endXBottomPadding);
+    }
+    int y = startY + part.getY() + getPartVerticalOffset(part) + getTextPaint(part.getEntity()).baselineShift;
+    out.set(x, y, x + part.getWidth(), y + getPartHeight(part));
+  }
+
+  private float getSelectionAdvance (TextPart part, int offset) {
+    if (offset <= part.getStart()) return 0f;
+    if (offset >= part.getEnd()) return part.getWidth();
+    if (part.isStaticElement()) return 0f;
+    TextPaint paint = getTextPaint(part.getEntity());
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      return paint.getRunAdvance(originalText, part.getStart(), part.getEnd(), 0, originalText.length(),
+        BiDiUtils.isRtl(part.getBidiEntity()), offset);
+    }
+    return U.measureText(originalText, part.getStart(), offset, paint);
+  }
+
+  private float getSelectionX (TextPart part, RectF bounds, int offset) {
+    float advance = getSelectionAdvance(part, offset);
+    return BiDiUtils.isRtl(part.getBidiEntity()) ? bounds.right - advance : bounds.left + advance;
+  }
+
+  /** Maps a touch in the last drawn layout to a UTF-16 selection boundary. */
+  public int getSelectionOffset (float x, float y, boolean clamp) {
+    return getSelectionOffset(x, y, clamp, false);
+  }
+
+  public int getSelectionOffset (float x, float y, boolean clamp, boolean forWord) {
+    if (parts == null) return -1;
+    TextPart closest = null;
+    RectF bounds = new RectF(), closestBounds = new RectF();
+    float bestY = Float.MAX_VALUE, bestX = Float.MAX_VALUE;
+    for (TextPart part : parts) {
+      if (!isSelectionPart(part)) continue;
+      getSelectionPartBounds(part, bounds, lastStartX, lastEndX, lastEndXBottomPadding, lastStartY);
+      float distanceY = Math.max(bounds.top - y, Math.max(y - bounds.bottom, 0f));
+      float distanceX = Math.max(bounds.left - x, Math.max(x - bounds.right, 0f));
+      if ((!clamp && (distanceX > 0f || distanceY > 0f)) || distanceY > bestY ||
+          (distanceY == bestY && distanceX >= bestX)) continue;
+      closest = part;
+      closestBounds.set(bounds);
+      bestY = distanceY;
+      bestX = distanceX;
+    }
+    if (closest == null) return -1;
+    float advance = BiDiUtils.isRtl(closest.getBidiEntity()) ? closestBounds.right - x : x - closestBounds.left;
+    advance = Math.max(0f, Math.min(advance, closest.getWidth()));
+    if (closest.isStaticElement()) {
+      if (forWord) return closest.getStart();
+      return advance < closest.getWidth() / 2f ? closest.getStart() : closest.getEnd();
+    }
+    int offset;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      offset = getTextPaint(closest.getEntity()).getOffsetForAdvance(originalText, closest.getStart(), closest.getEnd(),
+        0, originalText.length(), BiDiUtils.isRtl(closest.getBidiEntity()), advance);
+    } else {
+      offset = closest.getStart();
+      float previous = 0f;
+      while (offset < closest.getEnd()) {
+        int next = Math.min(closest.getEnd(), offset + Character.charCount(originalText.codePointAt(offset)));
+        float nextAdvance = getSelectionAdvance(closest, next);
+        if (advance < (previous + nextAdvance) / 2f) break;
+        offset = next;
+        previous = nextAdvance;
+      }
+    }
+    if (offset > 0 && offset < originalText.length() && Character.isLowSurrogate(originalText.charAt(offset)) &&
+        Character.isHighSurrogate(originalText.charAt(offset - 1))) offset--;
+    if (forWord && offset > closest.getStart() && (offset == closest.getEnd() || advance < getSelectionAdvance(closest, offset))) {
+      offset -= Character.charCount(originalText.codePointBefore(offset));
+    }
+    return offset;
+  }
+
+  public int[] expandSelectionRange (int start, int end) {
+    if (parts != null) {
+      for (TextPart part : parts) {
+        if (isSelectionPart(part) && part.isStaticElement() && start < part.getEnd() && end > part.getStart()) {
+          start = Math.min(start, part.getStart());
+          end = Math.max(end, part.getEnd());
+        }
+      }
+    }
+    return new int[] {start, end};
+  }
+
+  public boolean getSelectionEdge (int offset, boolean end, RectF out) {
+    if (parts == null) return false;
+    TextPart closest = null;
+    int bestDistance = Integer.MAX_VALUE;
+    for (TextPart part : parts) {
+      if (!isSelectionPart(part)) continue;
+      boolean inside = end ? offset > part.getStart() && offset <= part.getEnd() :
+        offset >= part.getStart() && offset < part.getEnd();
+      if (inside) {
+        closest = part;
+        break;
+      }
+      int distance = Math.max(part.getStart() - offset, Math.max(offset - part.getEnd(), 0));
+      if (distance < bestDistance) {
+        closest = part;
+        bestDistance = distance;
+      }
+    }
+    if (closest == null) return false;
+    getSelectionPartBounds(closest, out, lastStartX, lastEndX, lastEndXBottomPadding, lastStartY);
+    float x = getSelectionX(closest, out, Math.max(closest.getStart(), Math.min(offset, closest.getEnd())));
+    out.left = out.right = x;
+    return true;
+  }
+
+  public void drawSelection (Canvas c, int start, int end, int startX, int endX, int endXBottomPadding, int startY) {
+    if (parts == null || start < 0 || end <= start) return;
+    RectF bounds = Paints.getRectF();
+    for (TextPart part : parts) {
+      if (!isSelectionPart(part) || start >= part.getEnd() || end <= part.getStart()) continue;
+      getSelectionPartBounds(part, bounds, startX, endX, endXBottomPadding, startY);
+      float left = getSelectionX(part, bounds, Math.max(start, part.getStart()));
+      float right = getSelectionX(part, bounds, Math.min(end, part.getEnd()));
+      bounds.left = Math.min(left, right);
+      bounds.right = Math.max(left, right);
+      c.drawRoundRect(bounds, Screen.dp(2f), Screen.dp(2f), Paints.fillingPaint(Theme.fillingTextSelectionColor()));
+    }
+  }
+
   public int getEntityCount () {
     return entities != null ? entities.length : 0;
   }

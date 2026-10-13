@@ -44,6 +44,8 @@ in development build metadata.
 - Initial bot Mini App support through message, keyboard, menu and inline-result
   buttons and Telegram links, with theme updates, native main/back controls,
   keyboard data sending, per-bot consent and an origin-scoped WebView bridge.
+- Experimental in-message text selection with draggable handles and copy/quote
+  actions. Media captions and translated text retain the separate quote selector.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

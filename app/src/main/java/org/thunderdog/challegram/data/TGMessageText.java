@@ -321,6 +321,13 @@ public class TGMessageText extends TGMessage {
 
   private TextWrapper effectiveWrapper;
 
+  public @Nullable Text getSelectableText () {
+    Text current = effectiveWrapper != null ? effectiveWrapper.getCurrent() : null;
+    float above = linkPreviewAboveText.getFloatValue();
+    return current != null && text != null && text.text.equals(current.getText()) &&
+      (above == 0f || above == 1f) ? current : null;
+  }
+
   @Override
   public int getHighlightQuoteY () {
     int y = getHighlightQuoteY(effectiveWrapper, getId());
@@ -541,8 +548,10 @@ public class TGMessageText extends TGMessage {
       }
       float textAlpha = alpha * entry.getVisibility();
       if (linkPreviewAboveText == 0f || linkPreview == null || receiver == null) {
+        view.drawTextSelection(c, entry.item.getCurrent(), startX, startXRtl, endXPadding, topTextY);
         entry.item.draw(c, startX, startXRtl, endXPadding, topTextY, null, textAlpha, textMediaReceiver);
       } else if (linkPreviewAboveText == 1f) {
+        view.drawTextSelection(c, entry.item.getCurrent(), startX, startXRtl, endXPadding, bottomTextY);
         entry.item.draw(c, startX, startXRtl, endXPadding, bottomTextY, null, textAlpha, textMediaReceiver);
       } else {
         entry.item.beginDrawBatch(textMediaReceiver, 1);

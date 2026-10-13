@@ -4,6 +4,13 @@ package moe.kirao.mgx.utils;
 public final class QuoteSelectionPolicy {
   private QuoteSelectionPolicy () { }
 
+  public static int boundary (String text, int offset, boolean forward) {
+    offset = Math.max(0, Math.min(offset, text.length()));
+    if (offset > 0 && offset < text.length() && Character.isHighSurrogate(text.charAt(offset - 1)) &&
+        Character.isLowSurrogate(text.charAt(offset))) return offset + (forward ? 1 : -1);
+    return offset;
+  }
+
   public static int[] wordRange (String text, int offset) {
     if (text == null || text.isEmpty()) return new int[] {0, 0};
     int start = Math.max(0, Math.min(offset, text.length() - 1));

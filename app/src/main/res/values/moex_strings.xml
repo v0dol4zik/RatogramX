@@ -143,6 +143,7 @@
   <string name="ProfileNoteHint">Notes are only visible for you.</string>
   <string name="SelectRoundVideos">Camera in round videos</string>
   <string name="MessageGuestBotFor">%1$s for %2$s</string>
+  <string name="MessageSelectText">Select text</string>
   <string name="BotWebApp">Mini App</string>
   <string name="BotWebAppOpen">Open Mini App</string>
   <string name="BotWebAppConsent">%1$s offers a third-party Mini App. Opening it shares your Telegram profile details, including your name, username and profile photo, with this bot.</string>

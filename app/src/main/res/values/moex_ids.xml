@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <item name="btn_selectMessageText" type="id" />
   <item name="controller_webApp" type="id" />
   <item name="btn_botWebApp" type="id" />
   <item name="btn_GeneralMoexSettings" type="id" />
