@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <item name="controller_basicThemeEditor" type="id" />
+  <item name="theme_category_basic" type="id" />
+  <item name="btn_basicThemeAdvanced" type="id" />
+  <item name="btn_basicThemeReset" type="id" />
   <item name="btn_selectMessageText" type="id" />
   <item name="controller_webApp" type="id" />
   <item name="btn_botWebApp" type="id" />

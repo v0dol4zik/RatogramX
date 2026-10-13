@@ -46,6 +46,8 @@ in development build metadata.
   keyboard data sending, per-bot consent and an origin-scoped WebView bridge.
 - Experimental in-message text selection with draggable handles and copy/quote
   actions. Media captions and translated text retain the separate quote selector.
+- A basic theme editor with twelve color groups, related accent tones, readable
+  surface/header/bubble text, parent-color reset and access to the full editor.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
 - Changing the launcher icon keeps the current app task open and updates its

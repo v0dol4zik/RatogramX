@@ -538,6 +538,11 @@ abstract class GenerateThemesTask : DefaultTask() {
           
           companion object {
             const val COUNT = ${themeColors.size}
+
+            @JvmStatic fun isTinted (@ColorId colorId: Int): Boolean = when (colorId) {
+              ${tintedColors.joinToString(",\n              ") { "ColorId.$it" }} -> true
+              else -> false
+            }
         
             @JvmStatic fun getAll (): MutableSet<Int> = mutableSetOf(
               ${themeColors.joinToString(",\n              ") {

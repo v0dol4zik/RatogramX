@@ -109,8 +109,10 @@ import org.thunderdog.challegram.widget.RadioView;
 import org.thunderdog.challegram.widget.SimplestCheckBox;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -125,7 +127,25 @@ import me.vkryl.core.lambda.CancellableRunnable;
 import me.vkryl.core.lambda.RunnableInt;
 import tgx.td.Td;
 
+import moe.kirao.mgx.utils.BasicThemePalette;
+
 public class ThemeListController extends RecyclerViewController<ThemeListController.Args> implements Menu, View.OnClickListener, ClipboardManager.OnPrimaryClipChangedListener, View.OnLongClickListener {
+  private boolean isBasicEditor () {
+    return getArgumentsStrict().specificSectionId == R.id.theme_category_basic;
+  }
+
+  private Set<Integer> basicAccentIds;
+
+  private Set<Integer> getBasicAccentIds () {
+    if (basicAccentIds == null) {
+      basicAccentIds = new LinkedHashSet<>();
+      for (int id : ThemeColors.getAll()) {
+        if (ThemeColors.isTinted(id) || isMainColor(id)) basicAccentIds.add(id);
+      }
+    }
+    return basicAccentIds;
+  }
+
   public static class Args {
     private final ThemeInfo theme;
     private int specificSectionId;
@@ -390,12 +410,12 @@ public class ThemeListController extends RecyclerViewController<ThemeListControl
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
     Args args = getArgumentsStrict();
 
-    if (args.specificSectionId == R.id.theme_category_settings) {
+    if (args.specificSectionId == R.id.theme_category_settings || isBasicEditor()) {
       DoubleHeaderView headerCell = new DoubleHeaderView(context);
       headerCell.setThemedTextColor(this);
       headerCell.initWithMargin(0, true);
       headerCell.setTitle(args.theme.getName());
-      headerCell.setSubtitle(R.string.ThemeAdvanced);
+      headerCell.setSubtitle(isBasicEditor() ? R.string.BasicThemeEditor : R.string.ThemeAdvanced);
       this.headerCell = headerCell;
     } else if (isLookupMode) {
       HeaderEditText editText = HeaderView.genGreySearchHeader(recyclerView, this);
@@ -1990,6 +2010,24 @@ public class ThemeListController extends RecyclerViewController<ThemeListControl
   }
 
   private int buildCells (List<ListItem> items, @ThemeId int themeId, @Nullable String searchQuery) {
+    if (isBasicEditor()) {
+      int[] labels = {R.string.BasicThemeAccent, R.string.BasicThemeHeader, R.string.BasicThemeFilling,
+        R.string.BasicThemeBackground, R.string.BasicThemeSeparators, R.string.BasicThemeText,
+        R.string.BasicThemeSecondaryText, R.string.BasicThemeChatBackground, R.string.BasicThemeOutgoingBubble,
+        R.string.BasicThemeIncomingBubble, R.string.BasicThemeBubbleText, R.string.BasicThemeBadge};
+      items.add(new ListItem(ListItem.TYPE_EMPTY_OFFSET_SMALL));
+      items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.BasicThemeEditorInfo));
+      items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
+      for (int i = 0; i < BasicThemePalette.COLORS.length; i++) {
+        if (i != 0) items.add(new ListItem(ListItem.TYPE_SEPARATOR));
+        ListItem item = newItem(getTheme(), BasicThemePalette.COLORS[i], false);
+        item.setString(labels[i]);
+        items.add(item);
+      }
+      items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
+      items.add(new ListItem(ListItem.TYPE_LIST_INFO_VIEW));
+      return BasicThemePalette.COLORS.length;
+    }
     int sectionId = getArgumentsStrict().specificSectionId;
     List<Integer> sortedIds;
     if (sectionId == R.id.theme_category_other || sectionId == R.id.theme_category_main || (sectionId == 0 && !StringUtils.isEmpty(searchQuery)))
@@ -2770,6 +2808,19 @@ public class ThemeListController extends RecyclerViewController<ThemeListControl
 
   @Override
   public boolean onLongClick (View v) {
+    if (isBasicEditor() && v.getId() == R.id.btn_color && v.getTag() instanceof ListItem) {
+      int colorId = getDataId((ListItem) v.getTag());
+      showOptions(new int[] {R.id.btn_basicThemeReset}, new String[] {Lang.getString(R.string.BasicThemeReset)}, (view, id) -> {
+        finishColorEditing();
+        Map<Integer, Integer> values = BasicThemePalette.colorsFor(getTheme(),
+          getTheme().getParentTheme(), colorId, null, getBasicAccentIds());
+        applyBasicColors(values, null, false);
+        ColorState state = new ColorState(getTheme().getId(), colorId, getTheme().getColor(colorId), getTheme().getParentTheme().getColor(colorId));
+        ThemeManager.instance().notifyColorChanged(getTheme().getId(), state, false);
+        return true;
+      });
+      return true;
+    }
     if (v.getId() == R.id.btn_colorClear) {
       removeColor(v, true);
       return true;
@@ -2933,6 +2984,14 @@ public class ThemeListController extends RecyclerViewController<ThemeListControl
       ColorState state = (ColorState) colorPicker.getData();
       saveChanges(colorPicker, state);
     }
+  }
+
+  protected final void finishColorEditing () {
+    if (editPosition != -1) setEditPosition(-1, ColorId.NONE, false);
+  }
+
+  protected final void refreshThemeHeader () {
+    if (headerCell instanceof DoubleHeaderView) ((DoubleHeaderView) headerCell).setTitle(getArgumentsStrict().theme.getName());
   }
 
   private void editColor (int position, @ColorId int colorId) {
@@ -3139,6 +3198,13 @@ public class ThemeListController extends RecyclerViewController<ThemeListControl
   }
 
   private void saveColor (@NonNull ColorState state, boolean isTemporaryChange) {
+    if (isBasicEditor()) {
+      Map<Integer, Integer> values = BasicThemePalette.colorsFor(getTheme(), getTheme().getParentTheme(),
+        state.getColorId(), state.isDefault() ? null : state.getColor(), getBasicAccentIds());
+      applyBasicColors(values, state, isTemporaryChange);
+      ThemeManager.instance().notifyColorChanged(getTheme().getId(), state, isTemporaryChange);
+      return;
+    }
     ThemeCustom theme = getTheme();
     int colorId = state.getColorId();
     int currentColor = theme.getColor(colorId);
@@ -3180,6 +3246,27 @@ public class ThemeListController extends RecyclerViewController<ThemeListControl
   }
 
   // Properties
+
+  private void applyBasicColors (Map<Integer, Integer> values, @Nullable ColorState state, boolean temporary) {
+    ThemeCustom theme = getTheme();
+    int customId = ThemeManager.resolveCustomThemeId(theme.getId());
+    if (!temporary) {
+      SharedPreferences.Editor editor = Settings.instance().edit();
+      for (Map.Entry<Integer, Integer> entry : values.entrySet()) {
+        Settings.instance().setCustomThemeColor(customId, entry.getKey(), entry.getValue());
+      }
+      if (state != null) {
+        int[] stack = state.getNewStack();
+        if (state.saveStack(stack)) Settings.instance().setColorHistory(customId, state.getColorId(), stack);
+      }
+      editor.apply();
+    }
+    theme.setColors(values);
+    if (!isDestroyed()) {
+      for (int id : BasicThemePalette.COLORS) updateColorValue(id, false);
+      getRecyclerView().invalidate();
+    }
+  }
 
   private void editProperty (@PropertyId int propertyId) {
     ThemeCustom theme = getTheme();

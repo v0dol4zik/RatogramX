@@ -1613,8 +1613,7 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       ThemeManager.instance().changeGlobalTheme(tdlib, theme.getTheme(), true, () -> editTheme(theme, add));
       return;
     }
-    ThemeController c = new ThemeController(context, tdlib);
-    c.setArguments(new ThemeController.Args(theme, add ? () -> addTheme(theme) : null, this));
+    BasicThemeEditorController c = new BasicThemeEditorController(context, tdlib, theme, add ? () -> addTheme(theme) : null, this);
     navigateTo(c);
   }
 

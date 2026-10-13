@@ -16,6 +16,10 @@ package org.thunderdog.challegram.theme;
 
 import androidx.annotation.Nullable;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 public final class ThemeCustom implements ThemeDelegate {
   @ThemeId
   private int id;
@@ -55,14 +59,21 @@ public final class ThemeCustom implements ThemeDelegate {
 
   @ColorId
   private int lastChangedColorId;
+  private @Nullable Set<Integer> changedColorIds;
 
   public void setColor (@ColorId int colorId, @Nullable Integer color) {
+    changedColorIds = null;
     this.lastChangedColorId = colorId;
     colors.set(colorId, color);
   }
 
   public boolean hasRecentlyChanged (@ColorId int colorId) {
-    return lastChangedColorId == colorId;
+    return changedColorIds != null ? changedColorIds.contains(colorId) : lastChangedColorId == colorId;
+  }
+
+  public void setColors (Map<Integer, Integer> values) {
+    changedColorIds = new HashSet<>(values.keySet());
+    for (Map.Entry<Integer, Integer> entry : values.entrySet()) colors.set(entry.getKey(), entry.getValue());
   }
 
   public boolean hasColor (@ColorId int colorId, boolean onlyModified) {
