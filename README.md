@@ -57,19 +57,6 @@ Ratogram X features and branding.
 The full project lineage and attribution notes are documented in
 [FORK.md](FORK.md) and [NOTICE.md](NOTICE.md).
 
-## Screenshots
-
-The repository includes neutral Ratogram X interface previews in
-[`images/screenshots/ratogramx`](images/screenshots/ratogramx). They contain no
-real accounts or conversations and will be replaced with release-candidate
-captures before the first public release.
-
-![Search and downloads](images/screenshots/ratogramx/01.png)
-![Folder tabs](images/screenshots/ratogramx/02.png)
-![Ratogram settings](images/screenshots/ratogramx/03.png)
-![Profile](images/screenshots/ratogramx/04.png)
-![Navigation drawer](images/screenshots/ratogramx/05.png)
-
 ## Downloads
 
 Verified Ratogram X APKs should be downloaded only from this repository's
