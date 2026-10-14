@@ -87,6 +87,7 @@ import org.thunderdog.challegram.widget.SparseDrawableView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.ViewUtils;
@@ -118,6 +119,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
   private int preparedTrackIndex;
 
   private int buildList (List<ListItem> out, Tdlib tdlib, TdApi.Message currentTrack, List<TdApi.Message> trackList, long playListChatId, int playFlags) {
+    trackSavePermission = tdlib.context().player().getPlayListSavePermission(tdlib);
     final boolean reverseOrder = (playFlags & TGPlayerController.PLAYLIST_FLAG_REVERSE) != 0;
     int remaining = trackList.size();
     long totalDuration = 0l;
@@ -525,6 +527,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
     playList.setPlayListFlags(playFlags & TGPlayerController.PLAYLIST_FLAGS_MASK);
     playList.setPlayListSource(restorePlayListChatId, restorePlayListMaxMessageId, restorePlayListMinMessageId);
     playList.setRemovedMessages(restoreRemovedMessages);
+    playList.setSavePermission(trackSavePermission);
     playList.setReachedEnds(restoreNewEndReached, restoreOldEndReached);
     canRestoreList = false;
     return playList;
@@ -784,6 +787,11 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
 
   private int playFlags;
   private long playListChatId;
+  private @Nullable BooleanSupplier trackSavePermission;
+
+  private boolean canSaveTrack (TdApi.Message message) {
+    return (trackSavePermission == null || trackSavePermission.getAsBoolean()) && tdlib.context().player().canSaveTrack(tdlib, message);
+  }
 
   @Override
   public void onTrackListReset (Tdlib tdlib, @NonNull TdApi.Message currentTrack, int trackIndex, List<TdApi.Message> trackList, long playListChatId, int playFlags, int playState) {
@@ -2368,16 +2376,19 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
     IntList ids = new IntList(6);
     StringList strings = new StringList(6);
     TdApi.Message message = expected.getMessage();
+    boolean canSave = canSaveTrack(message);
 
     TdApi.File file = TD.getFile(message);
-    if (TD.isFileLoaded(file)) {
+    if (canSave && TD.isFileLoaded(file)) {
       ids.append(R.id.btn_saveFile);
       strings.append(R.string.SaveToMusic);
     }
 
     if (message.chatId != 0) {
-      ids.append(R.id.btn_share);
-      strings.append(R.string.Share);
+      if (canSave) {
+        ids.append(R.id.btn_share);
+        strings.append(R.string.Share);
+      }
 
       if (message.id != 0) {
         ids.append(R.id.btn_showInChat);
@@ -2385,8 +2396,10 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
       }
     }
 
-    ids.append(isProfileAudio ? R.id.btn_removeProfileAudio : R.id.btn_pinAudioProfile);
-    strings.append(isProfileAudio ? R.string.RemoveFromProfile : R.string.AddToProfile);
+    if (isProfileAudio || canSave) {
+      ids.append(isProfileAudio ? R.id.btn_removeProfileAudio : R.id.btn_pinAudioProfile);
+      strings.append(isProfileAudio ? R.string.RemoveFromProfile : R.string.AddToProfile);
+    }
 
     if (tracks.size() > 5 && isScrollUnlocked) {
       ids.append(R.id.btn_showInPlaylist);
@@ -2403,6 +2416,8 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
 
   @Override
   public void onMoreItemPressed (int id) {
+    if (currentItem == null) return;
+    if (!canSaveTrack(currentItem.getMessage()) && (id == R.id.btn_share || id == R.id.btn_saveFile || id == R.id.btn_pinAudioProfile)) return;
     if (id == R.id.btn_share) {
       TdApi.Message message = currentItem.getMessage();
       ShareController c = new ShareController(context, tdlib);
@@ -2462,9 +2477,12 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
           return true;
         });
     } else if (id == R.id.btn_pinAudioProfile) {
-      final TdApi.Audio audio = ((TdApi.MessageAudio) currentItem.getMessage().content).audio;
+      final InlineResultCommon expected = currentItem;
+      final TdApi.Message message = expected.getMessage();
+      final TdApi.Audio audio = ((TdApi.MessageAudio) message.content).audio;
       final int fileId = audio.audio.id;
       tdlib.send(new TdApi.IsProfileAudio(fileId), (isPinned, isPinnedError) -> runOnUiThreadOptional(() -> {
+        if (currentItem != expected || !canSaveTrack(message)) return;
         if (isPinnedError == null) {
           UI.showToast(R.string.AudioAlreadyPinned, Toast.LENGTH_SHORT);
         } else {

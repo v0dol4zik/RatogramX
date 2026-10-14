@@ -23,6 +23,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.drinkless.tdlib.TdApi;
+import org.thunderdog.challegram.Log;
+import org.thunderdog.challegram.R;
+import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.loader.ComplexReceiver;
 import org.thunderdog.challegram.loader.DoubleImageReceiver;
 import org.thunderdog.challegram.loader.ImageReceiver;
@@ -48,9 +51,12 @@ import java.util.List;
 import me.vkryl.android.util.MultipleViewProvider;
 import me.vkryl.android.util.ViewProvider;
 import me.vkryl.android.widget.FrameLayoutFix;
+import me.vkryl.core.lambda.Destroyable;
 import tgx.td.Td;
 
-public abstract class PageBlock {
+import moe.kirao.mgx.utils.RichMessageUtils;
+
+public abstract class PageBlock implements Destroyable {
   protected final ViewController<?> context;
   protected final TdApi.PageBlock block;
   protected final int quoteLevel;
@@ -172,6 +178,11 @@ public abstract class PageBlock {
 
   public final void detachFromView (View view) {
     currentViews.detachFromView(view);
+  }
+
+  @Override public void performDestroy () {
+    currentViews.detachFromAllViews();
+    if (chatLinkBlock != null) chatLinkBlock.performDestroy();
   }
 
   public abstract int getRelatedViewType ();
@@ -531,6 +542,18 @@ public abstract class PageBlock {
         context.process(text, out);
         break;
       }
+      case TdApi.PageBlockSectionHeading.CONSTRUCTOR:
+        context.process(new PageBlockRichText(parent, (TdApi.PageBlockSectionHeading) block, context.quoteLevel(), openParameters), out);
+        break;
+      case TdApi.PageBlockMathematicalExpression.CONSTRUCTOR:
+        context.process(new PageBlockRichText(parent, (TdApi.PageBlockMathematicalExpression) block, context.quoteLevel(), openParameters), out);
+        break;
+      case TdApi.PageBlockThinking.CONSTRUCTOR:
+        context.process(new PageBlockRichText(parent, (TdApi.PageBlockThinking) block, context.quoteLevel(), openParameters), out);
+        break;
+      case TdApi.PageBlockButtonRow.CONSTRUCTOR:
+        context.process(new PageBlockRichText(parent, block, context.quoteLevel(), RichMessageUtils.blockText(block), openParameters), out);
+        break;
       case TdApi.PageBlockParagraph.CONSTRUCTOR: {
         PageBlockRichText text = new PageBlockRichText(parent, (TdApi.PageBlockParagraph) block, context.quoteLevel(), openParameters);
         context.process(text, out);
@@ -567,16 +590,25 @@ public abstract class PageBlock {
       case TdApi.PageBlockBlockQuote.CONSTRUCTOR: {
         TdApi.PageBlockBlockQuote quoteRaw = (TdApi.PageBlockBlockQuote) block;
         context.openQuotes.add(quoteRaw);
+        int quoteStart = out.size();
         for (int i = 0; i < quoteRaw.blocks.length; i++) {
           TdApi.PageBlock quoteBlock = quoteRaw.blocks[i];
           parse(parent, out, context, quoteBlock, openParameters);
         }
         if (!Td.isEmpty(quoteRaw.credit)) {
           PageBlockRichText credit = new PageBlockRichText(parent, quoteRaw, context.quoteLevel(), openParameters);
-          credit.mergeWith(out.get(out.size() - 1));
+          if (out.size() > quoteStart) credit.mergeWith(out.get(out.size() - 1));
           context.process(credit, out);
         }
         context.openQuotes.remove(context.openQuotes.size() - 1);
+        break;
+      }
+      case TdApi.PageBlockExpandableBlockQuote.CONSTRUCTOR: {
+        TdApi.PageBlockExpandableBlockQuote quote = (TdApi.PageBlockExpandableBlockQuote) block;
+        context.process(new PageBlockRichText(parent, block, context.quoteLevel() + 1, quote.text, openParameters), out);
+        if (!Td.isEmpty(quote.credit)) {
+          context.process(new PageBlockRichText(parent, block, context.quoteLevel() + 1, quote.credit, openParameters), out);
+        }
         break;
       }
       case TdApi.PageBlockPullQuote.CONSTRUCTOR: {
@@ -755,6 +787,14 @@ public abstract class PageBlock {
       }
 
       // File
+      case TdApi.PageBlockDocument.CONSTRUCTOR: {
+        TdApi.PageBlockDocument document = (TdApi.PageBlockDocument) block;
+        if (document.document != null) {
+          context.process(new PageBlockFile(parent, document, context.quoteLevel(), context.url, context.playListBuilder), out);
+        }
+        context.processCaption(parent, document, document.caption, openParameters, out);
+        break;
+      }
       case TdApi.PageBlockAudio.CONSTRUCTOR: {
         TdApi.PageBlockAudio audioRaw = (TdApi.PageBlockAudio) block;
         if (audioRaw.audio != null) {
@@ -818,7 +858,9 @@ public abstract class PageBlock {
       }
 
       default: {
-        throw new UnsupportedOperationException(block.toString());
+        Log.w("Unsupported page block constructor: %d", block.getConstructor());
+        context.process(new PageBlockRichText(parent, block, context.quoteLevel(), new TdApi.RichTextPlain(Lang.getString(R.string.RichMessageBlockUnsupported)), openParameters), out);
+        break;
       }
     }
   }

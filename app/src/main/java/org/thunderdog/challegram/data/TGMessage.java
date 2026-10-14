@@ -8555,8 +8555,9 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
         case TdApi.MessageGiveaway.CONSTRUCTOR: {
           return new TGMessageGiveaway(context, msg, (TdApi.MessageGiveaway) content);
         }
-        // unsupported
         case TdApi.MessageRichMessage.CONSTRUCTOR:
+          return new TGMessageRichMessage(context, msg, (TdApi.MessageRichMessage) content);
+        // unsupported
         case TdApi.MessageInvoice.CONSTRUCTOR:
         case TdApi.MessagePassportDataSent.CONSTRUCTOR:
         case TdApi.MessageStory.CONSTRUCTOR:
@@ -10011,7 +10012,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
         final TdApi.FormattedText sep = new TdApi.FormattedText(" ", new TdApi.TextEntity[0]);
         TdApi.FormattedText result = new TdApi.FormattedText("", new TdApi.TextEntity[0]);
         for (TdApi.Message msg : combinedMessages) {
-          final TdApi.FormattedText textPart = msg.content != null ? Td.textOrCaption(msg.content) : null;
+          final TdApi.FormattedText textPart = TD.getFormattedText(msg.content);
           if (!Td.isEmpty(textPart)) {
             if (!Td.isEmpty(result)) {
               result = Td.concat(result, sep);
@@ -10022,7 +10023,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
         return !Td.isEmpty(result) ? result : null;
       }
     }
-    return msg.content != null ? Td.textOrCaption(msg.content) : null;
+    return TD.getFormattedText(msg.content);
   }
 
 

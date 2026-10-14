@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="RichMessageLabel">Rich message</string>
+  <string name="RichMessageOpen">Open full message</string>
+  <string name="RichMessageThinking">Thinking…</string>
+  <string name="RichMessageMediaCount">Attachments: %1$d</string>
+  <string name="RichMessageBlockUnsupported">Unsupported block</string>
+  <string name="RichMessageButtonUnsupported">This button action is not supported yet</string>
   <string name="MoexSettings">Ratogram X options</string>
   <string name="GeneralMoexSettings">General</string>
   <string name="InterfaceMoexSettings">Interface</string>

@@ -24,6 +24,7 @@ import org.thunderdog.challegram.loader.Receiver;
 import org.thunderdog.challegram.navigation.ViewController;
 import org.thunderdog.challegram.player.TGPlayerController;
 import org.thunderdog.challegram.ui.ListItem;
+import org.thunderdog.challegram.ui.InstantViewController;
 import org.thunderdog.challegram.util.DrawableProvider;
 
 public class PageBlockFile extends PageBlock {
@@ -32,13 +33,37 @@ public class PageBlockFile extends PageBlock {
 
   public PageBlockFile (ViewController<?> context, TdApi.PageBlock pageBlock, int quoteLevel, String url, TGPlayerController.PlayListBuilder builder) {
     super(context, pageBlock, quoteLevel);
-    this.result = (InlineResultCommon) InlineResult.valueOf(context.context(), context.tdlib(), pageBlock, builder);
+    if (pageBlock instanceof TdApi.PageBlockDocument) {
+      TdApi.Document document = ((TdApi.PageBlockDocument) pageBlock).document;
+      TdApi.Message message = new TdApi.Message();
+      message.content = new TdApi.MessageDocument(document, new TdApi.FormattedText("", new TdApi.TextEntity[0]));
+      message.canBeSaved = true;
+      this.result = new InlineResultCommon(context.context(), context.tdlib(), message, document);
+      if (context instanceof InstantViewController && ((InstantViewController) context).getRichMessageSource() != null) {
+        result.setProgressInteractionAllowed(() -> !((InstantViewController) context).isProtectedRichMessage());
+      }
+    } else {
+      this.result = (InlineResultCommon) InlineResult.valueOf(context.context(), context.tdlib(), pageBlock, builder);
+    }
     this.playListBuilder = builder;
     if (result == null)
-      throw new UnsupportedOperationException(pageBlock.toString());
+      throw new UnsupportedOperationException(Integer.toString(pageBlock.getConstructor()));
     if (pageBlock.getConstructor() == TdApi.PageBlockAudio.CONSTRUCTOR) {
       result.setIsTrack(false);
     }
+    updatePlaybackProtection();
+  }
+
+  public void updatePlaybackProtection () {
+    TdApi.Message message = result.getPlayPauseMessage();
+    if (message != null && context instanceof InstantViewController) {
+      message.canBeSaved = !((InstantViewController) context).isProtectedRichMessage();
+    }
+  }
+
+  @Override public void performDestroy () {
+    super.performDestroy();
+    result.performDestroy();
   }
 
   @Override
@@ -49,6 +74,11 @@ public class PageBlockFile extends PageBlock {
   @Override
   public boolean onClick (View view, boolean isLongPress) {
     if (!isLongPress) {
+      if (block instanceof TdApi.PageBlockDocument) {
+        result.onFileClick(view);
+        return true;
+      }
+      updatePlaybackProtection();
       context.tdlib().context().player().playPauseMessage(context.tdlib(), result.getPlayPauseMessage(), playListBuilder);
       return true;
     }

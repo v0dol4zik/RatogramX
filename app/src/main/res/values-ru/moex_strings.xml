@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="RichMessageLabel">Сообщение с блоками</string>
+  <string name="RichMessageOpen">Открыть полностью</string>
+  <string name="RichMessageThinking">Думает…</string>
+  <string name="RichMessageMediaCount">Вложения: %1$d</string>
+  <string name="RichMessageBlockUnsupported">Неподдерживаемый блок</string>
+  <string name="RichMessageButtonUnsupported">Это действие кнопки пока не поддерживается</string>
   <string name="MoexSettings">Настройки Ratogram X</string>
   <string name="GeneralMoexSettings">Основные</string>
   <string name="InterfaceMoexSettings">Оформление</string>

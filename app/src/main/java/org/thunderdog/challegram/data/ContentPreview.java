@@ -25,6 +25,8 @@ import tgx.td.ChatId;
 import tgx.td.MediaType;
 import tgx.td.Td;
 
+import moe.kirao.mgx.utils.RichMessageUtils;
+
 public class ContentPreview {
   public static final Emoji
     EMOJI_PHOTO = new Emoji("\uD83D\uDDBC", R.drawable.baseline_camera_alt_16); // "\uD83D\uDCF7"
@@ -237,7 +239,7 @@ public class ContentPreview {
     @TdApi.MessageContent.Constructors int type = message.content.getConstructor();
     TdApi.FormattedText formattedText;
     if (allowContent) {
-      formattedText = Td.textOrCaption(message.content);
+      formattedText = TD.getFormattedText(message.content);
       if (message.isOutgoing) {
         TdApi.FormattedText pendingText = tdlib.getPendingFormattedText(message.chatId, message.id);
         if (pendingText != null) {
@@ -281,8 +283,10 @@ public class ContentPreview {
         break;
       }
       case TdApi.MessageRichMessage.CONSTRUCTOR: {
-        TdApi.MessageRichMessage richMessage = (TdApi.MessageRichMessage) message.content;
-        // TODO rich message text representation
+        if (allowContent && Td.isEmpty(formattedText) && RichMessageUtils.isThinking(((TdApi.MessageRichMessage) message.content).message)) {
+          alternativeText = Lang.getString(R.string.RichMessageThinking);
+          alternativeTextTranslatable = true;
+        }
         break;
       }
       case TdApi.MessageAnimatedEmoji.CONSTRUCTOR: {
@@ -1284,6 +1288,8 @@ public class ContentPreview {
     switch (type) {
       case TdApi.MessageText.CONSTRUCTOR:
         return new ContentPreview(arg1 == ARG_TRUE ? EMOJI_LINK : null, R.string.YouHaveNewMessage, formattedArgument, argumentTranslatable);
+      case TdApi.MessageRichMessage.CONSTRUCTOR:
+        return new ContentPreview(null, R.string.RichMessageLabel, formattedArgument, argumentTranslatable);
       case TdApi.MessageAnimatedEmoji.CONSTRUCTOR:
         return new ContentPreview(null, R.string.YouHaveNewMessage, formattedArgument, argumentTranslatable);
       case TdApi.MessagePhoto.CONSTRUCTOR:
@@ -1631,7 +1637,6 @@ public class ContentPreview {
       case TdApi.MessageManagedBotCreated.CONSTRUCTOR:
       case TdApi.MessagePollOptionAdded.CONSTRUCTOR:
       case TdApi.MessagePollOptionDeleted.CONSTRUCTOR:
-      case TdApi.MessageRichMessage.CONSTRUCTOR:
       case TdApi.MessageChatAddedToCommunity.CONSTRUCTOR:
       case TdApi.MessageChatRemovedFromCommunity.CONSTRUCTOR:
         // TODO support these previews

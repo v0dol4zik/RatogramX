@@ -138,6 +138,8 @@ import tgx.td.Td;
 import tgx.td.TdConstants;
 import tgx.td.data.MessageWithProperties;
 
+import moe.kirao.mgx.utils.RichMessageUtils;
+
 public class TD {
 
   public static final int COMBINE_MODE_NONE = 0;
@@ -2267,11 +2269,15 @@ public class TD {
   }
 
   public static TdApi.Message newFakeMessage (TdApi.Audio audio) {
-    return newFakeMessage(0, null, new TdApi.MessageAudio(audio, new TdApi.FormattedText("", null)));
+    TdApi.Message message = newFakeMessage(0, null, new TdApi.MessageAudio(audio, new TdApi.FormattedText("", null)));
+    message.canBeSaved = true;
+    return message;
   }
 
   public static TdApi.Message newFakeMessage (TdApi.VoiceNote voiceNote) {
-    return newFakeMessage(0, null, new TdApi.MessageVoiceNote(voiceNote, new TdApi.FormattedText("", null), true));
+    TdApi.Message message = newFakeMessage(0, null, new TdApi.MessageVoiceNote(voiceNote, new TdApi.FormattedText("", null), true));
+    message.canBeSaved = true;
+    return message;
   }
 
   public static TdApi.Message newFakeMessage (long chatId, TdApi.MessageSender senderId, TdApi.MessageContent content) {
@@ -2651,55 +2657,11 @@ public class TD {
   }
 
   public static String getText (TdApi.RichText richText) {
-    StringBuilder out = new StringBuilder();
-    getText(richText, out);
-    return out.toString();
+    return RichMessageUtils.plainText(richText);
   }
 
   public static void getText (TdApi.RichText richText, StringBuilder b) {
-    if (richText == null)
-      return;
-    switch (richText.getConstructor()) {
-      case TdApi.RichTextBold.CONSTRUCTOR: {
-        getText(((TdApi.RichTextBold) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextStrikethrough.CONSTRUCTOR: {
-        getText(((TdApi.RichTextStrikethrough) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextUnderline.CONSTRUCTOR: {
-        getText(((TdApi.RichTextUnderline) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextUrl.CONSTRUCTOR: {
-        getText(((TdApi.RichTextUrl) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextFixed.CONSTRUCTOR: {
-        getText(((TdApi.RichTextFixed) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextEmailAddress.CONSTRUCTOR: {
-        getText(((TdApi.RichTextEmailAddress) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextItalic.CONSTRUCTOR: {
-        getText(((TdApi.RichTextItalic) richText).text, b);
-        break;
-      }
-      case TdApi.RichTextPlain.CONSTRUCTOR: {
-        b.append(((TdApi.RichTextPlain) richText).text);
-        break;
-      }
-      case TdApi.RichTexts.CONSTRUCTOR: {
-        TdApi.RichTexts richTexts = (TdApi.RichTexts) richText;
-        for (TdApi.RichText text : richTexts.texts) {
-          getText(text, b);
-        }
-        break;
-      }
-    }
+    b.append(getText(richText));
   }
 
   public static void shareLink (TdlibDelegate context, String link) {
@@ -3675,7 +3637,7 @@ public class TD {
   }
 
   public static TdApi.FormattedText getTextFromMessage (TGMessage msg) {
-    return msg != null && msg.getMessage() != null ? Td.textOrCaption(msg.getMessage().content) : null;
+    return msg != null ? msg.getMessageText() : null;
   }
 
   public static String getTextFromMessage (TdApi.Message msg) {
@@ -3753,7 +3715,7 @@ public class TD {
       case TdApi.MessageAudio.CONSTRUCTOR:
         return true;
       case TdApi.MessageRichMessage.CONSTRUCTOR:
-        // TODO rich message
+        // A block editor is required; flattening to MessageText would lose media and layout.
         break;
       default:
         Td.assertMessageContent_af730a78();
@@ -3763,13 +3725,18 @@ public class TD {
   }
 
   public static String getTextFromMessage (TdApi.MessageContent content) {
-    TdApi.FormattedText formattedText = Td.textOrCaption(content);
+    TdApi.FormattedText formattedText = getFormattedText(content);
     return formattedText != null ? formattedText.text : null;
   }
 
   public static String getTextFromMessageSpoilerless (TdApi.MessageContent content) {
-    TdApi.FormattedText formattedText = Td.textOrCaption(content);
+    TdApi.FormattedText formattedText = getFormattedText(content);
     return formattedText != null ? TD.toCharSequence(formattedText, TextEntityOption.NONE, false).toString() : null;
+  }
+
+  public static @Nullable TdApi.FormattedText getFormattedText (@Nullable TdApi.MessageContent content) {
+    return content instanceof TdApi.MessageRichMessage ? RichMessageUtils.text(((TdApi.MessageRichMessage) content).message) :
+      content != null ? Td.textOrCaption(content) : null;
   }
 
   public static @Nullable TdApi.File getFile (TdApi.LinkPreview linkPreview) {
@@ -3831,7 +3798,7 @@ public class TD {
   }
 
   public static boolean canCopyText (TdApi.Message msg) {
-    TdApi.FormattedText text = msg != null ? Td.textOrCaption(msg.content) : null;
+    TdApi.FormattedText text = msg != null ? getFormattedText(msg.content) : null;
     return !Td.isEmpty(Td.trim(text));
   }
 
@@ -4035,6 +4002,8 @@ public class TD {
       return null;
     }
     switch (msg.content.getConstructor()) {
+      case TdApi.MessageRichMessage.CONSTRUCTOR:
+        return RichMessageUtils.files(((TdApi.MessageRichMessage) msg.content).message);
       case TdApi.MessageVideo.CONSTRUCTOR: {
         TdApi.MessageVideo video = (TdApi.MessageVideo) msg.content;
         List<TdApi.File> files = new ArrayList<>();
@@ -4092,6 +4061,8 @@ public class TD {
       return null;
     }
     switch (msg.content.getConstructor()) {
+      case TdApi.MessageRichMessage.CONSTRUCTOR:
+        return RichMessageUtils.firstFile(((TdApi.MessageRichMessage) msg.content).message);
       case TdApi.MessagePhoto.CONSTRUCTOR: {
         TdApi.MessagePhoto photo = (TdApi.MessagePhoto) msg.content;
         return getFile(photo.photo);

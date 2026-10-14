@@ -2854,6 +2854,7 @@ public class Text implements Runnable, Emoji.CountLimiter, CounterTextPart, List
   // Touch util
 
   public interface ClickCallback {
+    default boolean allowLongPress (View view, Text text, TextPart part) { return true; }
     @Nullable
     default ThemeDelegate getForcedTheme (View view, Text text) { return null; }
     default boolean forceInstantView (String link) { return false; }
@@ -3200,6 +3201,10 @@ public class Text implements Runnable, Emoji.CountLimiter, CounterTextPart, List
 
   public boolean performLongPress (final View view) {
     final ClickCallback callback = longPressTargetCallback;
+    if (callback != null && !callback.allowLongPress(view, this, null)) {
+      cancelTouch();
+      return false;
+    }
 
     if (pressedQuote != null) {
       final QuoteBackground quote = pressedQuote;

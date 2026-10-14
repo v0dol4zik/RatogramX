@@ -66,6 +66,11 @@ import me.vkryl.core.StringUtils;
 import tgx.td.Td;
 
 public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickListener, MediaCollectorDelegate, MediaViewDelegate {
+  @Override public void performDestroy () {
+    super.performDestroy();
+    if (wrapper != null) wrapper.destroy();
+    if (wrappers != null) for (MediaWrapper media : wrappers) if (media != wrapper) media.destroy();
+  }
   public static final float MEDIA_MARGIN = 16f, MEDIA_POST_MARGIN = 8f;
 
   private @Nullable MediaWrapper wrapper;
@@ -90,6 +95,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
     this.urlOpenParameters = urlOpenParameters;
     if (photo.photo != null) {
       wrapper = new MediaWrapper(context.context(), context.tdlib(), photo.photo, 0, 0, null, false, false, nativeEmbed);
+      wrapper.setRevealOnTap(photo.hasSpoiler);
       initWrapper(wrapper);
       setCaption(photo.caption);
       setUrl(photo.url);
@@ -137,6 +143,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
     this.useGif = true;
     if (animation.animation != null) {
       wrapper = new MediaWrapper(context.context(), context.tdlib(), animation.animation, 0, 0, null, false, true, !animation.needAutoplay, null);
+      wrapper.setRevealOnTap(animation.hasSpoiler);
       initWrapper(wrapper);
       setCaption(animation.caption);
     }
@@ -146,6 +153,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
     super(context, video, quoteLevel);
     if (video.video != null) {
       wrapper = new MediaWrapper(context.context(), context.tdlib(), video.video, null, 0, 0, null, false);
+      wrapper.setRevealOnTap(video.hasSpoiler);
       initWrapper(wrapper);
       setCaption(video.caption);
     }
@@ -190,6 +198,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
           TdApi.PageBlockPhoto photo = (TdApi.PageBlockPhoto) pageBlock;
           if (photo.photo != null) {
             wrapper = new MediaWrapper(context.context(), context.tdlib(), photo.photo, 0, 0, null, false);
+            wrapper.setRevealOnTap(photo.hasSpoiler);
             initWrapper(wrapper);
             caption = photo.caption;
           }
@@ -199,6 +208,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
           TdApi.PageBlockVideo video = (TdApi.PageBlockVideo) pageBlock;
           if (video.video != null) {
             wrapper = new MediaWrapper(context.context(), context.tdlib(), video.video, null, 0, 0, null, false);
+            wrapper.setRevealOnTap(video.hasSpoiler);
             initWrapper(wrapper);
             caption = video.caption;
           }
@@ -208,6 +218,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
           TdApi.PageBlockAnimation animation = (TdApi.PageBlockAnimation) pageBlock;
           if (animation.animation != null) {
             wrapper = new MediaWrapper(context.context(), context.tdlib(), animation.animation, 0, 0, null, false, true, !animation.needAutoplay, null);
+            wrapper.setRevealOnTap(animation.hasSpoiler);
             initWrapper(wrapper);
             caption = animation.caption;
           }
@@ -474,6 +485,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
 
   @Override
   public boolean onClick (View view, MediaWrapper clickWrapper) {
+    if (context instanceof InstantViewController && ((InstantViewController) context).isProtectedRichMessage()) return openMedia(clickWrapper);
     if (map != null) {
       context.tdlib().ui().openMap(context, new MapController.Args(map.location.latitude, map.location.longitude));
       return true;
@@ -561,6 +573,10 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
       }
 
       if (parsedItem != null) {
+        parsedItem.setHasSpoiler(wrapper.hasSpoiler());
+        if (context instanceof InstantViewController && ((InstantViewController) context).getRichMessageSource() != null) {
+          parsedItem.setSavePermission(() -> !((InstantViewController) context).isProtectedRichMessage());
+        }
         if (wrapper == clickWrapper) {
           foundIndex = i;
         }

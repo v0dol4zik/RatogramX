@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 import me.vkryl.core.ArrayUtils;
 import me.vkryl.core.BitwiseUtils;
@@ -161,6 +162,7 @@ public class TGPlayerController implements GlobalMessageListener, ProximityManag
   private long playlistSearchNextFromMessageId;
   private @Nullable PlayListLoader playlistLoader;
   private @Nullable PlayListReorderHandler playlistReorderHandler;
+  private @Nullable BooleanSupplier playlistSavePermission;
 
   private final ProximityManager proximityManager;
   private final TdlibManager context;
@@ -312,7 +314,28 @@ public class TGPlayerController implements GlobalMessageListener, ProximityManag
 
   private void clearMessagesImpl () {
     messageList.clear();
+    playlistSavePermission = null;
     clearFilesImpl();
+  }
+
+  public boolean canSaveTrack (Tdlib tdlib, TdApi.Message track) {
+    if (!track.canBeSaved) return false;
+    TdApi.Chat chat = tdlib.chat(track.chatId);
+    if (chat != null && chat.hasProtectedContent) return false;
+    synchronized (this) {
+      if (this.tdlib == tdlib && playlistSavePermission != null) {
+        for (TdApi.Message item : messageList) {
+          if (compareTracks(item, track)) return playlistSavePermission.getAsBoolean();
+        }
+      }
+    }
+    return true;
+  }
+
+  public @Nullable BooleanSupplier getPlayListSavePermission (Tdlib tdlib) {
+    synchronized (this) {
+      return this.tdlib == tdlib ? playlistSavePermission : null;
+    }
   }
 
   private void addFileImpl (@Nullable TdApi.File file) {
@@ -1248,6 +1271,7 @@ public class TGPlayerController implements GlobalMessageListener, ProximityManag
       this.playlistInlineQuery = null;
       this.playlistLoader = null;
       this.playlistReorderHandler = null;
+      this.playlistSavePermission = null;
       this.playlistInlineNextOffset = this.playlistSearchNextOffset = null; this.playlistSearchNextFromMessageId = 0;
       this.removedMessageList.clear();
       if (playList != null) {
@@ -1273,6 +1297,7 @@ public class TGPlayerController implements GlobalMessageListener, ProximityManag
         playlistInlineQuery = playList.inlineQuery;
         playlistLoader = playList.loader;
         playlistReorderHandler = playList.reorderHandler;
+        playlistSavePermission = playList.savePermission;
       }
       if (TD.isScheduled(message)) {
         messageListStateFlags |= LIST_STATE_LOADED_NEW | LIST_STATE_LOADED_OLD;
@@ -1897,6 +1922,7 @@ public class TGPlayerController implements GlobalMessageListener, ProximityManag
     private String inlineNextOffset;
     private @Nullable PlayListLoader loader;
     private @Nullable PlayListReorderHandler reorderHandler;
+    private @Nullable BooleanSupplier savePermission;
 
     /**
      * @param messages messages list in the ascending order from older to newer messages
@@ -1954,6 +1980,11 @@ public class TGPlayerController implements GlobalMessageListener, ProximityManag
      */
     public PlayList setReorderHandler (@Nullable PlayListReorderHandler reorderHandler) {
       this.reorderHandler = reorderHandler;
+      return this;
+    }
+
+    public PlayList setSavePermission (@Nullable BooleanSupplier savePermission) {
+      this.savePermission = savePermission;
       return this;
     }
 

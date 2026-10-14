@@ -19,6 +19,7 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 
 import org.drinkless.tdlib.TdApi;
+import moe.kirao.mgx.utils.RichMessageUtils;
 import org.thunderdog.challegram.data.ContentPreview;
 import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.loader.ComplexReceiver;
@@ -313,8 +314,7 @@ public abstract class MediaPreview implements ListAnimator.Measurable {
         break;
       }
       case TdApi.MessageRichMessage.CONSTRUCTOR: {
-        // TODO extract first big photo
-        return null;
+        return valueOfRichMessage(tdlib, ((TdApi.MessageRichMessage) message.content).message, size, cornerRadius);
       }
       case TdApi.MessagePhoto.CONSTRUCTOR: {
         TdApi.MessagePhoto messagePhoto = (TdApi.MessagePhoto) message.content;
@@ -537,6 +537,28 @@ public abstract class MediaPreview implements ListAnimator.Measurable {
   }
 
   protected final int size;
+
+  public static @Nullable MediaPreview valueOfRichMessage (Tdlib tdlib, TdApi.RichMessage message, int size, int cornerRadius) {
+    for (TdApi.PageBlock block : RichMessageUtils.leafBlocks(message)) {
+      MediaPreview preview = null;
+      if (block instanceof TdApi.PageBlockPhoto && ((TdApi.PageBlockPhoto) block).photo != null) {
+        TdApi.PageBlockPhoto photo = (TdApi.PageBlockPhoto) block;
+        preview = valueOf(tdlib, photo.photo, size, cornerRadius, photo.hasSpoiler);
+      } else if (block instanceof TdApi.PageBlockVideo && ((TdApi.PageBlockVideo) block).video != null) {
+        TdApi.PageBlockVideo video = (TdApi.PageBlockVideo) block;
+        preview = valueOf(tdlib, video.video, size, cornerRadius, video.hasSpoiler);
+      } else if (block instanceof TdApi.PageBlockAnimation && ((TdApi.PageBlockAnimation) block).animation != null) {
+        TdApi.PageBlockAnimation animation = (TdApi.PageBlockAnimation) block;
+        preview = valueOf(tdlib, animation.animation, size, cornerRadius, animation.hasSpoiler);
+      } else if (block instanceof TdApi.PageBlockDocument && ((TdApi.PageBlockDocument) block).document != null) {
+        preview = valueOf(tdlib, ((TdApi.PageBlockDocument) block).document, size, cornerRadius);
+      } else if (block instanceof TdApi.PageBlockAudio && ((TdApi.PageBlockAudio) block).audio != null) {
+        preview = valueOf(tdlib, ((TdApi.PageBlockAudio) block).audio, size, cornerRadius);
+      }
+      if (preview != null) return preview;
+    }
+    return null;
+  }
   protected int cornerRadius;
 
   protected MediaPreview (int size, int cornerRadius) {

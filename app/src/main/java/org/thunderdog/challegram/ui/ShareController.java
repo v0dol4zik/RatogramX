@@ -791,10 +791,14 @@ public class ShareController extends TelegramViewController<ShareController.Args
               break;
             case TdApi.MessageAnimatedEmoji.CONSTRUCTOR:
             case TdApi.MessageText.CONSTRUCTOR:
-            case TdApi.MessageRichMessage.CONSTRUCTOR:
               title1Res = R.string.ShareTitleText;
               title2Res = R.string.ShareTitleMediaX;
               textRes = R.string.ShareTextPlain;
+              break;
+            case TdApi.MessageRichMessage.CONSTRUCTOR:
+              title1Res = R.string.RichMessageLabel;
+              title2Res = R.string.ShareTitleMediaX;
+              textRes = R.string.ShareTextMedia;
               break;
             default:
               Td.assertMessageContent_af730a78();
@@ -816,7 +820,7 @@ public class ShareController extends TelegramViewController<ShareController.Args
           TdApi.FormattedText messageCaption = null;
           if (authorId != 0) {
             for (TdApi.Message message : args.messages) {
-              TdApi.FormattedText formattedCaption = Td.textOrCaption(message.content);
+              TdApi.FormattedText formattedCaption = TD.getFormattedText(message.content);
               //noinspection UnsafeOptInUsageError
               if (Td.isEmpty(messageCaption)) {
                 messageCaption = formattedCaption;
@@ -3200,6 +3204,8 @@ public class ShareController extends TelegramViewController<ShareController.Args
   private static boolean canExportStaticContent (TdApi.Message msg) {
     //noinspection SwitchIntDef
     switch (msg.content.getConstructor()) {
+      case TdApi.MessageRichMessage.CONSTRUCTOR:
+        return msg.canBeSaved && !Td.isEmpty(TD.getFormattedText(msg.content));
       case TdApi.MessageContact.CONSTRUCTOR:
         return true;
     }
@@ -3209,6 +3215,9 @@ public class ShareController extends TelegramViewController<ShareController.Args
   private void exportStaticContent (TdApi.Message msg) {
     //noinspection SwitchIntDef
     switch (msg.content.getConstructor()) {
+      case TdApi.MessageRichMessage.CONSTRUCTOR:
+        if (msg.canBeSaved) Intents.shareText(TD.toCharSequence(TD.getFormattedText(msg.content)).toString());
+        break;
       case TdApi.MessageContact.CONSTRUCTOR: {
         TdApi.Contact contact = ((TdApi.MessageContact) msg.content).contact;
         exportContact(contact.phoneNumber, contact.firstName, contact.lastName, contact.userId != 0 ? tdlib.cache().userUsernames(contact.userId) : null, contact.vcard);
@@ -3435,7 +3444,7 @@ public class ShareController extends TelegramViewController<ShareController.Args
               messageReplyIncluded = false;
               break;
             }
-            if (!Td.isEmpty(Td.textOrCaption(message.content))) {
+            if (!Td.isEmpty(TD.getFormattedText(message.content))) {
               if (contentfulMediaMessageId != 0) {
                 messageReplyIncluded = false;
                 break;

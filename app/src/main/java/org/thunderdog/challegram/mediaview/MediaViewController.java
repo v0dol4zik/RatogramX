@@ -1749,12 +1749,15 @@ public class MediaViewController extends ViewController<MediaViewController.Args
   @Override
   public void onMoreItemPressed (int id) {
     MediaItem item = stack.getCurrent();
+    if (item == null) return;
+    if (!item.canBeSaved() && (id == R.id.btn_saveToGallery || id == R.id.btn_copyPhoto || id == R.id.btn_saveGif || id == R.id.btn_open || id == R.id.btn_share)) return;
+    if (id == R.id.btn_share && !item.canBeShared()) return;
     if (id == R.id.btn_saveToGallery) {
       TdApi.File file = item.getTargetFile();
       tdlib.files().isFileLoadedAndExists(file, isLoadedAndExists -> {
         if (isLoadedAndExists) {
           runOnUiThreadOptional(() -> {
-            U.copyToGallery(context, file.local.path, item.isAnimatedAvatar() || item.isGifType() ? U.TYPE_GIF : item.isVideo() ? U.TYPE_VIDEO : U.TYPE_PHOTO);
+            if (item.canBeSaved()) U.copyToGallery(context, file.local.path, item.isAnimatedAvatar() || item.isGifType() ? U.TYPE_GIF : item.isVideo() ? U.TYPE_VIDEO : U.TYPE_PHOTO);
           });
         }
       });
@@ -1762,7 +1765,9 @@ public class MediaViewController extends ViewController<MediaViewController.Args
       TdApi.File file = item.getTargetFile();
       tdlib.files().isFileLoadedAndExists(file, isLoadedAndExists -> {
         if (isLoadedAndExists) {
-          runOnUiThreadOptional(() -> SystemUtils.copyFileToClipboard(file, R.string.CopiedPhoto));
+          runOnUiThreadOptional(() -> {
+            if (item.canBeSaved()) SystemUtils.copyFileToClipboard(file, R.string.CopiedPhoto);
+          });
         }
       });
     } else if (id == R.id.btn_saveGif) {

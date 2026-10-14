@@ -61,6 +61,7 @@ import org.thunderdog.challegram.tool.Views;
 import org.thunderdog.challegram.util.DrawableProvider;
 
 import java.io.File;
+import java.util.function.BooleanSupplier;
 
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.animator.BoolAnimator;
@@ -162,6 +163,9 @@ public class FileProgressComponent implements TdlibFilesManager.FileListener, Fa
 
   private @Nullable SimpleListener listener;
   private @Nullable FallbackFileProvider fallbackFileProvider;
+  private @Nullable BooleanSupplier fileOpenPermission;
+
+  public void setFileOpenPermission (@Nullable BooleanSupplier permission) { fileOpenPermission = permission; }
 
   private TdApi.Message playPauseFile;
   private TGPlayerController.PlayListBuilder playListBuilder;
@@ -542,13 +546,14 @@ public class FileProgressComponent implements TdlibFilesManager.FileListener, Fa
 
   private void runOnUiThreadOptional (ViewController<?> c, Runnable runnable) {
     c.runOnUiThreadOptional(() -> {
-      if (!isDestroyed) {
+      if (!isDestroyed && (fileOpenPermission == null || fileOpenPermission.getAsBoolean())) {
         runnable.run();
       }
     });
   }
 
   public boolean openFile (ViewController<?> c, Runnable defaultOpen) {
+    if (fileOpenPermission != null && !fileOpenPermission.getAsBoolean()) return false;
     if (file != null && fileType == TdlibFilesManager.DOWNLOAD_FLAG_FILE) {
       if (c != null && c.tdlib() == tdlib) {
         if (isLocal) {

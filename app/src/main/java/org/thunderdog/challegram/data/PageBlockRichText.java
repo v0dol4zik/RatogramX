@@ -52,6 +52,7 @@ import org.thunderdog.challegram.util.text.TextEntity;
 import org.thunderdog.challegram.util.text.TextStyleProvider;
 import org.thunderdog.challegram.util.text.TextWrapper;
 import org.thunderdog.challegram.widget.PageBlockView;
+import org.thunderdog.challegram.widget.ProgressComponent;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -66,6 +67,8 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.DateUtils;
 import tgx.td.ChatId;
 import tgx.td.Td;
+
+import moe.kirao.mgx.utils.RichMessageUtils;
 
 public class PageBlockRichText extends PageBlock {
   public static final float TEXT_HORIZONTAL_OFFSET = 16f;
@@ -135,6 +138,38 @@ public class PageBlockRichText extends PageBlock {
     setText(new TdApi.RichTextBold(header.subheader), getSubheaderProvider(), TextColorSets.InstantView.SUBHEADER, Text.FLAG_ARTICLE, openParameters);
     this.paddingTop = 8f;
     // setPadding(14f);
+  }
+
+  public PageBlockRichText (ViewController<?> context, TdApi.PageBlockSectionHeading heading, int quoteLevel, @Nullable TdlibUi.UrlOpenParameters openParameters) {
+    super(context, heading, quoteLevel);
+    float[] sizes = {24f, 21f, 19f, 18f, 16f, 14f};
+    TextStyleProvider provider = new TextStyleProvider(Fonts.newRobotoStorage());
+    provider.setTextSize(sizes[Math.max(1, Math.min(6, heading.size)) - 1]);
+    setText(new TdApi.RichTextBold(heading.text), provider, TextColorSets.InstantView.HEADER, Text.FLAG_ARTICLE, openParameters);
+    paddingTop = 14f;
+    paddingBottom = 8f;
+  }
+
+  public PageBlockRichText (ViewController<?> context, TdApi.PageBlockMathematicalExpression formula, int quoteLevel, @Nullable TdlibUi.UrlOpenParameters openParameters) {
+    super(context, formula, quoteLevel);
+    setText(new TdApi.RichTextFixed(new TdApi.RichTextPlain(formula.expression)), getPreformattedProvider(), TextColorSets.InstantView.NORMAL, Text.FLAG_ARTICLE, openParameters);
+    backgroundColorId = ColorId.iv_preBlockBackground;
+    textHorizontalOffset = TEXT_HORIZONTAL_OFFSET_PRE_BLOCK;
+  }
+
+  private ProgressComponent thinkingProgress;
+
+  public PageBlockRichText (ViewController<?> context, TdApi.PageBlockThinking thinking, int quoteLevel, @Nullable TdlibUi.UrlOpenParameters openParameters) {
+    super(context, thinking, quoteLevel);
+    TdApi.RichText label = RichMessageUtils.plainText(thinking.text).isEmpty() ? new TdApi.RichTextPlain(Lang.getString(R.string.RichMessageThinking)) : thinking.text;
+    setText(label, getParagraphProvider(), TextColorSets.InstantView.CAPTION, Text.FLAG_ARTICLE, openParameters);
+    thinkingProgress = new ProgressComponent(context.context(), Screen.dp(6f));
+    thinkingProgress.setViewProvider(currentViews);
+  }
+
+  public PageBlockRichText (ViewController<?> context, TdApi.PageBlock block, int quoteLevel, TdApi.RichText text, @Nullable TdlibUi.UrlOpenParameters openParameters) {
+    super(context, block, quoteLevel);
+    setText(text, getParagraphProvider(), TextColorSets.InstantView.NORMAL, Text.FLAG_ARTICLE, openParameters);
   }
 
   public PageBlockRichText (ViewController<?> context, TdApi.PageBlockKicker kicker, int quoteLevel, @Nullable TdlibUi.UrlOpenParameters openParameters) {
@@ -438,6 +473,16 @@ public class PageBlockRichText extends PageBlock {
 
   private @Nullable TextWrapper text, subtitle;
 
+  @Override public void performDestroy () {
+    super.performDestroy();
+    if (text != null) text.performDestroy();
+    if (subtitle != null) subtitle.performDestroy();
+    if (thinkingProgress != null) {
+      thinkingProgress.setViewProvider(null);
+      thinkingProgress.performDestroy();
+    }
+  }
+
   private void setText (TdApi.RichText richText, TextStyleProvider textStyleProvider, TextColorSet colorSet, @Nullable TdlibUi.UrlOpenParameters openParameters) {
     setText(richText, textStyleProvider, colorSet, 0, openParameters);
   }
@@ -480,7 +525,7 @@ public class PageBlockRichText extends PageBlock {
   private static final float QUOTE_OFFSET = 12f;
 
   private int getTextPaddingLeft () {
-    return Math.max(getMinimumContentPadding(true), !isPost && listItemInfo != null ? 0 : Screen.dp(textHorizontalOffset)) + (needAvatar ? Screen.dp(40f) + Screen.dp(14f) : 0) + (detailsOpened != null ? Screen.dp(24f) : 0);
+    return Math.max(getMinimumContentPadding(true), !isPost && listItemInfo != null ? 0 : Screen.dp(textHorizontalOffset)) + (needAvatar ? Screen.dp(40f) + Screen.dp(14f) : 0) + (detailsOpened != null ? Screen.dp(24f) : 0) + (thinkingProgress != null ? Screen.dp(26f) : 0);
   }
 
   private int getTextPaddingRight () {
@@ -560,6 +605,12 @@ public class PageBlockRichText extends PageBlock {
       int viewWidth = view.getMeasuredWidth();
       int textLeft = getTextPaddingLeft();
       int textTop = getContentTop();
+
+      if (thinkingProgress != null) {
+        int left = textLeft - Screen.dp(26f);
+        thinkingProgress.setBounds(left, textTop, left + Screen.dp(20f), textTop + Screen.dp(20f));
+        thinkingProgress.draw(c);
+      }
 
       if (forceBackground && backgroundColorId != ColorId.NONE) {
         c.drawRect(0, 0, viewWidth, getComputedHeight(), Paints.fillingPaint(Theme.getColor(backgroundColorId)));

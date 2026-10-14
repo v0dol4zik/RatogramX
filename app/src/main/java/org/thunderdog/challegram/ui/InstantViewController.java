@@ -50,6 +50,8 @@ import org.thunderdog.challegram.player.TGPlayerController;
 import org.thunderdog.challegram.support.ViewSupport;
 import org.thunderdog.challegram.telegram.TGLegacyManager;
 import org.thunderdog.challegram.telegram.Tdlib;
+import org.thunderdog.challegram.telegram.MessageListener;
+import org.thunderdog.challegram.telegram.ChatListener;
 import org.thunderdog.challegram.telegram.TdlibUi;
 import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
@@ -61,6 +63,7 @@ import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.tool.Views;
 import org.thunderdog.challegram.util.text.Text;
+import org.thunderdog.challegram.util.text.TextPart;
 import org.thunderdog.challegram.util.text.TextWrapper;
 import org.thunderdog.challegram.widget.FillingDecoration;
 import org.thunderdog.challegram.widget.PageBlockView;
@@ -74,17 +77,63 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.StringUtils;
 import tgx.td.Td;
 
-public class InstantViewController extends ViewController<InstantViewController.Args> implements Menu, TGLegacyManager.EmojiLoadListener, Text.ClickCallback, View.OnClickListener, View.OnLongClickListener, TGPlayerController.PlayListBuilder {
+import moe.kirao.mgx.utils.RichMessageActions;
+
+public class InstantViewController extends ViewController<InstantViewController.Args> implements Menu, TGLegacyManager.EmojiLoadListener, Text.ClickCallback, View.OnClickListener, View.OnLongClickListener, TGPlayerController.PlayListBuilder, MessageListener, ChatListener {
   public static class Args {
     public final TdApi.LinkPreview linkPreview;
     public TdApi.WebPageInstantView instantView;
     public String anchorLink;
+    public @Nullable TdApi.Message sourceMessage;
+    public boolean allowForward;
 
     public Args (TdApi.LinkPreview linkPreview, TdApi.WebPageInstantView instantView, String anchorLink) {
       this.linkPreview = linkPreview;
       this.instantView = instantView;
       this.anchorLink = anchorLink;
     }
+
+    public static Args forRichMessage (TdApi.Message message, TdApi.RichMessage content, boolean allowForward) {
+      TdApi.LinkPreview preview = new TdApi.LinkPreview();
+      preview.url = "tg://openmessage?chat_id=" + message.chatId + "&message_id=" + message.id;
+      preview.displayUrl = preview.siteName = Lang.getString(R.string.RichMessageLabel);
+      Args args = new Args(preview, instantViewOf(content), null);
+      args.sourceMessage = Td.copyOf(message);
+      args.sourceMessage.content = new TdApi.MessageRichMessage(content);
+      args.allowForward = allowForward;
+      return args;
+    }
+  }
+
+  private static TdApi.WebPageInstantView instantViewOf (TdApi.RichMessage content) {
+    TdApi.WebPageInstantView view = new TdApi.WebPageInstantView();
+    view.blocks = content.blocks;
+    view.isRtl = content.isRtl;
+    view.isFull = content.isFull;
+    view.version = 2;
+    return view;
+  }
+
+  private int richGeneration;
+  private boolean richSourceGone, richFullRequestRunning;
+
+  public @Nullable TdApi.Message getRichMessageSource () { return getArgumentsStrict().sourceMessage; }
+
+  public boolean isProtectedRichMessage () {
+    TdApi.Message source = getRichMessageSource();
+    if (source == null) return false;
+    TdApi.Chat chat = tdlib.chat(source.chatId);
+    return richSourceGone || !source.canBeSaved || (chat != null && chat.hasProtectedContent);
+  }
+
+  @Override public boolean allowLongPress (View view, Text text, TextPart part) { return !isProtectedRichMessage(); }
+
+  @Override public boolean onButtonClick (View view, TdApi.InlineButton button, @NonNull TdlibUi.UrlOpenParameters openParameters) {
+    return RichMessageActions.onButtonClick(this, button, openParameters, !isProtectedRichMessage());
+  }
+
+  @Override public boolean shouldDisallowScreenshots () {
+    return isProtectedRichMessage() || super.shouldDisallowScreenshots();
   }
 
   public InstantViewController (Context context, Tdlib tdlib) {
@@ -98,6 +147,7 @@ public class InstantViewController extends ViewController<InstantViewController.
 
   @Override
   protected int getMenuId () {
+    if (getRichMessageSource() != null && (!getArgumentsStrict().allowForward || isProtectedRichMessage())) return 0;
     return R.id.menu_iv;
   }
 
@@ -140,6 +190,13 @@ public class InstantViewController extends ViewController<InstantViewController.
   @Override
   public void onMenuItemPressed (int id, View view) {
     if (id == R.id.menu_btn_forward) {
+      if (getRichMessageSource() != null) {
+        if (!getArgumentsStrict().allowForward || isProtectedRichMessage()) return;
+        ShareController share = new ShareController(context, tdlib);
+        share.setArguments(new ShareController.Args(getRichMessageSource()));
+        share.show();
+        return;
+      }
       String link = getArgumentsStrict().linkPreview.url;
       ShareController c = new ShareController(context, tdlib);
       ShareController.Args args = new ShareController.Args(link);
@@ -208,6 +265,7 @@ public class InstantViewController extends ViewController<InstantViewController.
           int itemCount = 0;
           for (int i = blockIndex + 1; i < adapter.getItems().size(); i++) {
             if (((PageBlock) adapter.getItem(i).getData()).isChildOf(pageBlock)) {
+              ((PageBlock) adapter.getItem(i).getData()).performDestroy();
               itemCount++;
             } else {
               break;
@@ -222,6 +280,7 @@ public class InstantViewController extends ViewController<InstantViewController.
 
   @Override
   public boolean onLongClick (View v) {
+    if (isProtectedRichMessage()) return true;
     PageBlock pageBlock = getPageBlock(v);
     return pageBlock != null && pageBlock.isClickable() && pageBlock.onClick(v, true);
   }
@@ -429,6 +488,11 @@ public class InstantViewController extends ViewController<InstantViewController.
 
     TGLegacyManager.instance().addEmojiListener(this);
     ThemeManager.instance().addThemeListener(this);
+    if (getRichMessageSource() != null) {
+      tdlib.listeners().subscribeToMessageUpdates(getRichMessageSource().chatId, this);
+      tdlib.listeners().subscribeToChatUpdates(getRichMessageSource().chatId, this);
+      requestFullRichMessage();
+    }
 
     return contentView;
   }
@@ -440,6 +504,12 @@ public class InstantViewController extends ViewController<InstantViewController.
 
   @Override
   public void destroy () {
+    richGeneration++;
+    if (adapter != null) destroyPageBlocks();
+    if (getRichMessageSource() != null) {
+      tdlib.listeners().unsubscribeFromMessageUpdates(getRichMessageSource().chatId, this);
+      tdlib.listeners().unsubscribeFromChatUpdates(getRichMessageSource().chatId, this);
+    }
     super.destroy();
     Views.destroyRecyclerView(recyclerView);
     ThemeManager.instance().removeThemeListener(this);
@@ -447,6 +517,12 @@ public class InstantViewController extends ViewController<InstantViewController.
   }
 
   private ArrayList<PageBlockMedia> mediaBlocks;
+
+  private void destroyPageBlocks () {
+    for (ListItem item : adapter.getItems()) {
+      if (item.getData() instanceof PageBlock) ((PageBlock) item.getData()).performDestroy();
+    }
+  }
 
   private void rebuildMediaBlocks () {
     mediaBlocks.clear();
@@ -466,7 +542,7 @@ public class InstantViewController extends ViewController<InstantViewController.
     Args args = getArgumentsStrict();
     final TdApi.WebPageInstantView instantView = args.instantView;
 
-    if (isReplace && !instantView.isFull) {
+    if (isReplace && !instantView.isFull && args.sourceMessage == null) {
       Log.e("TDLib error: instantView.isFull returned false on the second call");
       return;
     }
@@ -481,15 +557,23 @@ public class InstantViewController extends ViewController<InstantViewController.
     }
 
     this.mediaBlocks = mediaBlocks;
+    LinearLayoutManager layout = (LinearLayoutManager) recyclerView.getLayoutManager();
+    int position = isReplace && args.sourceMessage != null ? layout.findFirstVisibleItemPosition() : RecyclerView.NO_POSITION;
+    View topView = position != RecyclerView.NO_POSITION ? layout.findViewByPosition(position) : null;
+    int top = topView != null ? topView.getTop() - recyclerView.getPaddingTop() : 0;
     // recyclerView.setItemAnimator(null);
+    if (isReplace) destroyPageBlocks();
     adapter.setItems(items, false);
+    if (position != RecyclerView.NO_POSITION && !items.isEmpty()) {
+      layout.scrollToPositionWithOffset(Math.min(position, items.size() - 1), top);
+    }
     recyclerView.invalidateItemDecorations();
     if (!StringUtils.isEmpty(args.anchorLink)) {
       scrollToAnchor(args.anchorLink, false);
     }
     // recyclerView.setItemAnimator(new CustomItemAnimator(Anim.DECELERATE_INTERPOLATOR, 180l));
 
-    if (!isReplace) {
+    if (!isReplace && args.sourceMessage == null) {
       tdlib.send(new TdApi.GetWebPageInstantView(getUrl(), false), (webPageInstantView, error) -> {
         if (error != null) {
           UI.showError(error);
@@ -516,6 +600,73 @@ public class InstantViewController extends ViewController<InstantViewController.
 
   public String getUrl () {
     return getArgumentsStrict().linkPreview.url;
+  }
+
+  private void replaceRichMessage (TdApi.RichMessage content) {
+    getRichMessageSource().content = new TdApi.MessageRichMessage(content);
+    getArgumentsStrict().instantView = instantViewOf(content);
+    try {
+      buildCells(parsePageBlocks(getArgumentsStrict().instantView), true);
+    } catch (PageBlock.UnsupportedPageBlockException ignored) { }
+  }
+
+  private void requestFullRichMessage () {
+    TdApi.Message source = getRichMessageSource();
+    if (source == null || richSourceGone || getArgumentsStrict().instantView.isFull || richFullRequestRunning) return;
+    richFullRequestRunning = true;
+    int generation = richGeneration;
+    tdlib.send(new TdApi.GetFullRichMessage(source.chatId, source.id), (content, error) -> runOnUiThreadOptional(() -> {
+      richFullRequestRunning = false;
+      if (richSourceGone) return;
+      if (generation != richGeneration) { requestFullRichMessage(); return; }
+      if (error != null) UI.showError(error);
+      else replaceRichMessage(content);
+    }));
+  }
+
+  @Override public void onMessageContentChanged (long chatId, long messageId, TdApi.MessageContent content) {
+    TdApi.Message source = getRichMessageSource();
+    if (source == null || source.chatId != chatId || source.id != messageId) return;
+    runOnUiThreadOptional(() -> {
+      if (richSourceGone) return;
+      richGeneration++;
+      source.content = content;
+      if (content instanceof TdApi.MessageRichMessage) {
+        replaceRichMessage(((TdApi.MessageRichMessage) content).message);
+        requestFullRichMessage();
+      } else closeRichSource();
+    });
+  }
+
+  @Override public void onMessagesDeleted (long chatId, long[] messageIds) {
+    TdApi.Message source = getRichMessageSource();
+    if (source == null || source.chatId != chatId) return;
+    for (long messageId : messageIds) if (messageId == source.id) { runOnUiThreadOptional(this::closeRichSource); break; }
+  }
+
+  @Override public void onChatHasProtectedContentChanged (long chatId, boolean hasProtectedContent) {
+    TdApi.Message source = getRichMessageSource();
+    if (source != null && source.chatId == chatId) runOnUiThreadOptional(() -> {
+      for (ListItem item : adapter.getItems()) {
+        if (item.getData() instanceof PageBlockFile) ((PageBlockFile) item.getData()).updatePlaybackProtection();
+      }
+      context().checkDisallowScreenshots();
+    });
+  }
+
+  private void closeRichSource () {
+    richSourceGone = true;
+    richGeneration++;
+    for (ListItem item : adapter.getItems()) {
+      if (item.getData() instanceof PageBlockFile) ((PageBlockFile) item.getData()).updatePlaybackProtection();
+    }
+    replaceRichMessage(new TdApi.RichMessage(new TdApi.PageBlock[0], false, true));
+    if (isFocused()) navigateBack();
+  }
+
+  @Override public void onFocus () {
+    super.onFocus();
+    if (richSourceGone) navigateBack();
   }
 
   public String getDisplayUrl () {
@@ -558,7 +709,10 @@ public class InstantViewController extends ViewController<InstantViewController.
     if (foundIndex == -1) {
       throw new IllegalArgumentException();
     }
-    return new TGPlayerController.PlayList(out, foundIndex).setPlayListFlags(TGPlayerController.PLAYLIST_FLAG_REVERSE).setReachedEnds(true, true);
+    TGPlayerController.PlayList playList = new TGPlayerController.PlayList(out, foundIndex)
+      .setPlayListFlags(TGPlayerController.PLAYLIST_FLAG_REVERSE).setReachedEnds(true, true);
+    if (getRichMessageSource() != null) playList.setSavePermission(() -> !isProtectedRichMessage());
+    return playList;
   }
 
   @Override

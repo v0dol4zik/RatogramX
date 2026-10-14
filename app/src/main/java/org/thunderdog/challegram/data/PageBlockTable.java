@@ -239,6 +239,7 @@ public class PageBlockTable extends PageBlock implements Destroyable {
 
   @Override
   public void performDestroy () {
+    super.performDestroy();
     for (Cell cell : cellsList) {
       cell.performDestroy();
     }

@@ -431,6 +431,7 @@ public class TextEntityCustom extends TextEntity {
 
   @Override
   public boolean performLongPress (final View view, final Text text, final TextPart part, boolean allowShare, Text.ClickCallback clickCallback) {
+    if (clickCallback != null && !clickCallback.allowLongPress(view, text, part)) return false;
     final ViewController<?> context = findRoot(view);
     if (context == null) {
       Log.v("performLongPress ignored, because ancestor not found");
@@ -441,6 +442,7 @@ public class TextEntityCustom extends TextEntity {
         if (isMonospace()) {
           String content = text.getText().substring(getStart(), getEnd());
           context.showOptions(content, new int[] {R.id.btn_copyText}, new String[] {Lang.getString(R.string.Copy)}, null, new int[] {R.drawable.baseline_content_copy_24}, Config.MAX_COPY_TEXT_LINE_COUNT, (itemView, id) -> {
+            if (clickCallback != null && !clickCallback.allowLongPress(view, text, part)) return true;
             if (id == R.id.btn_copyText) {
               UI.copyText(content, R.string.CopiedText);
             }
@@ -488,6 +490,7 @@ public class TextEntityCustom extends TextEntity {
     final int[] shareState = {0};
 
     context.showOptions(copyText, ids.get(), strings.get(), null, icons.get(), (itemView, id) -> {
+      if (clickCallback != null && !clickCallback.allowLongPress(view, text, part)) return true;
       if (id == R.id.btn_copyLink) {
         UI.copyText(copyText, R.string.CopiedLink);
       } else if (id == R.id.btn_shareLink) {

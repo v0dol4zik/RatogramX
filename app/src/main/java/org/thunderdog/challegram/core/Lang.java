@@ -1201,8 +1201,9 @@ public class Lang {
         res = R.string.ActionPinnedGameNoName;
         break;
       }
-      case TdApi.MessageText.CONSTRUCTOR:
       case TdApi.MessageRichMessage.CONSTRUCTOR:
+        return getString(R.string.ActionPinnedText, userName, getString(R.string.RichMessageLabel));
+      case TdApi.MessageText.CONSTRUCTOR:
       case TdApi.MessageAnimatedEmoji.CONSTRUCTOR:
       case TdApi.MessageDice.CONSTRUCTOR:
       case TdApi.MessageGameScore.CONSTRUCTOR:

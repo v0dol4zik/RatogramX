@@ -21,6 +21,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 
 import org.drinkless.tdlib.TdApi;
+import org.thunderdog.challegram.Log;
 import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.navigation.ViewController;
@@ -410,6 +411,7 @@ public class FormattedText {
   }
 
   private static void parseRichText (ViewController<?> context, TdApi.RichText in, StringBuilder out, ArrayList<TextEntityCustom> entities, int[] offset, int flags, int linkOffset, int[] linkLength, int linkType, String link, boolean linkCached, @Nullable String referenceAnchorName, String copyLink, @Nullable TdlibUi.UrlOpenParameters openParameters, TdApi.InlineButton inlineButton) {
+    if (in == null) return;
     switch (in.getConstructor()) {
       case TdApi.RichTextPlain.CONSTRUCTOR: {
         final String text = ((TdApi.RichTextPlain) in).text;
@@ -440,24 +442,25 @@ public class FormattedText {
       }
       case TdApi.RichTextMathematicalExpression.CONSTRUCTOR: {
         TdApi.RichTextMathematicalExpression mathematicalExpression = (TdApi.RichTextMathematicalExpression) in;
-        TextEntityCustom custom = new TextEntityCustom(context, context.tdlib(), "", offset[0], offset[0], flags, linkCached ? new TdlibUi.UrlOpenParameters(openParameters).forceInstantView() : openParameters)
-          .setReferenceAnchorName(referenceAnchorName).setCopyLink(copyLink)
-          .setMathematicalExpression(mathematicalExpression);
-        if (linkType != TextEntityCustom.LINK_TYPE_NONE) {
-          custom.setLink(linkOffset, linkLength, linkType, link, linkCached);
-        }
-        entities.add(custom);
+        parseRichText(context, new TdApi.RichTextPlain(mathematicalExpression.expression), out, entities, offset, flags | TextEntityCustom.FLAG_MONOSPACE, linkOffset, linkLength, linkType, link, linkCached, referenceAnchorName, copyLink, openParameters);
         break;
       }
       case TdApi.RichTextButton.CONSTRUCTOR: {
         TdApi.InlineButton button = ((TdApi.RichTextButton) in).button;
+        if (button == null) break;
+        int start = entities.size();
         parseRichText(context, button.text, out, entities, offset, flags | TextEntityCustom.FLAG_CLICKABLE, linkOffset, new int[1], TextEntityCustom.LINK_TYPE_BUTTON, null, true, referenceAnchorName, null, new TdlibUi.UrlOpenParameters(openParameters), button);
+        for (int i = start; i < entities.size(); i++) entities.get(i).setButton(button);
         break;
       }
       case TdApi.RichTextDiff.CONSTRUCTOR: {
         TdApi.RichTextDiff textDiff = (TdApi.RichTextDiff) in;
-        // TODO textDiff.oldText
-        parseRichText(context, textDiff.text, out, entities, offset, flags, linkOffset, linkLength, linkType, link, linkCached, referenceAnchorName, copyLink, openParameters);
+        int start = offset[0];
+        parseRichText(context, textDiff.oldText, out, entities, offset, flags | TextEntityCustom.FLAG_STRIKETHROUGH, linkOffset, linkLength, linkType, link, linkCached, referenceAnchorName, copyLink, openParameters);
+        if (offset[0] > start && !TD.getText(textDiff.text).isEmpty()) {
+          parseRichText(context, new TdApi.RichTextPlain(" "), out, entities, offset, flags, linkOffset, linkLength, linkType, link, linkCached, referenceAnchorName, copyLink, openParameters);
+        }
+        parseRichText(context, textDiff.text, out, entities, offset, flags | TextEntityCustom.FLAG_MARKED, linkOffset, linkLength, linkType, link, linkCached, referenceAnchorName, copyLink, openParameters);
         break;
       }
       case TdApi.RichTextIcon.CONSTRUCTOR: {
@@ -481,6 +484,7 @@ public class FormattedText {
         TdApi.RichTextReference reference = (TdApi.RichTextReference) in;
         TextEntityCustom custom = new TextEntityCustom(context, context.tdlib(), "", offset[0], offset[0], TextEntityCustom.FLAG_REFERENCE, null).setAnchorOrReferenceName(reference.name, true);
         entities.add(custom);
+        parseRichText(context, reference.text, out, entities, offset, flags, linkOffset, linkLength, linkType, link, linkCached, referenceAnchorName, copyLink, openParameters);
         break;
       }
       case TdApi.RichTextBold.CONSTRUCTOR: {
@@ -587,8 +591,8 @@ public class FormattedText {
         break;
       }
       default: {
-        Td.assertRichText_caec3729();
-        throw Td.unsupported(in);
+        Log.w("Unsupported rich text constructor: %d", in.getConstructor());
+        break;
       }
     }
   }

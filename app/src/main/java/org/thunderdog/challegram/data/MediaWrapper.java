@@ -397,6 +397,8 @@ public class MediaWrapper implements FileProgressComponent.SimpleListener, FileP
     }
   }
 
+  public boolean hasSpoiler () { return revealOnTap; }
+
   private void updateRevealOnTap () {
     spoilerOverlayVisible.setValue(this.revealOnTap && !(source != null && source.isNotSent()), source != null && source.needAnimateChanges());
     updateIgnoreLoaderClicks();

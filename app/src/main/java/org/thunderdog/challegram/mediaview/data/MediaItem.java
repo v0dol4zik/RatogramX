@@ -65,6 +65,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import me.vkryl.android.util.InvalidateContentProvider;
 import me.vkryl.android.util.MultipleViewProvider;
@@ -900,6 +901,12 @@ public class MediaItem implements MessageSourceProvider, InvalidateContentProvid
   // common
 
   private TdApi.Message msg;
+  private @Nullable BooleanSupplier savePermission;
+
+  public MediaItem setSavePermission (@Nullable BooleanSupplier savePermission) {
+    this.savePermission = savePermission;
+    return this;
+  }
 
   private MediaItem setMessage (TdApi.Message msg) {
     this.msg = msg;
@@ -1757,6 +1764,7 @@ public class MediaItem implements MessageSourceProvider, InvalidateContentProvid
   }
 
   public boolean canBeSaved () {
+    if (savePermission != null && !savePermission.getAsBoolean()) return false;
     if (msg != null) {
       return msg.canBeSaved;
     }
@@ -1789,6 +1797,7 @@ public class MediaItem implements MessageSourceProvider, InvalidateContentProvid
   private TdApi.MessageProperties lastProperties;
 
   public boolean canBeShared () {
+    if (savePermission != null && !savePermission.getAsBoolean()) return false;
     if (msg != null) {
       TdApi.MessageProperties properties = lastProperties != null ? lastProperties : tdlib.getMessagePropertiesSync(msg);
       lastProperties = properties;
@@ -1973,6 +1982,7 @@ public class MediaItem implements MessageSourceProvider, InvalidateContentProvid
   }
 
   private void copyOptions (MediaItem from) {
+    setSavePermission(from.savePermission);
     setShowCaptionAboveMedia(from.showCaptionAboveMedia);
     setHasSpoiler(from.hasSpoiler);
   }

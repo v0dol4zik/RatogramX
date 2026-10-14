@@ -5409,7 +5409,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     }
     if (selectedMessageIds.size() == 1) {
       MessageWithProperties message = getSingleSelectedMessage();
-      TdApi.FormattedText formattedText = message != null ? Td.textOrCaption(message.message.content) : null;
+      TdApi.FormattedText formattedText = message != null ? TD.getFormattedText(message.message.content) : null;
       if (formattedText != null) {
         UI.copyText(TD.toCharSequence(formattedText), R.string.CopiedText);
       }
@@ -5465,8 +5465,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
         b.append(Lang.getString(R.string.ForwardedFromX, m.getSourceName()));
         b.append(" ]");
       }
-      TdApi.FormattedText text = Td.textOrCaption(msg.content);
-      if (msg.content.getConstructor() != TdApi.MessageText.CONSTRUCTOR && msg.content.getConstructor() != TdApi.MessageAnimatedEmoji.CONSTRUCTOR) {
+      TdApi.FormattedText text = TD.getFormattedText(msg.content);
+      if (msg.content.getConstructor() != TdApi.MessageText.CONSTRUCTOR && msg.content.getConstructor() != TdApi.MessageAnimatedEmoji.CONSTRUCTOR && msg.content.getConstructor() != TdApi.MessageRichMessage.CONSTRUCTOR) {
         b.append("\n[");
         ContentPreview preview = ContentPreview.getChatListPreview(tdlib, msg.chatId, msg, true);
         b.append(preview.buildText(false));
@@ -6121,7 +6121,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
         if (message == null) {
           message = selectedMessage.getNewestMessage();
         }
-        TdApi.FormattedText text = id == R.id.btn_copyTranslation ? selectedMessage.getTranslatedText() : Td.textOrCaption(message.content);
+        TdApi.FormattedText text = id == R.id.btn_copyTranslation ? selectedMessage.getTranslatedText() : TD.getFormattedText(message.content);
         if (text != null)
           UI.copyText(TD.toCopyText(text), R.string.CopiedText);
         return true;
@@ -7595,9 +7595,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
           break;
         }
         case TdApi.MessageRichMessage.CONSTRUCTOR: {
-          TdApi.MessageRichMessage oldMessageRich = (TdApi.MessageRichMessage) editContext.message.content;
-          // TODO rich message changes
-          return true;
+          // Block editing is not supported by this text-only composer.
+          return false;
         }
         case TdApi.MessagePhoto.CONSTRUCTOR:
         case TdApi.MessageVideo.CONSTRUCTOR:
@@ -7884,7 +7883,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public void editMessage (@NonNull MessageWithProperties m) {
-    if (isEditingMessage()) {
+    if (isEditingMessage() || !TD.canEditText(m.message.content)) {
       return;
     }
 
@@ -7942,6 +7941,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     if (!isEditingMessage() || inputView == null) {
       return;
     }
+    if (editContext.message.content instanceof TdApi.MessageRichMessage) return;
 
     TdApi.FormattedText newText = inputView.getOutputText(applyMarkdown);
     TdApi.LinkPreviewOptions newOptions = editContext.takeOutputLinkPreviewOptions(true);
@@ -7949,7 +7949,6 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
     switch (editContext.message.content.getConstructor()) {
       case TdApi.MessageText.CONSTRUCTOR:
-      case TdApi.MessageRichMessage.CONSTRUCTOR:
       case TdApi.MessageAnimatedEmoji.CONSTRUCTOR: {
         if (Td.isEmpty(newText)) {
           return;

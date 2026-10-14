@@ -58,6 +58,7 @@ import org.thunderdog.challegram.widget.SimplestCheckBox;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.animator.FactorAnimator;
@@ -74,6 +75,7 @@ public class InlineResultCommon extends InlineResult<TdApi.InlineQueryResult> im
 
   private FileProgressComponent fileProgress;
   private boolean disableProgressInteract;
+  private @Nullable BooleanSupplier progressInteractionAllowed;
   private boolean needCloseButton;
   private TdApi.File targetFile;
 
@@ -553,6 +555,21 @@ public class InlineResultCommon extends InlineResult<TdApi.InlineQueryResult> im
     return this;
   }
 
+  public InlineResultCommon setProgressInteractionAllowed (@Nullable BooleanSupplier allowed) {
+    progressInteractionAllowed = allowed;
+    if (fileProgress != null) fileProgress.setFileOpenPermission(allowed);
+    return this;
+  }
+
+  public boolean onFileClick (View view) {
+    return fileProgress != null && (progressInteractionAllowed == null || progressInteractionAllowed.getAsBoolean()) && fileProgress.performClick(view);
+  }
+
+  public void performDestroy () {
+    currentViews.detachFromAllViews();
+    if (fileProgress != null) fileProgress.performDestroy();
+  }
+
   public void setNeedCloseButton (boolean needCloseButton) {
     this.needCloseButton = needCloseButton;
   }
@@ -565,6 +582,7 @@ public class InlineResultCommon extends InlineResult<TdApi.InlineQueryResult> im
 
   @Override
   public boolean onTouchEvent (View view, MotionEvent e) {
+    if (progressInteractionAllowed != null && !progressInteractionAllowed.getAsBoolean()) return false;
     if (clickHelper != null && clickHelper.onTouchEvent(view, e)) {
       return true;
     }

@@ -324,7 +324,7 @@ public final class TGMessageService extends TGMessageServiceImpl {
       setTextCreator(new ServiceMessageCreator() {
         @Override
         public FormattedText createText () {
-          TdApi.FormattedText formattedText = Td.textOrCaption(message.content);
+          TdApi.FormattedText formattedText = TD.getFormattedText(message.content);
           if (!Td.isEmpty(formattedText)) {
             return getText(
               R.string.ActionPinnedText,
@@ -335,6 +335,8 @@ public final class TGMessageService extends TGMessageServiceImpl {
           String format = null;
           @StringRes int staticResId;
           switch (message.content.getConstructor()) {
+            case TdApi.MessageRichMessage.CONSTRUCTOR:
+              return getText(R.string.ActionPinnedText, new SenderArgument(sender), new MessageArgument(message, new TdApi.FormattedText(Lang.getString(R.string.RichMessageLabel), null)));
             case TdApi.MessageGame.CONSTRUCTOR:
               return getText(
                 R.string.ActionPinnedText,
@@ -434,7 +436,6 @@ public final class TGMessageService extends TGMessageServiceImpl {
               // unreachable
             case TdApi.MessageAnimatedEmoji.CONSTRUCTOR:
             case TdApi.MessageText.CONSTRUCTOR:
-            case TdApi.MessageRichMessage.CONSTRUCTOR:
               // cannot be pinned
             case TdApi.MessageBasicGroupChatCreate.CONSTRUCTOR:
             case TdApi.MessageCall.CONSTRUCTOR:
