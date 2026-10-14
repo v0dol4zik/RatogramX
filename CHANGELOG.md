@@ -55,6 +55,8 @@ in development build metadata.
   edits; the controls follow the theme and do not trigger swipe-back navigation.
   Standalone wallpaper previews keep the controls clear of the Apply button
   and system navigation inset.
+- Fixed color corruption at the strongest wallpaper blur level and released
+  the temporary native blur buffer after processing each image.
 - Initial rich-message viewing with compact chat previews, native full block
   viewing, incomplete-content loading, bot streaming updates, thinking indicators,
   diff formatting and chat-list/notification previews. Formulas show raw LaTeX.

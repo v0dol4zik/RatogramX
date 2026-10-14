@@ -37,6 +37,8 @@ exact blur strength.
 
 The native blur decoder supports radii 1, 3, 7 and 15. Each blurred variant
 has its own image cache key. Existing blurred wallpapers keep radius 3.
+The strongest level uses the radius-aware kernel so normalization preserves
+the image's colors; the legacy radius-7 kernel releases its temporary buffer.
 Inverted patterns use the fill inside the pattern mask with black elsewhere,
 matching TDLib's inversion definition.
 

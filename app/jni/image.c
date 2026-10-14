@@ -181,6 +181,7 @@ static void fastBlurMore(int imageWidth, int imageHeight, int imageStride, void 
         }
     #undef update
     }
+    free(rgb);
 }
 
 static void fastBlur(int imageWidth, int imageHeight, int imageStride, void *pixels, int radius) {
@@ -317,7 +318,8 @@ JNIEXPORT jint Java_org_thunderdog_challegram_N_blurBitmap(JNIEnv *env, jclass c
   if (AndroidBitmap_lockPixels(env, bitmap, &pixels) < 0) {
     return -6;
   }
-  if (radius <= 3 || forceLess == 1) {
+  // fastBlurMore is normalized for radius 7; radius 15 needs fastBlur's shift 8.
+  if (radius <= 3 || radius == 15 || forceLess == 1) {
     fastBlur(info.width, info.height, info.stride, pixels, radius);
   } else {
     fastBlurMore(info.width, info.height, info.stride, pixels, radius);
