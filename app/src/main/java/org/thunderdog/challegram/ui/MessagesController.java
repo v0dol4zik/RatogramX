@@ -787,7 +787,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     addThemeInvalidateListener(wallpaperView);
 
     params = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-    params.addRule(RelativeLayout.ABOVE, inWallpaperPreviewMode() ? R.id.wallpaper_apply_bar : R.id.msg_bottom);
+    params.addRule(RelativeLayout.ABOVE, inWallpaperPreviewMode() ? R.id.btn_applyWallpaper : R.id.msg_bottom);
 
     MessagesLayoutManager messagesManager;
 
@@ -1464,7 +1464,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
         new TGBackground(tdlib, currentBackgroundObj) : tdlib.settings().getWallpaper(wallpaperEditingUsageIdentifier);
       backgroundParamsView = new WallpaperParametersView(context, tdlib);
       params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, backgroundParamsView.getPanelHeight());
-      params.addRule(RelativeLayout.ABOVE, inWallpaperPreviewMode() ? R.id.wallpaper_apply_bar : R.id.msg_bottom);
+      params.addRule(RelativeLayout.ABOVE, inWallpaperPreviewMode() ? R.id.btn_applyWallpaper : R.id.msg_bottom);
       backgroundParamsView.setLayoutParams(params);
       backgroundParamsView.initWith(currentBackground, new WallpaperParametersView.WallpaperParametersListener() {
         @Override public void onParametersChanged (@Nullable TGBackground background) {
@@ -1491,7 +1491,6 @@ public class MessagesController extends ViewController<MessagesController.Argume
         updateBottomBarStyle();
       }
     };
-    if (inWallpaperPreviewMode()) bottomBar.setId(R.id.wallpaper_apply_bar);
     Views.setPaddingBottom(bottomBar, extraBottomInsetWithoutIme);
     bottomBar.setOnClickListener(this);
     bottomBar.setLayoutParams(params);
