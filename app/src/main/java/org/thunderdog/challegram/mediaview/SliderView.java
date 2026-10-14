@@ -37,6 +37,7 @@ public class SliderView extends View implements FactorAnimator.Target {
   private @ColorId int colorId = ColorId.sliderActive;
   private int anchorMode;
   private boolean slideEnabled;
+  private boolean tapToSeekEnabled;
   private int valueCount;
 
   public SliderView (Context context) {
@@ -52,6 +53,14 @@ public class SliderView extends View implements FactorAnimator.Target {
       this.valueCount = count;
       invalidate();
     }
+  }
+
+  public void setTapToSeekEnabled (boolean enabled) {
+    tapToSeekEnabled = enabled;
+  }
+
+  public void cancelTouch () {
+    setIsUp(false);
   }
 
   private float value; // -1f..0f -- left to center, 0..1f -- center to right
@@ -157,7 +166,7 @@ public class SliderView extends View implements FactorAnimator.Target {
   private void setIsUp (boolean isUp) {
     if (this.isUp != isUp) {
       this.isUp = isUp;
-      getParent().requestDisallowInterceptTouchEvent(isUp);
+      if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(isUp);
       if (upAnimator == null) {
         upAnimator = new FactorAnimator(ANIMATOR_TOUCH, this, AnimatorUtils.DECELERATE_INTERPOLATOR, 180l);
       }
@@ -328,9 +337,12 @@ public class SliderView extends View implements FactorAnimator.Target {
 
         int radius = Screen.dp(24f);
 
-        if (x >= cx - radius && x <= cx + radius && y >= cy - radius && y <= cy + radius && slideEnabled && (changeAnimator == null || !changeAnimator.isAnimating()) && (listener == null || listener.allowSliderChanges(this))) {
-          diffX = x - cx;
+        boolean hitThumb = x >= cx - radius && x <= cx + radius;
+        boolean hitTrack = tapToSeekEnabled && x >= getTotalPaddingLeft() - radius && x <= getMeasuredWidth() - getTotalPaddingRight() + radius;
+        if ((hitThumb || hitTrack) && y >= cy - radius && y <= cy + radius && slideEnabled && (changeAnimator == null || !changeAnimator.isAnimating()) && (listener == null || listener.allowSliderChanges(this))) {
+          diffX = hitThumb ? x - cx : 0f;
           setIsUp(true);
+          if (!hitThumb) changeValueAt(x);
           return true;
         }
 
@@ -340,21 +352,7 @@ public class SliderView extends View implements FactorAnimator.Target {
         if (isUp) {
           x -= diffX;
 
-          float factor;
-
-          int left = getTotalPaddingLeft();
-          int width = (getMeasuredWidth() - getTotalPaddingRight() - left);
-
-          if (anchorMode == ANCHOR_MODE_CENTER) {
-            int centerX = left + width / 2;
-            float diff = x - centerX;
-            factor = Math.max(-1f, Math.min(1f, diff / (float) (width / 2)));
-          } else {
-            float diff = x - left;
-            factor = Math.max(0f, Math.min(1f, diff / (float) width));
-          }
-
-          changeValue(factor);
+          changeValueAt(x);
           return true;
         }
 
@@ -376,6 +374,18 @@ public class SliderView extends View implements FactorAnimator.Target {
       }
     }
     return isUp;
+  }
+
+  private void changeValueAt (float x) {
+    int left = getTotalPaddingLeft();
+    int width = getMeasuredWidth() - getTotalPaddingRight() - left;
+    if (width <= 1) return;
+    if (anchorMode == ANCHOR_MODE_CENTER) {
+      int halfWidth = width / 2;
+      changeValue(Math.max(-1f, Math.min(1f, (x - left - halfWidth) / halfWidth)));
+    } else {
+      changeValue(Math.max(0f, Math.min(1f, (x - left) / width)));
+    }
   }
 
   @Override

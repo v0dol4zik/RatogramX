@@ -50,6 +50,11 @@ in development build metadata.
   surface/header/bubble text, parent-color reset and access to the full editor.
 - Wallpaper controls now include local dimming, four blur strengths and photo
   tinting, plus pattern intensity, inversion, fill colors and optional tilt motion.
+- Fixed wallpaper percentage sliders drifting away from their tracks. Added
+  tap-to-seek, a separate value label, a blend-mode chooser and reverting preview
+  edits; the controls follow the theme and do not trigger swipe-back navigation.
+  Standalone wallpaper previews keep the controls clear of the Apply button
+  and system navigation inset.
 - Initial rich-message viewing with compact chat previews, native full block
   viewing, incomplete-content loading, bot streaming updates, thinking indicators,
   diff formatting and chat-list/notification previews. Formulas show raw LaTeX.

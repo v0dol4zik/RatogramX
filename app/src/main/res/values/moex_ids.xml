@@ -139,4 +139,8 @@
   <item name="btn_profileChannelNone" type="id" />
   <item name="btn_profileChannelCandidate" type="id" />
   <item name="btn_profileChannelChoice" type="id" />
+  <item name="btn_wallpaperBlendNormal" type="id" />
+  <item name="btn_wallpaperBlendMultiply" type="id" />
+  <item name="btn_wallpaperBlendScreen" type="id" />
+  <item name="wallpaper_apply_bar" type="id" />
 </resources>

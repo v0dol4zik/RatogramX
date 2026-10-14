@@ -2,16 +2,27 @@
 
 The wallpaper preview uses a scrollable row of parameter buttons. Tapping a
 slider parameter opens a second row; tapping it again hides that row.
+The panel uses the current theme's surface and text colors. Drag the thumb or
+tap the track to change a value; the value label has its own space beside the
+slider. Percentage tracks are continuous, while blur has five positions
+(off and four strengths). Dragging or scrolling the panel does not navigate back.
+Standalone previews place the entire panel above the Apply button, including
+when the system navigation bar adds a bottom inset.
 
 - All supported backgrounds have local dimming from 0 to 80 percent.
 - Photos, including local images, have four blur strengths, a tint color and
-  intensity, and Normal, Multiply or Screen blending.
+  intensity, and Normal, Multiply or Screen blending selected from a native menu.
 - Patterns have intensity, inversion in dark themes, and editable fill colors.
   One color creates a solid fill, two a linear gradient, and three or four a
   multicolor gradient. Linear gradients support angles in 45-degree steps.
 - Photos and patterns can move slightly as the device tilts. Motion stops
   when the controller loses focus or the activity pauses, and respects the
   system's reduced-motion setting.
+
+**Revert changes** restores the wallpaper's parameters from when its preview
+was opened, including colors, effects and motion. It is disabled until an
+adjustment is made. Switching slider parameters preserves the controls' scroll
+position; switching wallpapers retains a parameter only if the new type supports it.
 
 The current wallpaper's changes are saved when leaving the wallpaper settings.
 Opening a separate wallpaper object keeps changes in its preview until Apply.
@@ -40,6 +51,11 @@ matching TDLib's inversion definition.
   different wallpaper; an earlier response must not replace the new choice.
 - Check tilt motion, rotation, reduced motion, pause/resume and swipe-back.
 - Check Russian labels, large font sizes and narrow or landscape screens.
+- Move percentage sliders to both ends and tap intermediate values; the thumb
+  and track must share their endpoints and stay clear of the value label.
+- Switch parameters, collapse and reopen the slider, select each blend mode
+  and revert changes. Swipe the controls in both directions without leaving
+  the preview; swiping outside the controls should still navigate back.
 
 JVM checks cover local-option bounds, native blur levels, and color/gradient
 input validation. Rendering and sensor behavior still require device testing.

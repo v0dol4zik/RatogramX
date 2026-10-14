@@ -172,6 +172,9 @@
   <string name="WallpaperBlendNormal">Normal</string>
   <string name="WallpaperBlendMultiply">Multiply</string>
   <string name="WallpaperBlendScreen">Screen</string>
+  <string name="WallpaperBlendMode">Blend: %1$s</string>
+  <string name="WallpaperBlendModeTitle">Blend mode</string>
+  <string name="WallpaperResetChanges">Revert changes</string>
   <string name="WallpaperPatternIntensity">Intensity</string>
   <string name="WallpaperInverted">Inverted</string>
   <string name="WallpaperFillColors">Fill colors</string>

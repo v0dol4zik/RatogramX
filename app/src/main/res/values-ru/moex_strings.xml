@@ -156,6 +156,9 @@
   <string name="WallpaperBlendNormal">Обычный</string>
   <string name="WallpaperBlendMultiply">Умножение</string>
   <string name="WallpaperBlendScreen">Экран</string>
+  <string name="WallpaperBlendMode">Режим: %1$s</string>
+  <string name="WallpaperBlendModeTitle">Режим наложения</string>
+  <string name="WallpaperResetChanges">Отменить изменения</string>
   <string name="WallpaperPatternIntensity">Интенсивность</string>
   <string name="WallpaperInverted">Инверсия</string>
   <string name="WallpaperFillColors">Цвета заливки</string>

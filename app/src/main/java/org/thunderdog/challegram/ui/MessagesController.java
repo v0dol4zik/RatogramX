@@ -306,6 +306,7 @@ import moe.kirao.mgx.utils.QuoteSelectionPolicy;
 import moe.kirao.mgx.utils.ForumReadPolicy;
 import moe.kirao.mgx.utils.BotWebAppLauncher;
 import moe.kirao.mgx.ui.MessageTextSelection;
+import moe.kirao.mgx.utils.WallpaperAppearance;
 import moe.kirao.mgx.utils.WallpaperColorInput;
 import org.thunderdog.challegram.data.TGMessageText;
 import org.thunderdog.challegram.telegram.TdlibForumTopicManager;
@@ -786,7 +787,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     addThemeInvalidateListener(wallpaperView);
 
     params = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-    params.addRule(RelativeLayout.ABOVE, R.id.msg_bottom);
+    params.addRule(RelativeLayout.ABOVE, inWallpaperPreviewMode() ? R.id.wallpaper_apply_bar : R.id.msg_bottom);
 
     MessagesLayoutManager messagesManager;
 
@@ -1463,7 +1464,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
         new TGBackground(tdlib, currentBackgroundObj) : tdlib.settings().getWallpaper(wallpaperEditingUsageIdentifier);
       backgroundParamsView = new WallpaperParametersView(context, tdlib);
       params = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, backgroundParamsView.getPanelHeight());
-      params.addRule(RelativeLayout.ABOVE, R.id.msg_bottom);
+      params.addRule(RelativeLayout.ABOVE, inWallpaperPreviewMode() ? R.id.wallpaper_apply_bar : R.id.msg_bottom);
       backgroundParamsView.setLayoutParams(params);
       backgroundParamsView.initWith(currentBackground, new WallpaperParametersView.WallpaperParametersListener() {
         @Override public void onParametersChanged (@Nullable TGBackground background) {
@@ -1471,6 +1472,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
           if (manager.getAdapter() != null) manager.getAdapter().invalidateAllMessages();
         }
         @Override public void onEditColors (boolean tint) { editWallpaperColors(tint); }
+        @Override public void onEditTintBlend () { editWallpaperTintBlend(); }
         @Override public void onParametersHeightChanged (int height) { updateWallpaperPanelHeight(); }
         @Override public void onParametersViewScaleChanged (float factor) { updateWallpaperPanelHeight(); }
       }, !inWallpaperPreviewMode());
@@ -1489,6 +1491,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
         updateBottomBarStyle();
       }
     };
+    if (inWallpaperPreviewMode()) bottomBar.setId(R.id.wallpaper_apply_bar);
     Views.setPaddingBottom(bottomBar, extraBottomInsetWithoutIme);
     bottomBar.setOnClickListener(this);
     bottomBar.setLayoutParams(params);
@@ -2769,6 +2772,27 @@ public class MessagesController extends ViewController<MessagesController.Argume
       }, true);
   }
 
+  private void editWallpaperTintBlend () {
+    TGBackground original = backgroundParamsView.getOriginalBackground();
+    TGBackground edited = backgroundParamsView.getEditedBackground();
+    if (edited == null || !edited.isWallpaper()) return;
+    int selected = edited.getAppearance().tintBlend;
+    int[] icons = new int[3];
+    icons[selected] = R.drawable.baseline_check_24;
+    showOptions(Lang.getString(R.string.WallpaperBlendModeTitle), new int[] {
+      R.id.btn_wallpaperBlendNormal, R.id.btn_wallpaperBlendMultiply, R.id.btn_wallpaperBlendScreen
+    }, new String[] {
+      Lang.getString(R.string.WallpaperBlendNormal), Lang.getString(R.string.WallpaperBlendMultiply),
+      Lang.getString(R.string.WallpaperBlendScreen)
+    }, null, icons, (view, id) -> {
+      if (isDestroyed() || backgroundParamsView.getOriginalBackground() != original) return true;
+      int blend = id == R.id.btn_wallpaperBlendMultiply ? WallpaperAppearance.BLEND_MULTIPLY :
+        id == R.id.btn_wallpaperBlendScreen ? WallpaperAppearance.BLEND_SCREEN : WallpaperAppearance.BLEND_NORMAL;
+      backgroundParamsView.setTintBlend(blend);
+      return true;
+    });
+  }
+
   private void saveWallpaperParameters () {
     if (!inWallpaperMode() || inWallpaperPreviewMode() || backgroundParamsView == null || !backgroundParamsView.hasChanges()) return;
     int usageIdentifier = backgroundParamsView.getUsageIdentifier();
@@ -3759,6 +3783,10 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public boolean canSlideBackFrom (NavigationController navigationController, float x, float y) {
     if (messageTextSelection != null) return false;
+    if (backgroundParamsView != null && backgroundParamsView.getAvailabilityFactor() > 0f && backgroundParamsView.getVisibility() == View.VISIBLE) {
+      int panelY = Views.getLocationInWindow(backgroundParamsView)[1] - Views.getLocationInWindow(navigationController.getValue())[1];
+      if (y >= panelY && y <= panelY + backgroundParamsView.getHeight()) return false;
+    }
     if (context().getRecordAudioVideoController().isOpen()) {
       return false;
     }
