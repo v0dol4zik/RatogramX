@@ -57,7 +57,6 @@ import org.thunderdog.challegram.tool.Paints;
 import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.tool.Views;
-import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.DrawableProvider;
 import org.thunderdog.challegram.util.OptionDelegate;
 import org.thunderdog.challegram.util.text.Counter;
@@ -455,11 +454,11 @@ public class MessageOptionsPagerController extends BottomSheetViewController<Opt
   @Override
   protected int getContentOffset () {
     if (state.needShowMessageOptions) {
-      return (getTargetHeight()
-        - (Screen.dp(54) + HeaderView.getTopOffset())
+      return Math.max(0, getTargetHeight()
+        - getHeaderHeight(true)
         - getOptionItemsHeight()
         - Screen.dp(1)
-        - (Settings.instance().useEdgeToEdge() ? context().getRootView().getSystemInsetsWithoutIme().bottom : 0)
+        - extraBottomInsetWithoutIme
       );
     } else {
       return Screen.currentHeight() / 2;
@@ -805,13 +804,17 @@ public class MessageOptionsPagerController extends BottomSheetViewController<Opt
       return;
     }
 
-    float y = MathUtils.fromTo(0, Math.min(getReactionPickerOffsetTopDefault() - getReactionPickerOffsetTopReal(), 0), reactionsPickerVisibility.getFloatValue());
+    int pickerOffset = getReactionPickerOffsetTopReal();
+    float y = MathUtils.fromTo(0, Math.min(getReactionPickerOffsetTopDefault() - pickerOffset, 0), reactionsPickerVisibility.getFloatValue());
     boolean isNotInScroll = reactionsPickerRecyclerView.getScrollState() == RecyclerView.SCROLL_STATE_IDLE;
     if (isNotInScroll && !doNotUpdateScrollReactionPicker) {
       ((LinearLayoutManager) reactionsPickerRecyclerView.getLayoutManager()).scrollToPositionWithOffset(0, (int) y);
     }
 
-    reactionsPickerRecyclerView.setTranslationY((headerTranslationY - Math.max(getHeaderHeight(), getContentOffset()) - HeaderView.getTopOffset())
+    // Align the first row with the compact header even when the menu fills the screen.
+    float firstRowTop = HeaderView.getSize(true) + getPickerTopPadding() + pickerOffset;
+    float compactRowTop = headerTranslationY + (getHeaderHeight() - reactionsPickerController.getItemHeight()) / 2f;
+    reactionsPickerRecyclerView.setTranslationY((compactRowTop - firstRowTop)
       * (1f - reactionsPickerVisibility.getFloatValue()));
     invalidatePickerWrapper();
     checkReactionPickerHeaderTopVisibility();
@@ -925,7 +928,7 @@ public class MessageOptionsPagerController extends BottomSheetViewController<Opt
   /* Picker layout */
 
   private float getPickerTop () {
-    if (reactionsPickerRecyclerView == null || reactionsPickerWrapper == null || reactionsPickerVisibility == null) {
+    if (reactionsPickerRecyclerView == null || reactionsPickerWrapper == null || reactionsPickerVisibility == null || reactionsPickerRecyclerView.getChildCount() == 0) {
       return headerTranslationY;
     }
 
@@ -938,7 +941,7 @@ public class MessageOptionsPagerController extends BottomSheetViewController<Opt
       return headerTranslationY + getHeaderHeight();
     }
 
-    return MathUtils.fromTo(headerTranslationY + getHeaderHeight(), reactionsPickerWrapper.getMeasuredHeight(), reactionsPickerVisibility.getFloatValue());
+    return MathUtils.fromTo(getPickerTop() + getHeaderHeight(), reactionsPickerWrapper.getMeasuredHeight(), reactionsPickerVisibility.getFloatValue());
   }
 
   public static float getPickerTopPadding () {

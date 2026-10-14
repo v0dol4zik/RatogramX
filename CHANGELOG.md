@@ -57,6 +57,9 @@ in development build metadata.
   and system navigation inset.
 - Fixed color corruption at the strongest wallpaper blur level and released
   the temporary native blur buffer after processing each image.
+- Fixed reaction-menu positioning with long action lists. The compact reaction
+  row keeps its height and alignment, and menu offsets respect the available
+  screen space and system navigation inset.
 - Initial rich-message viewing with compact chat previews, native full block
   viewing, incomplete-content loading, bot streaming updates, thinking indicators,
   diff formatting and chat-list/notification previews. Formulas show raw LaTeX.
