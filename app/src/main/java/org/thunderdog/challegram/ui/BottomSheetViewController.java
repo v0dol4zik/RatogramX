@@ -87,7 +87,7 @@ public abstract class BottomSheetViewController<T> extends ViewPagerController<T
       protected boolean drawChild (Canvas canvas, View child, long drawingTime) {
         if (child == pagerInFrameLayoutFix) {
           canvas.save();
-          canvas.clipRect(0, headerTranslationY + (headerView != null ? HeaderView.getTopOffset() : 0), getMeasuredWidth(), getMeasuredHeight());
+          canvas.clipRect(0, headerTranslationY + (headerView != null ? getHeaderHeight() : 0), getMeasuredWidth(), getMeasuredHeight());
           boolean result = super.drawChild(canvas, child, drawingTime);
           canvas.restore();
           return result;
