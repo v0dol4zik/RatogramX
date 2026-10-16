@@ -355,6 +355,7 @@ android {
     applicationId = config.applicationId
     targetSdk = config.build.targetSdkVersion
     multiDexEnabled = true
+    testInstrumentationRunner = "moe.kirao.mgx.EmulatorSmokeInstrumentation"
 
     resValue("string", "AppName", config.applicationName)
     resValue("string", "account_type", "${config.applicationId}.sync.account")

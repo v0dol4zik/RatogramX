@@ -1,0 +1,693 @@
+package moe.kirao.mgx;
+
+import android.app.Activity;
+import android.app.Instrumentation;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.drawable.Icon;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.SystemClock;
+import android.service.notification.StatusBarNotification;
+import android.view.Gravity;
+import android.view.TextureView;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+
+import androidx.core.app.NotificationCompat;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import org.drinkless.tdlib.TdApi;
+import org.thunderdog.challegram.BuildConfig;
+import org.thunderdog.challegram.MainActivity;
+import org.thunderdog.challegram.U;
+import org.thunderdog.challegram.component.chat.MessageView;
+import org.thunderdog.challegram.component.chat.MessageViewGroup;
+import org.thunderdog.challegram.data.MediaWrapper;
+import org.thunderdog.challegram.data.TGMessage;
+import org.thunderdog.challegram.data.TGMessagePoll;
+import org.thunderdog.challegram.mediaview.MediaViewController;
+import org.thunderdog.challegram.navigation.HeaderView;
+import org.thunderdog.challegram.player.RoundVideoController;
+import org.thunderdog.challegram.telegram.Tdlib;
+import org.thunderdog.challegram.telegram.TdlibNotification;
+import org.thunderdog.challegram.telegram.TdlibNotificationGroup;
+import org.thunderdog.challegram.ui.MessagesController;
+import org.thunderdog.challegram.unsorted.Settings;
+import org.thunderdog.challegram.util.AppIconManager;
+import org.thunderdog.challegram.v.MessagesRecyclerView;
+import org.thunderdog.challegram.widget.PopupLayout;
+import org.thunderdog.challegram.widget.RectFrameLayout;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import moe.kirao.mgx.utils.GhostReadStore;
+
+/** Device regressions with local fixtures. Never sends messages or edits server privacy. */
+public final class EmulatorSmokeInstrumentation extends Instrumentation {
+  private static final int FIXTURE_ACCOUNT = 2_147_483_000;
+  private static final long FIXTURE_CHAT = -9_000_000_000_000_000L;
+  private static final String CHANNEL = "ratogramx_emulator_smoke";
+  private MainActivity activity;
+  private Tdlib tdlib;
+  private int passed, failed;
+  private boolean resumeAfterFixtureCrash;
+  private String requestedCheck;
+
+  @Override public void onCreate (Bundle arguments) {
+    super.onCreate(arguments);
+    resumeAfterFixtureCrash = arguments != null && "true".equals(arguments.getString("resumeAfterFixtureCrash"));
+    requestedCheck = arguments != null ? arguments.getString("check") : null;
+    start();
+  }
+
+  @Override public void onStart () {
+    try {
+      require(BuildConfig.DEBUG && getTargetContext().getPackageName().endsWith(".debug"), "Development package required");
+      require(Build.VERSION.SDK_INT >= 30, "Android 11 or newer required for IME checks");
+      activity = (MainActivity) startActivitySync(new Intent(getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+      waitForIdleSync();
+      onUi(() -> {
+        tdlib = activity.currentTdlib();
+        if (tdlib.context().inRecoveryMode()) {
+          require(resumeAfterFixtureCrash, "Resolve the previous crash before testing; recovery mode cannot load the account");
+          activity.proceedFromRecovery();
+        }
+      });
+      long deadline = SystemClock.uptimeMillis() + 60_000;
+      while (tdlib.myUserId() == 0 && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
+      require(tdlib.myUserId() != 0, "An authorized development account is required");
+      waitForIdleSync();
+      runCase("clip_pixels_and_extreme_insets", () -> onUi(this::clipPixels));
+      runCase("forum_counters_storage_and_account_isolation", () -> onUi(this::forumCounters));
+      runCase("local_notifications_and_delayed_push", () -> onUi(this::localNotifications));
+      runCase("android_notification_icons", () -> onUi(this::notificationIcons));
+      runCase("poll_media_render_and_update", this::pollRendering);
+      runCase("round_video_playback_with_keyboard_and_panels", this::roundVideo);
+      require(passed + failed > 0, "Unknown check: " + requestedCheck);
+    } catch (Throwable error) {
+      failed++;
+      report("setup", error);
+    }
+    Bundle result = new Bundle();
+    result.putString("stream", "\nRatogram emulator checks: " + passed + " passed, " + failed + " failed\n");
+    finish(failed == 0 ? Activity.RESULT_OK : Activity.RESULT_CANCELED, result);
+  }
+
+  private interface Check { void run () throws Exception; }
+
+  private void runCase (String name, Check check) {
+    if (requestedCheck != null && !requestedCheck.equals(name)) return;
+    Throwable failure = null;
+    try { check.run(); } catch (Throwable error) { failure = error; }
+    if (failure == null) passed++; else failed++;
+    report(name, failure);
+    waitForIdleSync();
+  }
+
+  private void onUi (Check check) throws Exception {
+    final Throwable[] failure = new Throwable[1];
+    runOnMainSync(() -> {
+      try { check.run(); } catch (Throwable error) { failure[0] = error; }
+    });
+    if (failure[0] instanceof Exception) throw (Exception) failure[0];
+    if (failure[0] != null) throw (Error) failure[0];
+  }
+
+  private void report (String name, Throwable error) {
+    Bundle result = new Bundle();
+    result.putString("stream", "\n" + (error == null ? "PASS " : "FAIL ") + name + (error == null ? "" : ": " + android.util.Log.getStackTraceString(error)) + "\n");
+    sendStatus(error == null ? 0 : -2, result);
+  }
+
+  private static void require (boolean condition, String message) {
+    if (!condition) throw new AssertionError(message);
+  }
+
+  private void clipPixels () {
+    RectFrameLayout clip = new RectFrameLayout(activity);
+    View child = new View(activity);
+    child.setBackgroundColor(Color.RED);
+    clip.addView(child, new FrameLayout.LayoutParams(100, 200));
+    clip.measure(exact(100), exact(200));
+    clip.layout(0, 0, 100, 200);
+    Bitmap bitmap = Bitmap.createBitmap(100, 200, Bitmap.Config.ARGB_8888);
+    clip.setClip(30, 50);
+    clip.draw(new Canvas(bitmap));
+    require(bitmap.getPixel(50, 29) == Color.TRANSPARENT, "Top inset leaked pixels");
+    require(bitmap.getPixel(50, 30) == Color.RED && bitmap.getPixel(50, 149) == Color.RED, "Visible video was clipped");
+    require(bitmap.getPixel(50, 150) == Color.TRANSPARENT, "Composer inset leaked pixels");
+    bitmap.eraseColor(Color.TRANSPARENT);
+    clip.setClip(300, 400);
+    clip.draw(new Canvas(bitmap));
+    require(bitmap.getPixel(50, 100) == Color.TRANSPARENT, "Overlapping insets must hide all pixels");
+    clip.setClip(-1, -1);
+    clip.draw(new Canvas(bitmap));
+    require(bitmap.getPixel(50, 0) == Color.RED && bitmap.getPixel(50, 199) == Color.RED, "Insets did not reset");
+    bitmap.recycle();
+  }
+
+  private static int exact (int value) { return View.MeasureSpec.makeMeasureSpec(value, View.MeasureSpec.EXACTLY); }
+
+  private void withReadGate (Check check) throws Exception {
+    require(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), "Enable experiments for the Ghost fixture");
+    require((MoexConfig.instance().getGhostModeFlags() & MoexConfig.GHOST_NO_READ) != 0, "Enable Ghost no-read for the fixture");
+    boolean before = MoexConfig.ghostMode;
+    // Change the in-memory read gate only, without notifying privacy sessions.
+    MoexConfig.ghostMode = true;
+    try { check.run(); } finally { MoexConfig.ghostMode = before; }
+  }
+
+  private void forumCounters () throws Exception {
+    GhostReadStore.clearAccount(FIXTURE_ACCOUNT);
+    GhostReadStore.clearAccount(FIXTURE_ACCOUNT + 1);
+    try {
+      withReadGate(() -> {
+        TdApi.MessageTopic first = new TdApi.MessageTopicForum(11);
+        TdApi.MessageTopic second = new TdApi.MessageTopicForum(22);
+        GhostReadStore.Inbox parent = new GhostReadStore.Inbox(0, 18, 90);
+        GhostReadStore.record(FIXTURE_ACCOUNT, FIXTURE_CHAT, first, new GhostReadStore.Inbox(10, 7, 70), 70, 7, 0);
+        GhostReadStore.record(FIXTURE_ACCOUNT, FIXTURE_CHAT, second, new GhostReadStore.Inbox(20, 5, 90), 40, 2, -1);
+        require(GhostReadStore.unreadCount(FIXTURE_ACCOUNT, FIXTURE_CHAT, null, parent) == 9, "Parent badge did not subtract both topics");
+        require(GhostReadStore.unreadCount(FIXTURE_ACCOUNT + 1, FIXTURE_CHAT, null, parent) == 18, "Topic state leaked across accounts");
+        // Evict only fixture cache entries; the next access must use native LevelDB.
+        Field cache = GhostReadStore.class.getDeclaredField("states");
+        cache.setAccessible(true);
+        ((Map<?, ?>) cache.get(null)).keySet().removeIf(key -> key.toString().startsWith("ghost_read_" + FIXTURE_ACCOUNT + "_"));
+        require(GhostReadStore.unreadCount(FIXTURE_ACCOUNT, FIXTURE_CHAT, null, parent) == 9, "Persisted topic counts were lost");
+        GhostReadStore.serverRead(FIXTURE_ACCOUNT, FIXTURE_CHAT, first, 70);
+        require(GhostReadStore.unreadCount(FIXTURE_ACCOUNT, FIXTURE_CHAT, null, new GhostReadStore.Inbox(0, 11, 90)) == 9, "Server topic read was deducted twice");
+        GhostReadStore.clear(FIXTURE_ACCOUNT, FIXTURE_CHAT, null);
+        require(GhostReadStore.forumTopicIds(FIXTURE_ACCOUNT, FIXTURE_CHAT).length == 0, "Parent clear left topic markers");
+      });
+    } finally {
+      GhostReadStore.clearAccount(FIXTURE_ACCOUNT);
+      GhostReadStore.clearAccount(FIXTURE_ACCOUNT + 1);
+    }
+  }
+
+  private void localNotifications () throws Exception {
+    require(tdlib.myUserId() != 0, "An authorized development account is required");
+    GhostReadStore.clear(tdlib.id(), FIXTURE_CHAT, null);
+    try {
+      TdApi.Message read = message(100, FIXTURE_CHAT);
+      read.topicId = new TdApi.MessageTopicForum(11);
+      TdApi.Message unread = message(200, FIXTURE_CHAT);
+      unread.topicId = new TdApi.MessageTopicForum(22);
+      TdApi.Notification first = new TdApi.Notification(1, 1, true, new TdApi.NotificationTypeNewMessage(read, false));
+      TdApi.Notification second = new TdApi.Notification(2, 2, true, new TdApi.NotificationTypeNewMessage(unread, false));
+      TdlibNotificationGroup group = new TdlibNotificationGroup(tdlib, new TdApi.NotificationGroup(FIXTURE_ACCOUNT, new TdApi.NotificationGroupTypeMessages(), FIXTURE_CHAT, 2, new TdApi.Notification[] {first, second}));
+      require(!group.isHidden(), "Unread notifications started hidden");
+      withReadGate(() -> GhostReadStore.record(tdlib.id(), FIXTURE_CHAT, read.topicId, new GhostReadStore.Inbox(0, 1, 100), 100, 1, 0));
+      require(new TdlibNotification(tdlib, first, group).isHidden(), "Read topic notification stayed visible");
+      require(!new TdlibNotification(tdlib, second, group).isHidden(), "Another topic notification was hidden");
+      require(!group.isHidden(), "Partially unread group was hidden");
+      GhostReadStore.rememberViewedIds(tdlib.id(), FIXTURE_CHAT, new long[] {100});
+      TdApi.Notification push = new TdApi.Notification(3, 3, true, new TdApi.NotificationTypeNewPushMessage(100, new TdApi.MessageSenderUser(tdlib.myUserId()), "Local fixture", false, new TdApi.PushMessageContentText("fixture", false)));
+      require(new TdlibNotification(tdlib, push, group).isHidden(), "Delayed push for a viewed topic reappeared");
+      TdlibNotificationGroup onlyRead = new TdlibNotificationGroup(tdlib, new TdApi.NotificationGroup(FIXTURE_ACCOUNT + 1, new TdApi.NotificationGroupTypeMessages(), FIXTURE_CHAT, 1, new TdApi.Notification[] {first}));
+      require(onlyRead.isHidden(), "Fully read notification group stayed visible");
+    } finally { GhostReadStore.clear(tdlib.id(), FIXTURE_CHAT, null); }
+  }
+
+  private void notificationIcons () {
+    Context context = getTargetContext();
+    NotificationManager manager = context.getSystemService(NotificationManager.class);
+    manager.createNotificationChannel(new NotificationChannel(CHANNEL, "Local emulator checks", NotificationManager.IMPORTANCE_LOW));
+    String original = AppIconManager.getSelectedIconId();
+    try {
+      Bitmap previous = null;
+      for (AppIconManager.Icon selected : AppIconManager.getIcons()) {
+        // Exercise the notification cache without changing launcher components.
+        Settings.instance().putString("ratogramx_app_icon", selected.id);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL).setContentTitle("Ratogram local check").setContentText("Notification icon fixture").setSilent(true);
+        AppIconManager.setNotificationSmallIcon(builder, context);
+        Bitmap large = AppIconManager.notificationIcon(context);
+        require(large != null && large.getWidth() > 0, "Selected notification icon is empty");
+        if (previous != null) require(!previous.sameAs(large), "Notification cache retained the previous colored icon");
+        previous = large;
+        Notification notification = builder.setLargeIcon(large).build();
+        require(notification.getSmallIcon() != null && notification.getSmallIcon().getType() == Icon.TYPE_BITMAP, "Android did not receive a bitmap status icon");
+        manager.notify(CHANNEL, FIXTURE_ACCOUNT, notification);
+        boolean found = false;
+        for (StatusBarNotification item : manager.getActiveNotifications()) {
+          if (CHANNEL.equals(item.getTag()) && item.getId() == FIXTURE_ACCOUNT) {
+            found = true;
+            require(item.getNotification().getLargeIcon() != null, "Android lost the colored fallback");
+          }
+        }
+        require(found, "Android rejected the notification");
+      }
+    } finally {
+      Settings.instance().putString("ratogramx_app_icon", original);
+      manager.cancel(CHANNEL, FIXTURE_ACCOUNT);
+      manager.deleteNotificationChannel(CHANNEL);
+    }
+  }
+
+  private void pollRendering () throws Exception {
+    require(tdlib.myUserId() != 0, "An authorized development account is required");
+    File image = new File(getTargetContext().getCacheDir(), "ratogramx-smoke-photo.png");
+    Bitmap source = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888);
+    source.eraseColor(Color.BLUE);
+    try (FileOutputStream output = new FileOutputStream(image)) { source.compress(Bitmap.CompressFormat.PNG, 100, output); }
+    source.recycle();
+    final TGMessagePoll[] parsed = new TGMessagePoll[1];
+    final MessageView[] view = new MessageView[1];
+    final FrameLayout[] parent = new FrameLayout[1];
+    final boolean[] ownsPopup = new boolean[1];
+    try {
+      onUi(() -> {
+        MessagesController controller = new MessagesController(activity, tdlib) {
+          // This offscreen message has no RecyclerView thumbnail to animate from.
+          @Override public void modifyMediaArguments (Object cause, MediaViewController.Args args) { }
+          @Override public void checkRoundVideo (int first, int last, boolean onScroll) { }
+        };
+        attachEmptyAdapter(controller, new RecyclerView(activity));
+        view[0] = new MessageView(activity);
+        TdApi.Poll poll = new TdApi.Poll();
+        poll.id = FIXTURE_ACCOUNT;
+        poll.question = text("Local media poll");
+        poll.type = new TdApi.PollTypeRegular();
+        poll.isAnonymous = true;
+        poll.isClosed = true;
+        poll.canSeeResults = true;
+        poll.recentVoterIds = new TdApi.MessageSender[0];
+        poll.optionOrder = new int[0];
+        poll.countryCodes = new String[0];
+        TdApi.File file = new TdApi.File();
+        // A negative ID keeps the native viewer on its local image path.
+        file.id = -FIXTURE_ACCOUNT;
+        file.local = new TdApi.LocalFile();
+        file.local.path = image.getAbsolutePath();
+        file.local.isDownloadingCompleted = true;
+        file.remote = new TdApi.RemoteFile();
+        TdApi.Photo photo = new TdApi.Photo(false, null, new TdApi.PhotoSize[] {new TdApi.PhotoSize("x", file, 320, 180, new int[0])});
+        poll.options = new TdApi.PollOption[] {
+          option("photo", "Photo answer", new TdApi.PollMediaPhoto(photo, null)),
+          option("link", "Link answer", new TdApi.PollMediaLink("https://example.com", null)),
+          option("map", "Location answer", new TdApi.PollMediaLocation(new TdApi.Location(55, 37, 0)))
+        };
+        TdApi.Message message = message(1000, tdlib.myUserId());
+        message.content = new TdApi.MessagePoll(poll, text("Description below the question"), null, false);
+        parsed[0] = (TGMessagePoll) TGMessage.valueOf(controller.getManager(), message);
+        parsed[0].buildLayout(720);
+        require(parsed[0].getHeight() > 400 && parsed[0].getHeight() < 4000, "Poll media layout has invalid height");
+        parent[0] = new FrameLayout(activity);
+        parent[0].addView(view[0]);
+        view[0].setManager(controller.getManager());
+        view[0].setParentOnMeasureDisabled(true);
+        view[0].setUseComplexReceiver();
+        view[0].setMessage(parsed[0]);
+        activity.addToRoot(parent[0], false);
+        view[0].getComplexReceiver().attach();
+      });
+      final boolean[] photoVisible = new boolean[1];
+      long deadline = SystemClock.uptimeMillis() + 10_000;
+      while (!photoVisible[0] && SystemClock.uptimeMillis() < deadline) {
+        SystemClock.sleep(200);
+        onUi(() -> {
+          Bitmap render = renderPoll(parent[0], parsed[0]);
+          for (int y = 0; y < render.getHeight(); y += 4) for (int x = 0; x < render.getWidth(); x += 4) {
+            if (render.getPixel(x, y) == Color.BLUE) photoVisible[0] = true;
+          }
+          saveBitmap(render, "ratogramx-smoke-poll.png");
+          render.recycle();
+        });
+      }
+      require(photoVisible[0], "Poll option photo did not load on Android");
+      onUi(() -> {
+        Object[] options = (Object[]) field(TGMessagePoll.class, "options").get(parsed[0]);
+        Object media = field(options[0].getClass(), "media").get(options[0]);
+        MediaWrapper wrapper = (MediaWrapper) field(media.getClass(), "wrapper").get(media);
+        require(activity.getCurrentPopupWindow() == null, "Close other popups before the media fixture");
+        ownsPopup[0] = true;
+        activity.removeFromRoot(parent[0]);
+        require(parsed[0].onClick(view[0], wrapper), "Poll photo click was ignored");
+        PopupLayout popup = activity.getCurrentPopupWindow();
+        require(popup != null && popup.getBoundController() instanceof MediaViewController, "Poll photo did not open the native viewer");
+        require(!((MediaViewController) popup.getBoundController()).shouldDisallowScreenshots(), "Local poll fixture was unexpectedly protected");
+      });
+      boolean viewerPhotoVisible = false;
+      awaitFrame();
+      deadline = SystemClock.uptimeMillis() + 10_000;
+      while (!viewerPhotoVisible && SystemClock.uptimeMillis() < deadline) {
+        SystemClock.sleep(200);
+        Bitmap viewerScreenshot = getUiAutomation().takeScreenshot();
+        require(viewerScreenshot != null, "Cannot capture poll media viewer");
+        for (int y = 0; y < viewerScreenshot.getHeight(); y += 4) for (int x = 0; x < viewerScreenshot.getWidth(); x += 4) {
+          if (viewerScreenshot.getPixel(x, y) == Color.BLUE) viewerPhotoVisible = true;
+        }
+        saveBitmap(viewerScreenshot, "ratogramx-smoke-poll-viewer.png");
+        viewerScreenshot.recycle();
+      }
+      if (!viewerPhotoVisible) onUi(() -> {
+        PopupLayout popup = activity.getCurrentPopupWindow();
+        View content = popup.getBoundView();
+        View mediaView = (View) field(MediaViewController.class, "mediaView").get(popup.getBoundController());
+        require(false, "The native viewer did not display the poll photo: content=" + content.getWidth() + "x" + content.getHeight() +
+          ", alpha=" + mediaView.getAlpha() + ", windowFlags=" + activity.getWindow().getAttributes().flags);
+      });
+      onUi(() -> activity.getCurrentPopupWindow().hideWindow(false));
+      waitForIdleSync();
+      onUi(() -> {
+        TdApi.Poll old = ((TdApi.MessagePoll) parsed[0].getMessage().content).poll;
+        TdApi.Poll updated = new TdApi.Poll(old.id, old.question, old.options.clone(), old.totalVoterCount, old.recentVoterIds, old.canGetVoters, old.canSeeResults, old.isAnonymous, old.allowsMultipleAnswers, old.allowsRevoting, old.membersOnly, old.countryCodes, new int[] {2, 0, 1}, old.type, old.openPeriod, old.closeDate, old.isClosed, old.voteRestrictionReason);
+        updated.options[0] = option("photo", "Photo removed", null);
+        int before = parsed[0].getHeight();
+        parsed[0].replaceMessageContent(parsed[0].getChatId(), parsed[0].getId(), new TdApi.MessagePoll(updated, text("Updated description"), null, false));
+        parsed[0].buildLayout(720);
+        require(parsed[0].getHeight() < before - 100, "Media-only update kept the old option height");
+        Field order = TGMessagePoll.class.getDeclaredField("displayOrder");
+        order.setAccessible(true);
+        require(Arrays.equals((int[]) order.get(parsed[0]), updated.optionOrder), "Poll option order was not updated");
+        view[0].setMessage(parsed[0]);
+        Bitmap render = renderPoll(parent[0], parsed[0]);
+        saveBitmap(render, "ratogramx-smoke-poll-updated.png");
+        render.recycle();
+      });
+    } finally {
+      onUi(() -> {
+        PopupLayout popup = activity.getCurrentPopupWindow();
+        if (ownsPopup[0] && popup != null && popup.getBoundController() instanceof MediaViewController) popup.hideWindow(false);
+        if (parent[0] != null) activity.removeFromRoot(parent[0]);
+        if (view[0] != null) view[0].performDestroy();
+        if (parsed[0] != null) parsed[0].onDestroy();
+      });
+      if (!image.delete()) image.deleteOnExit();
+    }
+  }
+
+  private Bitmap renderPoll (FrameLayout parent, TGMessage parsed) {
+    parent.measure(exact(720), exact(parsed.getHeight()));
+    parent.layout(0, 0, 720, parsed.getHeight());
+    Bitmap render = Bitmap.createBitmap(720, parsed.getHeight(), Bitmap.Config.ARGB_8888);
+    parent.draw(new Canvas(render));
+    return render;
+  }
+
+  private void attachEmptyAdapter (MessagesController controller, RecyclerView recycler) {
+    LinearLayoutManager layout = new LinearLayoutManager(activity);
+    recycler.setLayoutManager(layout);
+    controller.getManager().modifyRecycler(activity, recycler, layout);
+  }
+
+  private void saveBitmap (Bitmap bitmap, String name) throws Exception {
+    try (FileOutputStream output = new FileOutputStream(new File(getTargetContext().getCacheDir(), name))) { bitmap.compress(Bitmap.CompressFormat.PNG, 100, output); }
+  }
+
+  private void awaitFrame () throws Exception {
+    CountDownLatch committed = new CountDownLatch(1);
+    onUi(() -> {
+      View decor = activity.getWindow().getDecorView();
+      decor.getViewTreeObserver().registerFrameCommitCallback(committed::countDown);
+      decor.invalidate();
+    });
+    require(committed.await(10, TimeUnit.SECONDS), "Android did not commit the fixture frame");
+  }
+
+  private static Field field (Class<?> owner, String name) throws Exception {
+    Field field = owner.getDeclaredField(name);
+    field.setAccessible(true);
+    return field;
+  }
+
+  private static Method method (Class<?> owner, String name, Class<?>... arguments) throws Exception {
+    Method method = owner.getDeclaredMethod(name, arguments);
+    method.setAccessible(true);
+    return method;
+  }
+
+  private final class VideoFixtureController extends MessagesController {
+    final FrameLayout root = new FrameLayout(activity);
+    final FrameLayout messageLayer = new FrameLayout(activity);
+    final MessagesRecyclerView messages = new MessagesRecyclerView(activity) {
+      @Override protected void onLayout (boolean changed, int left, int top, int right, int bottom) { }
+    };
+    final LinearLayout composer = new LinearLayout(activity);
+    final EditText input = new EditText(activity);
+    int panelHeight, imeOffset;
+
+    VideoFixtureController () {
+      super(activity, EmulatorSmokeInstrumentation.this.tdlib);
+      TdApi.Chat chat = new TdApi.Chat();
+      chat.id = tdlib.myUserId();
+      chat.type = new TdApi.ChatTypePrivate(tdlib.myUserId());
+      setArguments(new Arguments(PREVIEW_MODE_FONT_SIZE, null, chat));
+      attachEmptyAdapter(this, messages);
+      // Only the viewport geometry is needed; no live message adapter is attached.
+      while (messages.getItemDecorationCount() > 0) messages.removeItemDecorationAt(0);
+      root.setBackgroundColor(Color.DKGRAY);
+      composer.setBackgroundColor(Color.DKGRAY);
+      input.setHint("Local video fixture");
+      composer.addView(input, new LinearLayout.LayoutParams(-1, 96));
+      root.addView(messages, new FrameLayout.LayoutParams(-1, -1));
+      root.addView(messageLayer, new FrameLayout.LayoutParams(-1, -1));
+      root.addView(composer, new FrameLayout.LayoutParams(-1, 96, Gravity.BOTTOM));
+    }
+
+    void updateKeyboardBounds () {
+      int ime = root.getRootWindowInsets().getInsets(WindowInsets.Type.ime()).bottom;
+      int keyboardTop = activity.getWindow().getDecorView().getHeight() - ime;
+      int[] position = new int[2];
+      root.getLocationInWindow(position);
+      // Respect a resized parent as well as an overlay that extends behind the IME.
+      updateBounds(Math.max(0, position[1] + root.getHeight() - keyboardTop));
+    }
+
+    void updateBounds (int ime) {
+      imeOffset = ime;
+      FrameLayout.LayoutParams inputParams = (FrameLayout.LayoutParams) composer.getLayoutParams();
+      inputParams.bottomMargin = Math.max(ime, panelHeight);
+      composer.setLayoutParams(inputParams);
+      FrameLayout.LayoutParams messagesParams = (FrameLayout.LayoutParams) messages.getLayoutParams();
+      // Match the real chat's ABOVE-composer viewport without a second bottom inset.
+      messagesParams.height = Math.max(0, root.getHeight() - inputParams.bottomMargin - inputParams.height);
+      messages.setLayoutParams(messagesParams);
+      FrameLayout.LayoutParams layerParams = (FrameLayout.LayoutParams) messageLayer.getLayoutParams();
+      layerParams.height = messagesParams.height;
+      messageLayer.setLayoutParams(layerParams);
+    }
+
+    @Override public boolean isFocused () { return true; }
+    @Override public void checkRoundVideo (int first, int last, boolean onScroll) { }
+    @Override public int getTopOffset () { return 0; }
+    @Override public int getInputOffset (boolean excludeTranslation) { return composer.getHeight(); }
+    @Override public LinearLayout getBottomWrap () { return composer; }
+    @Override public MessagesRecyclerView getMessagesView () { return messages; }
+  }
+
+  private void roundVideo () throws Exception {
+    File movie = new File(getTargetContext().getCacheDir(), "ratogramx-smoke-round.mp4");
+    try (InputStream input = getContext().getAssets().open("round-smoke.mp4"); FileOutputStream output = new FileOutputStream(movie)) {
+      byte[] buffer = new byte[8192];
+      int count;
+      while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+    }
+    RoundVideoController player = activity.getRoundVideoController();
+    final VideoFixtureController[] controller = new VideoFixtureController[1];
+    final MessageViewGroup[] group = new MessageViewGroup[1];
+    final TGMessage[] parsed = new TGMessage[1];
+    final ExoPlayer[] exo = new ExoPlayer[1];
+    Class<?> base = RoundVideoController.class.getSuperclass();
+    boolean[] prepared = new boolean[1];
+    try {
+      onUi(() -> {
+        require(field(base, "object").get(player) == null && player.getRootView() == null, "Finish current playback before the fixture");
+        controller[0] = new VideoFixtureController();
+        FrameLayout.LayoutParams chatPosition = new FrameLayout.LayoutParams(-1, -1);
+        chatPosition.topMargin = HeaderView.getSize(true);
+        controller[0].root.setLayoutParams(chatPosition);
+        activity.addToNavigation(controller[0].root);
+        TdApi.File file = new TdApi.File();
+        file.id = FIXTURE_ACCOUNT;
+        file.local = new TdApi.LocalFile();
+        file.local.path = movie.getAbsolutePath();
+        file.local.isDownloadingCompleted = true;
+        file.remote = new TdApi.RemoteFile();
+        TdApi.Message message = message(2000, tdlib.myUserId());
+        message.content = new TdApi.MessageVideoNote(new TdApi.VideoNote(5, new byte[0], 320, null, null, null, file), false, false);
+        parsed[0] = TGMessage.valueOf(controller[0].getManager(), message);
+        MessageView view = new MessageView(activity);
+        view.setManager(controller[0].getManager());
+        view.setUseReceivers();
+        group[0] = new MessageViewGroup(activity);
+        group[0].initWithView(view, controller[0].getManager(), null);
+        view.setMessage(parsed[0]);
+        FrameLayout.LayoutParams position = new FrameLayout.LayoutParams(-1, -2);
+        position.topMargin = 500;
+        controller[0].messageLayer.addView(group[0], position);
+        method(RoundVideoController.class, "preparePlayerIfNeeded").invoke(player);
+        prepared[0] = true;
+        field(base, "object").set(player, message);
+        field(base, "tdlib").set(player, tdlib);
+        field(RoundVideoController.class, "targetView").set(player, group[0]);
+        field(RoundVideoController.class, "targetController").set(player, controller[0]);
+        View main = (View) field(RoundVideoController.class, "mainPlayerView").get(player);
+        main.setAlpha(1f);
+        exo[0] = (ExoPlayer) field(RoundVideoController.class, "exoPlayer").get(player);
+        exo[0].setMediaSource(U.newMediaSource(movie));
+        exo[0].setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ONE);
+        exo[0].prepare();
+        exo[0].setPlayWhenReady(true);
+      });
+      SystemClock.sleep(1500);
+      onUi(() -> method(RoundVideoController.class, "layoutPlayer").invoke(player));
+      boolean[] rendered = new boolean[1];
+      long deadline = SystemClock.uptimeMillis() + 15_000;
+      while (!rendered[0] && SystemClock.uptimeMillis() < deadline) {
+        SystemClock.sleep(200);
+        onUi(() -> {
+          require(exo[0].getPlayerError() == null, "Local round-video decoder failed");
+          TextureView texture = (TextureView) field(RoundVideoController.class, "mainTextureView").get(player);
+          Bitmap frame = texture.isAvailable() ? texture.getBitmap(64, 64) : null;
+          if (frame != null) {
+            for (int y = 0; y < 64; y += 4) for (int x = 0; x < 64; x += 4) if ((frame.getPixel(x, y) & 0xffffff) != 0) rendered[0] = true;
+            frame.recycle();
+          }
+        });
+      }
+      require(rendered[0], "Round-video decoder did not render a frame");
+      onUi(() -> positionVideoAtComposer(controller[0], group[0]));
+      SystemClock.sleep(300);
+      onUi(() -> {
+        method(RoundVideoController.class, "layoutPlayer").invoke(player);
+        assertComposerClip(player, controller[0]);
+      });
+      awaitFrame();
+      Bitmap videoScreenshot = getUiAutomation().takeScreenshot();
+      require(videoScreenshot != null, "Cannot capture video fixture");
+      saveBitmap(videoScreenshot, "ratogramx-smoke-round.png");
+      videoScreenshot.recycle();
+      onUi(() -> {
+        controller[0].input.requestFocus();
+        activity.getSystemService(InputMethodManager.class).showSoftInput(controller[0].input, InputMethodManager.SHOW_IMPLICIT);
+      });
+      boolean[] keyboard = new boolean[1];
+      deadline = SystemClock.uptimeMillis() + 8000;
+      while (!keyboard[0] && SystemClock.uptimeMillis() < deadline) {
+        SystemClock.sleep(200);
+        onUi(() -> keyboard[0] = activity.getWindow().getDecorView().getRootWindowInsets().isVisible(WindowInsets.Type.ime()));
+      }
+      require(keyboard[0], "Android keyboard did not open for the playback check");
+      SystemClock.sleep(600);
+      onUi(() -> controller[0].updateKeyboardBounds());
+      SystemClock.sleep(300);
+      onUi(() -> positionVideoAtComposer(controller[0], group[0]));
+      SystemClock.sleep(300);
+      onUi(() -> {
+        int ime = activity.getWindow().getDecorView().getRootWindowInsets().getInsets(WindowInsets.Type.ime()).bottom;
+        int[] composerPosition = new int[2];
+        controller[0].composer.getLocationInWindow(composerPosition);
+        require(ime > 0 && composerPosition[1] + controller[0].composer.getHeight() <= activity.getWindow().getDecorView().getHeight() - ime,
+          "Fixture composer did not settle above the Android keyboard");
+        method(RoundVideoController.class, "layoutPlayer").invoke(player);
+        assertComposerClip(player, controller[0]);
+      });
+      awaitFrame();
+      onUi(() -> require(activity.getWindow().getDecorView().getRootWindowInsets().isVisible(WindowInsets.Type.ime()), "Android keyboard closed before capture"));
+      Bitmap keyboardScreenshot = getUiAutomation().takeScreenshot();
+      require(keyboardScreenshot != null, "Cannot capture keyboard fixture");
+      saveBitmap(keyboardScreenshot, "ratogramx-smoke-round-keyboard.png");
+      keyboardScreenshot.recycle();
+      onUi(() -> {
+        activity.getSystemService(InputMethodManager.class).hideSoftInputFromWindow(controller[0].input.getWindowToken(), 0);
+      });
+      SystemClock.sleep(800);
+      onUi(() -> {
+        controller[0].panelHeight = 450;
+        controller[0].updateBounds(0);
+      });
+      SystemClock.sleep(400);
+      onUi(() -> positionVideoAtComposer(controller[0], group[0]));
+      SystemClock.sleep(300);
+      onUi(() -> {
+        method(RoundVideoController.class, "layoutPlayer").invoke(player);
+        assertComposerClip(player, controller[0]);
+      });
+    } finally {
+      onUi(() -> {
+        if (controller[0] != null) {
+          activity.getSystemService(InputMethodManager.class).hideSoftInputFromWindow(controller[0].input.getWindowToken(), 0);
+        }
+        if (prepared[0]) {
+          field(base, "object").set(player, null);
+          field(RoundVideoController.class, "targetView").set(player, null);
+          field(RoundVideoController.class, "targetController").set(player, null);
+          method(RoundVideoController.class, "closePlayer", int.class).invoke(player, 0);
+        }
+        if (controller[0] != null) activity.removeFromNavigation(controller[0].root);
+        if (group[0] != null) group[0].performDestroy();
+        if (parsed[0] != null) parsed[0].onDestroy();
+      });
+      if (!movie.delete()) movie.deleteOnExit();
+    }
+  }
+
+  private void assertComposerClip (RoundVideoController player, VideoFixtureController controller) throws Exception {
+    RectFrameLayout clip = player.getRootView();
+    int[] rootPosition = new int[2], composerPosition = new int[2];
+    clip.getLocationInWindow(rootPosition);
+    controller.composer.getLocationInWindow(composerPosition);
+    int bottom = field(RectFrameLayout.class, "bottom").getInt(clip);
+    int top = field(RectFrameLayout.class, "top").getInt(clip);
+    require(rootPosition[1] + clip.getHeight() - bottom <= composerPosition[1], "Round-video pixels can overlap the composer");
+    require(rootPosition[1] + clip.getHeight() - bottom >= composerPosition[1] - 1, "Round video was clipped above the composer edge");
+    require(top + bottom < clip.getHeight(), "Visible round-video region became empty");
+    View main = (View) field(RoundVideoController.class, "mainPlayerView").get(player);
+    int[] videoPosition = new int[2];
+    main.getLocationInWindow(videoPosition);
+    require(videoPosition[1] < composerPosition[1] && videoPosition[1] + main.getHeight() > composerPosition[1], "Video fixture did not cross the composer edge");
+  }
+
+  private void positionVideoAtComposer (VideoFixtureController controller, MessageViewGroup group) {
+    controller.updateBounds(controller.imeOffset);
+    FrameLayout.LayoutParams position = (FrameLayout.LayoutParams) group.getLayoutParams();
+    position.topMargin = Math.max(0, controller.composer.getTop() - group.getMessage().getContentY() - group.getHeight() / 2);
+    group.setLayoutParams(position);
+  }
+
+  private TdApi.Message message (long id, long chatId) {
+    TdApi.Message message = new TdApi.Message();
+    message.id = id;
+    message.chatId = chatId;
+    message.senderId = new TdApi.MessageSenderUser(tdlib.myUserId());
+    message.date = (int) (System.currentTimeMillis() / 1000);
+    message.authorSignature = "";
+    message.canBeSaved = true;
+    message.content = new TdApi.MessageText(text("Local fixture"), null, null);
+    return message;
+  }
+
+  private static TdApi.FormattedText text (String value) { return new TdApi.FormattedText(value, new TdApi.TextEntity[0]); }
+
+  private static TdApi.PollOption option (String id, String label, TdApi.PollMedia media) {
+    TdApi.PollOption option = new TdApi.PollOption();
+    option.id = id;
+    option.text = text(label);
+    option.media = media;
+    option.recentVoterIds = new TdApi.MessageSender[0];
+    return option;
+  }
+}

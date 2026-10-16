@@ -57,6 +57,10 @@ JAVA_HOME=/path/to/jdk-25 ./gradlew :app:testLatestArm64DebugUnitTest
 Test the affected flow on a real device or emulator. Mention anything that
 could not be tested in the pull request.
 
+The [emulator regression checks](docs/EMULATOR_CHECKS.md) exercise Ghost local
+reads, notification icons, poll media, and round-video clipping with local
+fixtures in the separate development package.
+
 ## Pull requests
 
 A good pull request contains:
