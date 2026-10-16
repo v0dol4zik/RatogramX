@@ -616,7 +616,6 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
 
     builder
       .setContentTitle(visualChatTitle)
-      .setSmallIcon(R.drawable.ratogram_notification_24)
       .setContentText(textContent)
       .setTicker(tickerText)
       .setAutoCancel(Config.NOTIFICATION_AUTO_CANCEL)
@@ -624,6 +623,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
       .setWhen(TimeUnit.SECONDS.toMillis(lastNotification.getDate()))
       .setStyle(style)
       .setContentIntent(contentIntent);
+    org.thunderdog.challegram.util.AppIconManager.setNotificationSmallIcon(builder, AppContext.get());
 
     if (ChatId.isSecret(group.getChatId()) && (Settings.instance().needHideSecretChats() || tdlib.notifications().isShowPreviewEnabled(group.getChatId(), group.isMention()))) {
       builder.setVisibility(NotificationCompat.VISIBILITY_SECRET);
@@ -667,6 +667,8 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
     if (U.isValidBitmap(bitmap)) {
       builder.setLargeIcon(bitmap);
       hasIcon = true;
+    } else {
+      builder.setLargeIcon(org.thunderdog.challegram.util.AppIconManager.notificationIcon(AppContext.get()));
     }
 
     if (user != null && !StringUtils.isEmpty(user.phoneNumber)) {
@@ -1078,7 +1080,8 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
     }
 
     b.setAutoCancel(Config.NOTIFICATION_AUTO_CANCEL_SPECIFIC);
-    b.setSmallIcon(R.drawable.ratogram_notification_24);
+    org.thunderdog.challegram.util.AppIconManager.setNotificationSmallIcon(b, AppContext.get());
+    b.setLargeIcon(org.thunderdog.challegram.util.AppIconManager.notificationIcon(AppContext.get()));
     b.setWhen(timeMs);
     if (!Device.FLYME) {
       b.setNumber(badgeCount);

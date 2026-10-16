@@ -52,6 +52,17 @@
   <string name="GhostOffline">Показываться офлайн</string>
   <string name="GhostModeEnabledToast">Режим невидимки включён</string>
   <string name="GhostModeDisabledToast">Режим невидимки выключен</string>
+  <string name="GhostOnlineExceptions">Кому виден мой онлайн</string>
+  <string name="PollAttachmentAdd">Прикрепить медиа</string>
+  <string name="PollAttachmentChange">Изменить вложение</string>
+  <string name="PollAttachmentRemove">Удалить вложение</string>
+  <string name="PollAttachmentLink">Прикрепить ссылку</string>
+  <string name="PollAttachmentUnsupported">Этот тип файла здесь не поддерживается. Выберите фото, видео или анимацию.</string>
+  <string name="GhostOnlineRetry">Проверить приватность / повторить</string>
+  <string name="GhostOnlineReady">Ошибок приватности нет</string>
+  <string name="GhostOnlinePending">Офлайн до подтверждения приватности</string>
+  <string name="GhostOnlineError">Остаёмся офлайн: %1$s</string>
+  <string name="GhostOnlineInfo">Экспериментальная функция. Исключения сохраняются отдельно для каждого аккаунта и относятся только к онлайну, а не к прочтению и набору текста. Если включено «Показываться офлайн» и список не пуст, серверная настройка «Последняя активность и онлайн» меняется для всего аккаунта, включая другие устройства. Только выбранные люди смогут видеть онлайн и время последнего посещения. При выключении прежние правила восстанавливаются; более новые изменения из другого клиента сохраняются. До подтверждения сервером клиент остаётся офлайн. Telegram всё ещё может раскрывать активность при отправке сообщений и других действиях. После ошибки нажмите «Проверить приватность» для повторной попытки.</string>
   <string name="FolderTabsInfo">Меняет вид стандартных вкладок папок Telegram X.</string>
   <string name="FolderTabsStyle">Вид вкладок папок</string>
   <string name="FolderTabsStyleUpstream">По умолчанию Telegram X</string>

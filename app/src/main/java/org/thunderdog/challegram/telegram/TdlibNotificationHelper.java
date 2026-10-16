@@ -151,6 +151,8 @@ public class TdlibNotificationHelper implements Iterable<TdlibNotificationGroup>
         if (!group.isEmpty()) {
           groups.put(rawGroup.id, group);
           notifications.addAll(group.notifications());
+          removeLocallyReadNotifications(group);
+          if (group.isHidden()) hideNotificationGroup(group);
           needRebuild = needRebuild || (!group.isEmpty() && !group.isHidden());
         }
       }
@@ -261,6 +263,13 @@ public class TdlibNotificationHelper implements Iterable<TdlibNotificationGroup>
       Collections.sort(notifications);
     }
     boolean needNotification = !isSilent && context.allowNotificationSound(update.chatId);
+    removeLocallyReadNotifications(group);
+    boolean hasVisible = false;
+    for (TdlibNotification item : group.notifications()) if (!item.isHidden()) hasVisible = true;
+    if (!hasVisible) {
+      hideNotificationGroup(group);
+      return;
+    }
     onGroupChanged(group, needNotification, update.notificationSettingsChatId, null);
   }
 
@@ -588,7 +597,22 @@ public class TdlibNotificationHelper implements Iterable<TdlibNotificationGroup>
   }
 
   public void rebuildChat (long specificChatId) {
+    for (TdlibNotificationGroup group : groups.values()) {
+      if (group.getChatId() == specificChatId) {
+        removeLocallyReadNotifications(group);
+        if (group.isHidden()) hideNotificationGroup(group);
+      }
+    }
     rebuild(null, specificChatId, 0);
+  }
+
+  private void removeLocallyReadNotifications (TdlibNotificationGroup group) {
+    for (TdlibNotification item : group.notifications()) {
+      if (item.isLocallyRead()) {
+        // RemoveNotification only dismisses the local notification; it never reads history.
+        tdlib.client().send(new TdApi.RemoveNotification(group.getId(), item.getId()), tdlib.silentHandler());
+      }
+    }
   }
 
   public void rebuildGroup (int groupId) {

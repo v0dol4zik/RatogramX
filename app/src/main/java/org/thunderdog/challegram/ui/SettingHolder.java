@@ -745,6 +745,7 @@ public class SettingHolder extends RecyclerView.ViewHolder {
                 RippleSupport.setTransparentSelector(wrap);
                 item.setEnabled(false);
                 wrap.setOnClickListener(onClickListener);
+                wrap.setOnLongClickListener(onLongClickListener);
 
                 TogglerView togglerView = new TogglerView(context);
                 togglerView.init(false);

@@ -112,8 +112,15 @@ public class TdlibNotification implements Comparable<TdlibNotification> {
   }
 
   public boolean isHidden () {
+    if (isLocallyRead()) return true;
     boolean isHidden = group.isHidden(id);
     return isHidden && group.needRemoveDismissedMessages();
+  }
+
+  public boolean isLocallyRead () {
+    TdApi.Message message = findMessage();
+    return !isScheduled() && moe.kirao.mgx.utils.GhostReadStore.isLocallyRead(tdlib.id(), getChatId(),
+      message != null ? message.topicId : null, findMessageId());
   }
 
   public int getId () {

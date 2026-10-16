@@ -127,9 +127,10 @@ public class MoexConfig {
   public static final int DRAWER_ITEM_HELP = 1 << 4;
   public static final int DRAWER_ITEM_NIGHT_MODE = 1 << 5;
   public static final int DRAWER_ITEM_PROXY = 1 << 6;
+  public static final int DRAWER_ITEM_GHOST = 1 << 7;
   public static final int DRAWER_ITEMS_ALL = DRAWER_ITEM_CONTACTS | DRAWER_ITEM_ARCHIVE |
     DRAWER_ITEM_CALLS | DRAWER_ITEM_SAVED_MESSAGES | DRAWER_ITEM_HELP | DRAWER_ITEM_NIGHT_MODE |
-    DRAWER_ITEM_PROXY;
+    DRAWER_ITEM_PROXY | DRAWER_ITEM_GHOST;
 
   public static final int SIZE_LIMIT_800 = 0;
   public static final int SIZE_LIMIT_1280 = 1;
@@ -416,7 +417,7 @@ public class MoexConfig {
     }
   }
 
-  private void notifyClientListeners (String key, Object newSettings, Object oldSettings) {
+  public void notifyClientListeners (String key, Object newSettings, Object oldSettings) {
     List<SettingsChangeListener> listeners;
     synchronized (this) {
       listeners = settingsListeners == null ? null : new ArrayList<>();

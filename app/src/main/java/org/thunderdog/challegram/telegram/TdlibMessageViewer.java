@@ -833,6 +833,13 @@ public class TdlibMessageViewer {
       if (incomingMessageCount != null && readId > previousReadId) {
         newlyReadCount = Math.max(newlyReadCount, (int) incomingMessageCount.applyAsLong(previousReadId, readId));
       }
+      if (readTopicId instanceof TdApi.MessageTopicForum) {
+        long[] seen = java.util.Arrays.stream(messageIds).filter(id -> {
+          VisibleMessage message = visibleChat.find(id);
+          return message != null && message.isSent && !message.isSponsored && !message.isScheduled;
+        }).toArray();
+        GhostReadStore.rememberViewedIds(context.tdlib.id(), chatId, seen);
+      }
       GhostReadStore.record(context.tdlib.id(), chatId, readTopicId, inbox, readId, newlyReadCount, -1);
     }
 

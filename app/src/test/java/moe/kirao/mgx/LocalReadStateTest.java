@@ -8,6 +8,29 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class LocalReadStateTest {
+  @Test public void forumDeductionsLeaveOtherTopicsUnreadAndSurviveRestart () {
+    LocalReadState first = new LocalReadState(0, null);
+    first.update(10, 7, 70, 70, 1, -1);
+    LocalReadState second = new LocalReadState(0, null);
+    second.update(20, 5, 90, 40, 2, -1);
+    int parentServerCount = 18; // Six messages belong to untouched topics.
+    assertEquals(9, parentServerCount - first.locallyReadCountAfter(0) - second.locallyReadCountAfter(0));
+    LocalReadState restored = new LocalReadState(first.readMessageId, first.counter());
+    assertEquals(7, restored.locallyReadCountAfter(0));
+    assertEquals(0, restored.locallyReadCountAfter(70));
+    assertEquals(0, restored.locallyReadCountAfter(30)); // No double counting a partial parent read.
+  }
+
+  @Test public void externalTopicReadInvalidatesOnlyItsEstimate () {
+    LocalReadState topic = new LocalReadState(70, new long[] {10, 7, 0});
+    assertTrue(topic.invalidateEstimate(30));
+    assertEquals(0, topic.locallyReadCount());
+    topic.update(30, 4, 70, 70, 0, -1);
+    assertEquals(4, topic.locallyReadCount());
+    assertFalse(topic.invalidateEstimate(20));
+    assertFalse(topic.invalidateEstimate(70));
+  }
+
   @Test public void partialProgressSurvivesRestoringTheState () {
     LocalReadState state = new LocalReadState(0, null);
     assertTrue(state.update(10, 8, 100, 30, 3, -1));

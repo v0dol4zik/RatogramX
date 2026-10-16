@@ -761,6 +761,7 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
       if (isOutgoing()) {
         return chat.lastMessage.id > chat.lastReadOutboxMessageId;
       } else {
+        if (tdlib.isForum(chat.id)) return GhostReadStore.unreadCount(tdlib.id(), chat.id, null, GhostReadStore.Inbox.from(chat)) > 0;
         return chat.lastMessage.id > GhostReadStore.readMessageId(tdlib.id(), chat.id, null, chat.lastReadInboxMessageId);
       }
     }

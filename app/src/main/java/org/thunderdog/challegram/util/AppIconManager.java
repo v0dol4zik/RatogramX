@@ -71,6 +71,10 @@ public final class AppIconManager {
 
   private static @Nullable String pendingIconId;
   private static @Nullable UI.StateListener pendingListener;
+  private static @Nullable Bitmap notificationIcon;
+  private static @Nullable String notificationIconId;
+  private static @Nullable Bitmap notificationMask;
+  private static @Nullable String notificationMaskId;
 
   private AppIconManager () { }
 
@@ -203,7 +207,71 @@ public final class AppIconManager {
     if (activity != null) {
       updateTaskDescription(activity);
     }
+    for (org.thunderdog.challegram.telegram.TdlibAccount account : org.thunderdog.challegram.telegram.TdlibManager.instance()) {
+      if (account.hasTdlib(false)) account.tdlib().notifications().onUpdateNotifications((org.drinkless.tdlib.TdApi.NotificationSettingsScope) null);
+    }
     return true;
+  }
+
+  public static synchronized @Nullable Bitmap notificationIcon (@NonNull Context context) {
+    String id = getAppliedIconId();
+    if (notificationIcon == null || !id.equals(notificationIconId)) {
+      Icon icon = findIcon(id);
+      Drawable drawable = icon != null ? ContextCompat.getDrawable(context, icon.launcherIconRes) : null;
+      if (drawable == null) return null;
+      int size = org.thunderdog.challegram.tool.Screen.dp(64f);
+      notificationIcon = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+      drawable.setBounds(0, 0, size, size);
+      drawable.draw(new Canvas(notificationIcon));
+      notificationIconId = id;
+    }
+    return notificationIcon;
+  }
+
+  public static void setNotificationSmallIcon (androidx.core.app.NotificationCompat.Builder builder, Context context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+      builder.setSmallIcon(R.drawable.ratogram_notification_24);
+      return;
+    }
+    Bitmap mask = notificationMask(context);
+    if (mask != null) builder.setSmallIcon(androidx.core.graphics.drawable.IconCompat.createWithBitmap(mask));
+    else builder.setSmallIcon(R.drawable.ratogram_notification_24);
+  }
+
+  private static synchronized @Nullable Bitmap notificationMask (Context context) {
+    String id = getAppliedIconId();
+    if (notificationMask != null && id.equals(notificationMaskId)) return notificationMask;
+    final int resource;
+    switch (id) {
+      case "amoled": resource = R.drawable.app_icon_amoled_foreground; break;
+      case "lab": resource = R.drawable.app_icon_lab_foreground; break;
+      case "malware": resource = R.drawable.app_icon_malware_foreground; break;
+      case "not_you": resource = R.drawable.app_icon_not_you_foreground; break;
+      case "notele": resource = R.drawable.app_icon_notele_foreground; break;
+      case "steam": resource = R.drawable.app_icon_steam_foreground; break;
+      case "twins": resource = R.drawable.app_icon_twins_foreground; break;
+      case "xue": resource = R.drawable.app_icon_xue_foreground; break;
+      default: resource = R.drawable.app_icon_original_foreground; break;
+    }
+    Drawable drawable = ContextCompat.getDrawable(context, resource);
+    if (drawable == null) return null;
+    Bitmap source = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888);
+    drawable.setBounds(0, 0, 128, 128);
+    drawable.draw(new Canvas(source));
+    android.graphics.Rect bounds = new android.graphics.Rect(128, 128, 0, 0);
+    for (int y = 0; y < 128; y++) for (int x = 0; x < 128; x++) {
+      if (android.graphics.Color.alpha(source.getPixel(x, y)) > 8) bounds.union(x, y, x + 1, y + 1);
+    }
+    if (bounds.isEmpty()) { source.recycle(); return null; }
+    notificationMask = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888);
+    float scale = 56f / Math.max(bounds.width(), bounds.height());
+    float width = bounds.width() * scale, height = bounds.height() * scale;
+    android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
+    paint.setColorFilter(new android.graphics.PorterDuffColorFilter(android.graphics.Color.WHITE, android.graphics.PorterDuff.Mode.SRC_IN));
+    new Canvas(notificationMask).drawBitmap(source, bounds, new android.graphics.RectF((64f - width) / 2f, (64f - height) / 2f, (64f + width) / 2f, (64f + height) / 2f), paint);
+    source.recycle();
+    notificationMaskId = id;
+    return notificationMask;
   }
 
   private static void setComponentEnabled (@NonNull PackageManager packageManager, @NonNull ComponentName component, boolean enabled) {

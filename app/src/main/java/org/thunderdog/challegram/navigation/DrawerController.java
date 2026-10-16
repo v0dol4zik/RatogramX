@@ -541,6 +541,11 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
       addDrawerSeparator(items);
       items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM_WITH_RADIO, R.id.btn_night, R.drawable.baseline_brightness_2_24, R.string.NightMode, R.id.btn_night, Theme.isDark()));
     }
+    if ((visibleItems & MoexConfig.DRAWER_ITEM_GHOST) != 0 &&
+        Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS)) {
+      items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM_WITH_RADIO, R.id.btn_ghostMode,
+        R.drawable.baseline_ghost_24, R.string.GhostMode, R.id.btn_ghostMode, MoexConfig.ghostMode));
+    }
     if (Test.NEED_CLICK) {
       addDrawerSeparator(items);
       items.add(new ListItem(ListItem.TYPE_DRAWER_ITEM, R.id.btn_reportBug, R.drawable.baseline_bug_report_24, Test.CLICK_NAME, false));
@@ -565,7 +570,8 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
 
   @Override
   public void onSettingsChanged (String key, Object newSettings, Object oldSettings) {
-    if (MoexConfig.KEY_DRAWER_ITEMS.equals(key)) {
+    if (MoexConfig.KEY_DRAWER_ITEMS.equals(key) || MoexConfig.KEY_GHOST_MODE.equals(key) ||
+        MoexConfig.KEY_GHOST_MODE_FLAGS.equals(key) || "experiments".equals(key)) {
       runOnUiThreadOptional(() -> {
         if (adapter != null) {
           adapter.setItems(buildDrawerItems(), true);
@@ -839,6 +845,12 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
 
   @Override
   public boolean onLongClick (View v) {
+    if (v.getId() == R.id.btn_ghostMode) {
+      moe.kirao.mgx.ui.SettingsMoexController controller = new moe.kirao.mgx.ui.SettingsMoexController(context, context.currentTdlib());
+      controller.setArguments(new moe.kirao.mgx.ui.SettingsMoexController.Args(moe.kirao.mgx.ui.SettingsMoexController.CATEGORY_CHATS));
+      openController(controller);
+      return true;
+    }
     if (!(v instanceof BaseView)) {
       return false;
     }
@@ -872,7 +884,10 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
   @Override
   public void onClick (View v) {
     int viewId = v.getId();
-    if (viewId == R.id.btn_tdlib_clearLogs) {
+    if (viewId == R.id.btn_ghostMode) {
+      MoexConfig.instance().toggleGhostMode();
+      UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+    } else if (viewId == R.id.btn_tdlib_clearLogs) {
       TdlibUi.clearLogs(true, size -> TdlibUi.clearLogs(false, size2 -> UI.showToast("Logs Cleared", Toast.LENGTH_SHORT)));
     } else if (viewId == R.id.btn_tdlib_shareLogs) {
       TdlibUi.sendTdlibLogs(context.navigation().getCurrentStackItem(), false, false);

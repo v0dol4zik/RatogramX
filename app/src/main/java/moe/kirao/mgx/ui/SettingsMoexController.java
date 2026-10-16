@@ -34,14 +34,14 @@ import java.nio.charset.StandardCharsets;
 import org.json.JSONObject;
 
 import moe.kirao.mgx.MoexConfig;
-import moe.kirao.mgx.utils.GhostModeUtils;
 import moe.kirao.mgx.utils.MessageHistoryStore;
 
-public class SettingsMoexController extends RecyclerViewController<SettingsMoexController.Args> implements View.OnClickListener, View.OnLongClickListener, ActivityResultHandler {
+public class SettingsMoexController extends RecyclerViewController<SettingsMoexController.Args> implements View.OnClickListener, View.OnLongClickListener, ActivityResultHandler, org.thunderdog.challegram.util.UserPickerMultiDelegate, MoexConfig.SettingsChangeListener {
   private static final int REQUEST_EXPORT_SETTINGS = 0x4d01;
   private static final int REQUEST_IMPORT_SETTINGS = 0x4d02;
   public SettingsMoexController (Context context, Tdlib tdlib) {
     super(context, tdlib);
+    MoexConfig.instance().addSettingsListener(this);
   }
 
   @Override public int getId () {
@@ -169,7 +169,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       Settings.instance().setExperimentEnabled(Settings.EXPERIMENT_FLAG_SHOW_PEER_IDS, adapter.toggleView(v));
     } else if (viewId == R.id.btn_experimentalAllow) {
       boolean hadLocalPremium = Settings.instance().isLocalPremiumExperimentEnabled();
-      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       Settings.instance().setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, adapter.toggleView(v));
       adapter.updateValuedSettingById(viewId);
       adapter.updateValuedSettingById(R.id.btn_experimentalForums);
@@ -178,9 +177,6 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       adapter.updateValuedSettingById(R.id.btn_experimentalMessageHistory);
       adapter.updateValuedSettingById(R.id.btn_showIdProfile);
       updateGhostModeSettings();
-      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
-        tdlib.refreshOnlineStatus();
-      }
       if (hadLocalPremium != Settings.instance().isLocalPremiumExperimentEnabled()) {
         scheduleActivityRestart();
       }
@@ -209,13 +205,21 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         navigateTo(controller);
       });
     } else if (viewId == R.id.btn_ghostMode) {
-      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       MoexConfig.instance().toggleGhostMode();
       updateGhostModeSettings();
-      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
-        tdlib.refreshOnlineStatus();
-      }
       UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+    } else if (viewId == R.id.btn_ghostOnlineExceptions) {
+      org.thunderdog.challegram.ui.ContactsController picker = new org.thunderdog.challegram.ui.ContactsController(context, tdlib);
+      picker.setArguments(new org.thunderdog.challegram.ui.ContactsController.Args(this).useGlobalSearch(
+        org.thunderdog.challegram.component.dialogs.SearchManager.FLAG_NEED_TOP_CHATS |
+        org.thunderdog.challegram.component.dialogs.SearchManager.FLAG_NEED_GLOBAL_SEARCH |
+        org.thunderdog.challegram.component.dialogs.SearchManager.FLAG_ONLY_USERS |
+        org.thunderdog.challegram.component.dialogs.SearchManager.FLAG_NO_BOTS |
+        org.thunderdog.challegram.component.dialogs.SearchManager.FLAG_NO_SELF |
+        org.thunderdog.challegram.component.dialogs.SearchManager.FLAG_NO_SECRET));
+      navigateTo(picker);
+    } else if (viewId == R.id.btn_ghostOnlineRetry) {
+      tdlib.refreshOnlineStatus();
     } else if (viewId == R.id.btn_ghostNoRead) {
       MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_NO_READ);
       updateGhostModeSettings();
@@ -223,12 +227,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_NO_TYPING);
       updateGhostModeSettings();
     } else if (viewId == R.id.btn_ghostOffline) {
-      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
       MoexConfig.instance().toggleGhostModeFlag(MoexConfig.GHOST_OFFLINE);
       updateGhostModeSettings();
-      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
-        tdlib.refreshOnlineStatus();
-      }
     } else if (viewId == R.id.btn_folderTabsStyle) {
       showFolderTabsStyleOptions();
     } else if (viewId == R.id.btn_secureWindow) {
@@ -303,10 +303,41 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
   }
 
   private void updateGhostModeSettings () {
+    if (adapter == null) return;
     adapter.updateValuedSettingById(R.id.btn_ghostMode);
     adapter.updateValuedSettingById(R.id.btn_ghostNoRead);
     adapter.updateValuedSettingById(R.id.btn_ghostNoTyping);
     adapter.updateValuedSettingById(R.id.btn_ghostOffline);
+    adapter.updateValuedSettingById(R.id.btn_ghostOnlineExceptions);
+    adapter.updateValuedSettingById(R.id.btn_ghostOnlineRetry);
+  }
+
+  @Override public long[] getAlreadySelectedChatIds () {
+    long[] ids = tdlib.ghostOnline().exceptions();
+    for (int i = 0; i < ids.length; i++) ids[i] = tgx.td.ChatId.fromUserId(ids[i]);
+    return ids;
+  }
+
+  @Override public int provideMultiUserPickerHint () { return R.string.GhostOnlineExceptions; }
+
+  @Override public void onAlreadyPickedChatsChanged (java.util.List<org.thunderdog.challegram.component.user.BubbleView.Entry> entries) {
+    java.util.ArrayList<Long> ids = new java.util.ArrayList<>();
+    for (org.thunderdog.challegram.component.user.BubbleView.Entry entry : entries) {
+      if (entry.senderId instanceof org.drinkless.tdlib.TdApi.MessageSenderUser) ids.add(((org.drinkless.tdlib.TdApi.MessageSenderUser) entry.senderId).userId);
+    }
+    long[] selected = new long[ids.size()];
+    for (int i = 0; i < selected.length; i++) selected[i] = ids.get(i);
+    tdlib.ghostOnline().setExceptions(selected);
+    updateGhostModeSettings();
+  }
+
+  @Override public void onSettingsChanged (String key, Object value, Object old) {
+    if (moe.kirao.mgx.utils.GhostOnlineManager.KEY_CHANGED.equals(key) || MoexConfig.KEY_GHOST_MODE.equals(key) || MoexConfig.KEY_GHOST_MODE_FLAGS.equals(key) || "experiments".equals(key)) runOnUiThreadOptional(this::updateGhostModeSettings);
+  }
+
+  @Override public void destroy () {
+    MoexConfig.instance().removeSettingsListener(this);
+    super.destroy();
   }
 
   @Override
@@ -374,7 +405,8 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_savedMessages, 0, R.string.SavedMessages, R.id.btn_savedMessages, (items & MoexConfig.DRAWER_ITEM_SAVED_MESSAGES) != 0),
       new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_help, 0, R.string.Help, R.id.btn_help, (items & MoexConfig.DRAWER_ITEM_HELP) != 0),
       new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_night, 0, R.string.NightMode, R.id.btn_night, (items & MoexConfig.DRAWER_ITEM_NIGHT_MODE) != 0),
-      new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_proxy, 0, R.string.Proxy, R.id.btn_proxy, (items & MoexConfig.DRAWER_ITEM_PROXY) != 0)
+      new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_proxy, 0, R.string.Proxy, R.id.btn_proxy, (items & MoexConfig.DRAWER_ITEM_PROXY) != 0),
+      new ListItem(ListItem.TYPE_CHECKBOX_OPTION, R.id.btn_ghostMode, 0, R.string.GhostMode, R.id.btn_ghostMode, (items & MoexConfig.DRAWER_ITEM_GHOST) != 0)
     }).setIntDelegate((id, result) -> {
       int newItems = 0;
       if (result.get(R.id.btn_contacts) == R.id.btn_contacts) newItems |= MoexConfig.DRAWER_ITEM_CONTACTS;
@@ -384,6 +416,7 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
       if (result.get(R.id.btn_help) == R.id.btn_help) newItems |= MoexConfig.DRAWER_ITEM_HELP;
       if (result.get(R.id.btn_night) == R.id.btn_night) newItems |= MoexConfig.DRAWER_ITEM_NIGHT_MODE;
       if (result.get(R.id.btn_proxy) == R.id.btn_proxy) newItems |= MoexConfig.DRAWER_ITEM_PROXY;
+      if (result.get(R.id.btn_ghostMode) == R.id.btn_ghostMode) newItems |= MoexConfig.DRAWER_ITEM_GHOST;
       MoexConfig.instance().setDrawerItems(newItems);
       adapter.updateValuedSettingById(R.id.btn_drawerItems);
     }));
@@ -562,6 +595,12 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         } else if (itemId == R.id.btn_ghostOffline) {
           view.getToggler().setRadioEnabled(MoexConfig.ghostMode && MoexConfig.instance().isGhostModeFlagEnabled(MoexConfig.GHOST_OFFLINE), isUpdate);
           view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) && MoexConfig.ghostMode, isUpdate);
+        } else if (itemId == R.id.btn_ghostOnlineExceptions) {
+          view.setData(Integer.toString(tdlib.ghostOnline().exceptions().length));
+          view.setEnabledAnimated(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), isUpdate);
+        } else if (itemId == R.id.btn_ghostOnlineRetry) {
+          String error = tdlib.ghostOnline().error();
+          view.setData(error != null ? error : Lang.getString(tdlib.ghostOnline().pending() ? R.string.GhostOnlinePending : R.string.GhostOnlineReady));
         } else if (itemId == R.id.btn_folderTabsStyle) {
           int style = MoexConfig.instance().getFolderTabsStyle();
           view.setData(style == MoexConfig.FOLDER_TABS_STYLE_TEXT ? R.string.FolderTabsStyleText
@@ -791,8 +830,13 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_ghostNoTyping, 0, R.string.GhostNoTyping));
         items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
         items.add(new ListItem(ListItem.TYPE_RADIO_SETTING, R.id.btn_ghostOffline, 0, R.string.GhostOffline));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING, R.id.btn_ghostOnlineExceptions, 0, R.string.GhostOnlineExceptions));
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING, R.id.btn_ghostOnlineRetry, 0, R.string.GhostOnlineRetry));
         items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
         items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.GhostModeInfo));
+        items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.GhostOnlineInfo));
 
         items.add(new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.ChannelOptions));
         items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));

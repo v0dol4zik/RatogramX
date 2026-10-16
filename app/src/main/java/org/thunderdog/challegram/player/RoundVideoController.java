@@ -17,6 +17,7 @@ package org.thunderdog.challegram.player;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Build;
 import android.os.Handler;
@@ -90,6 +91,8 @@ public class RoundVideoController extends BasePlaybackController implements
 {
   private final BaseActivity context;
   private final VideoHandler handler;
+  private final int[] clipPosition = new int[2];
+  private final Rect visibleClip = new Rect();
 
   private final AudioFocusHelper roundFocus = new AudioFocusHelper(
     MoexConfig.AUTO_PAUSE_MEDIA_ROUND,
@@ -1378,7 +1381,23 @@ public class RoundVideoController extends BasePlaybackController implements
       int translationY = (int) recyclerView.getTranslationY() - Views.getBottomMargin(recyclerView);
       int topOffset = m.getTopOffset();
       topOffset += UI.getContext(context).navigation().getHeaderView().getFilling().getPlayerOffset();
-      setMargins(topOffset + Math.max(0, translationY), bottomOffset + Math.max(-translationY, 0));
+      // The navigation overlay does not resize with the chat's IME insets.
+      // Clip in window coordinates, including the real position of the composer.
+      rootView.getLocationInWindow(clipPosition);
+      int rootY = clipPosition[1];
+      int clipTop = topOffset + Math.max(0, translationY);
+      int clipBottom = bottomOffset + Math.max(-translationY, 0);
+      if (recyclerView.getLocalVisibleRect(visibleClip)) {
+        recyclerView.getLocationInWindow(clipPosition);
+        clipTop = Math.max(clipTop, clipPosition[1] + visibleClip.top - rootY);
+        clipBottom = Math.max(clipBottom, rootY + rootView.getHeight() - clipPosition[1] - visibleClip.bottom);
+      }
+      View composer = m.getBottomWrap();
+      if (composer != null && composer.getVisibility() == View.VISIBLE && composer.getHeight() > 0) {
+        composer.getLocationInWindow(clipPosition);
+        clipBottom = Math.max(clipBottom, rootY + rootView.getHeight() - clipPosition[1]);
+      }
+      setMargins(Math.max(0, clipTop), Math.max(0, clipBottom));
       abort = abort || !m.isFocused() && isAnimatingBackward;
     } else {
       // setBottomMargin(0);

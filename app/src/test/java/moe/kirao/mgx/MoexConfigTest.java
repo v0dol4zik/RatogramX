@@ -14,7 +14,8 @@ public class MoexConfigTest {
       MoexConfig.DRAWER_ITEM_CONTACTS | MoexConfig.DRAWER_ITEM_ARCHIVE |
       MoexConfig.DRAWER_ITEM_CALLS | MoexConfig.DRAWER_ITEM_SAVED_MESSAGES |
       MoexConfig.DRAWER_ITEM_HELP | MoexConfig.DRAWER_ITEM_NIGHT_MODE |
-      MoexConfig.DRAWER_ITEM_PROXY);
+      MoexConfig.DRAWER_ITEM_PROXY | MoexConfig.DRAWER_ITEM_GHOST);
+    assertEquals(127, MoexConfig.DRAWER_ITEMS_ALL & ~MoexConfig.DRAWER_ITEM_GHOST);
     assertEquals(MoexConfig.AUTO_PAUSE_MEDIA_ALL,
       MoexConfig.AUTO_PAUSE_MEDIA_VOICE | MoexConfig.AUTO_PAUSE_MEDIA_ROUND |
       MoexConfig.AUTO_PAUSE_MEDIA_VIDEO);

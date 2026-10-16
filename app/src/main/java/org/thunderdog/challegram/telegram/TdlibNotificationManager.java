@@ -76,7 +76,7 @@ import me.vkryl.core.StringUtils;
 import me.vkryl.leveldb.LevelDB;
 import tgx.td.ChatId;
 
-public class TdlibNotificationManager implements UI.StateListener, Passcode.LockListener, CleanupStartupDelegate {
+public class TdlibNotificationManager implements UI.StateListener, Passcode.LockListener, CleanupStartupDelegate, moe.kirao.mgx.utils.GhostReadStore.Listener {
   public static final int ID_TEMPORARY_NOTIFICATION = Integer.MAX_VALUE;
   public static final int ID_FOREGROUND_MUSIC = Integer.MAX_VALUE - 1;
   public static final int ID_FOREGROUND_LOCATION = Integer.MAX_VALUE - 2;
@@ -469,6 +469,7 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
     this.queue = queue;
     tdlib.listeners().addCleanupListener(this);
     this.notification = new TdlibNotificationHelper(this, tdlib);
+    moe.kirao.mgx.utils.GhostReadStore.addListener(this);
 
     final int accountId = tdlib.id();
 
@@ -2271,6 +2272,11 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
   @AnyThread
   public void onUpdateNotifications (long chatId) {
     sendLockedMessage(Message.obtain(queue.getHandler(), ON_REBUILD_NOTIFICATIONS_SPECIFIC, BitwiseUtils.splitLongToFirstInt(chatId), BitwiseUtils.splitLongToSecondInt(chatId), this), null);
+  }
+
+  @Override
+  public void onLocalReadStateChanged (int accountId, long chatId, @Nullable TdApi.MessageTopic topicId, long readMessageId) {
+    if (accountId == tdlib.id()) onUpdateNotifications(chatId);
   }
 
   @AnyThread

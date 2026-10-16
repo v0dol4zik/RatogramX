@@ -1475,6 +1475,7 @@ public class Settings {
     if (oldExperiments != newExperiments) {
       this._experiments = newExperiments;
       pmc.putLong(KEY_EXPERIMENTS, newExperiments);
+      MoexConfig.instance().notifyClientListeners("experiments", newExperiments, oldExperiments);
       return true;
     }
     return false;

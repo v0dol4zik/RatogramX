@@ -57,6 +57,17 @@
   <string name="GhostOffline">Appear offline</string>
   <string name="GhostModeEnabledToast">Ghost mode enabled</string>
   <string name="GhostModeDisabledToast">Ghost mode disabled</string>
+  <string name="GhostOnlineExceptions">Who can see me online</string>
+  <string name="PollAttachmentAdd">Attach media</string>
+  <string name="PollAttachmentChange">Change attachment</string>
+  <string name="PollAttachmentRemove">Remove attachment</string>
+  <string name="PollAttachmentLink">Attach a link</string>
+  <string name="PollAttachmentUnsupported">This file type cannot be attached here. Choose a photo, video or animation.</string>
+  <string name="GhostOnlineRetry">Check privacy / retry</string>
+  <string name="GhostOnlineReady">No privacy errors</string>
+  <string name="GhostOnlinePending">Staying offline until privacy is confirmed</string>
+  <string name="GhostOnlineError">Staying offline: %1$s</string>
+  <string name="GhostOnlineInfo">Experimental. The exception list is separate for each account and only affects online status, not read receipts or typing. With Appear offline enabled and a nonempty list, Telegram’s Last Seen &amp; Online privacy is changed for the entire account, including other devices. Only selected people may see your online status and last seen. Previous rules are restored when this is disabled; newer changes from another client are preserved. Until the server confirms the rules, you remain offline. Telegram can still disclose activity when you send messages or perform other actions. Tap Check privacy to retry after an error.</string>
   <string name="FolderTabsInfo">Changes how Telegram X\'s standard chat folder tabs are displayed.</string>
   <string name="FolderTabsStyle">Folder tabs style</string>
   <string name="FolderTabsStyleUpstream">Telegram X default</string>

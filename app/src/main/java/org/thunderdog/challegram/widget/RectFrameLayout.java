@@ -38,7 +38,8 @@ public class RectFrameLayout extends FrameLayoutFix {
         @Override
         @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
         public void getOutline (View view, android.graphics.Outline outline) {
-          outline.setRect(0, top, view.getMeasuredWidth(), view.getMeasuredHeight() - bottom);
+          int clipTop = Math.min(top, view.getMeasuredHeight());
+          outline.setRect(0, clipTop, view.getMeasuredWidth(), Math.max(clipTop, view.getMeasuredHeight() - bottom));
         }
       });
       setClipToOutline(true);
@@ -59,21 +60,18 @@ public class RectFrameLayout extends FrameLayoutFix {
 
   public void setClip (int top, int bottom) {
     if (this.top != top || this.bottom != bottom) {
-      this.top = top;
-      this.bottom = bottom;
+      this.top = Math.max(0, top);
+      this.bottom = Math.max(0, bottom);
       checkOutline();
+      invalidate();
     }
   }
 
   @Override
   protected void dispatchDraw(Canvas c) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && !Config.DEBUG_CLIPPING) {
-      super.dispatchDraw(c);
-    } else {
-      final int saveCount = Views.save(c);
-      c.clipRect(0, top, getMeasuredWidth(), getMeasuredHeight() - bottom);
-      super.dispatchDraw(c);
-      Views.restore(c, saveCount);
-    }
+    final int saveCount = Views.save(c);
+    c.clipRect(0, top, getMeasuredWidth(), Math.max(top, getMeasuredHeight() - bottom));
+    super.dispatchDraw(c);
+    Views.restore(c, saveCount);
   }
 }

@@ -181,6 +181,7 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
           });
           editText.getEditText().setImeOptions(EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_ACTION_NEXT);
         }
+        if (itemId == R.id.title || itemId == R.id.option) bindAttachmentButton(item, parent, editText);
       }
 
       @Override
@@ -660,6 +661,10 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
       return;
     setCorrectOptionEnabled(option, false);
     options.remove(i);
+    attachments.remove(option);
+    pickedFiles.remove(option);
+    preparingAttachments.remove(option);
+    attachmentRevisions.remove(option);
     boolean hideKeyboard = true;
     if (!options.isEmpty()) {
       int nextIndex = adapter.indexOfView(options.get(i > 0 ? i - 1 : 0));
@@ -705,6 +710,168 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
   }
 
   private final List<ListItem> options = new ArrayList<>();
+  private final Map<ListItem, TdApi.InputPollMedia> attachments = new LinkedHashMap<>();
+  private final Map<ListItem, org.thunderdog.challegram.component.attach.MediaToReplacePickerManager.LocalPickedFile> pickedFiles = new LinkedHashMap<>();
+  private final Map<ListItem, Integer> attachmentRevisions = new LinkedHashMap<>();
+  private final Set<ListItem> preparingAttachments = new LinkedHashSet<>();
+  private org.thunderdog.challegram.component.attach.MediaToReplacePickerManager attachmentPicker;
+
+  private final class AttachmentButton extends View implements org.thunderdog.challegram.util.DrawableProvider {
+    private final org.thunderdog.challegram.loader.ComplexReceiver receiver = new org.thunderdog.challegram.loader.ComplexReceiver(this);
+    private final androidx.collection.SparseArrayCompat<android.graphics.drawable.Drawable> drawables = new androidx.collection.SparseArrayCompat<>();
+    private org.thunderdog.challegram.component.chat.MediaPreview preview;
+    private int icon;
+
+    AttachmentButton () { super(context); }
+
+    void bind (ListItem item) {
+      org.thunderdog.challegram.component.attach.MediaToReplacePickerManager.LocalPickedFile file = pickedFiles.get(item);
+      preview = file != null ? file.buildMediaPreview(tdlib, Screen.dp(32f), Screen.dp(4f)) : null;
+      if (preview != null) preview.requestFiles(receiver, false); else receiver.clear();
+      TdApi.InputPollMedia media = attachments.get(item);
+      icon = media instanceof TdApi.InputPollMediaLink ? R.drawable.baseline_link_24 :
+        media instanceof TdApi.InputPollMediaLocation || media instanceof TdApi.InputPollMediaVenue ? R.drawable.baseline_location_on_24 :
+        media != null ? R.drawable.baseline_check_circle_24 : R.drawable.deproko_baseline_attach_26;
+      setContentDescription(Lang.getString(media != null ? R.string.PollAttachmentChange : R.string.PollAttachmentAdd));
+      setOnClickListener(v -> showAttachmentOptions(item));
+      invalidate();
+    }
+
+    @Override protected void onDraw (android.graphics.Canvas canvas) {
+      if (preview != null) preview.draw(this, canvas, receiver, (getWidth() - Screen.dp(32f)) / 2f, (getHeight() - Screen.dp(32f)) / 2f, 1f);
+      else {
+        android.graphics.drawable.Drawable drawable = getSparseDrawable(icon, ColorId.icon);
+        org.thunderdog.challegram.tool.Drawables.draw(canvas, drawable, (getWidth() - drawable.getMinimumWidth()) / 2f, (getHeight() - drawable.getMinimumHeight()) / 2f,
+          org.thunderdog.challegram.tool.Paints.getPorterDuffPaint(org.thunderdog.challegram.theme.Theme.iconColor()));
+      }
+    }
+
+    @Override protected void onAttachedToWindow () { super.onAttachedToWindow(); receiver.attach(); }
+    @Override protected void onDetachedFromWindow () { receiver.detach(); super.onDetachedFromWindow(); }
+    @Override public androidx.collection.SparseArrayCompat<android.graphics.drawable.Drawable> getSparseDrawableHolder () { return drawables; }
+    @Override public android.content.res.Resources getSparseDrawableResources () { return getResources(); }
+  }
+
+  private void bindAttachmentButton (ListItem item, ViewGroup parent, MaterialEditTextGroup editText) {
+    AttachmentButton button = parent.findViewById(R.id.btn_pollAttachment);
+    if (button == null) {
+      button = new AttachmentButton();
+      button.setId(R.id.btn_pollAttachment);
+      org.thunderdog.challegram.support.RippleSupport.setTransparentSelector(button);
+      addThemeInvalidateListener(button);
+      android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(Screen.dp(44f), Screen.dp(48f), android.view.Gravity.TOP | (Lang.rtl() ? android.view.Gravity.LEFT : android.view.Gravity.RIGHT));
+      if (item != questionItem) {
+        if (Lang.rtl()) params.leftMargin = Screen.dp(16f);
+        else params.rightMargin = Screen.dp(16f);
+      }
+      parent.addView(button, params);
+    }
+    android.widget.FrameLayout.LayoutParams params = (android.widget.FrameLayout.LayoutParams) editText.getLayoutParams();
+    int attachmentMargin = Screen.dp(item == questionItem ? 52f : 68f);
+    int textMargin = Screen.dp(item == questionItem ? 0 : 16f);
+    params.leftMargin = Lang.rtl() ? attachmentMargin : textMargin;
+    params.rightMargin = Lang.rtl() ? textMargin : attachmentMargin;
+    editText.setLayoutParams(params);
+    button.bind(item);
+  }
+
+  private void showAttachmentOptions (ListItem item) {
+    if (getDoneButton().isInProgress()) return;
+    TdApi.InputPollMedia media = attachments.get(item);
+    String summary = media instanceof TdApi.InputPollMediaLink ? ((TdApi.InputPollMediaLink) media).url :
+      media instanceof TdApi.InputPollMediaVenue ? ((TdApi.InputPollMediaVenue) media).venue.title :
+      media instanceof TdApi.InputPollMediaLocation ? String.format(java.util.Locale.US, "%.5f, %.5f", ((TdApi.InputPollMediaLocation) media).location.latitude, ((TdApi.InputPollMediaLocation) media).location.longitude) :
+      pickedFiles.containsKey(item) ? pickedFiles.get(item).getFileName(Lang.getString(R.string.PollAttachmentChange)) : Lang.getString(R.string.PollAttachmentAdd);
+    showOptions(summary,
+      media != null ? new int[] {R.id.btn_pollAttachmentGallery, R.id.btn_pollAttachmentLink, R.id.btn_pollAttachmentLocation, R.id.btn_pollAttachmentRemove} :
+        new int[] {R.id.btn_pollAttachmentGallery, R.id.btn_pollAttachmentLink, R.id.btn_pollAttachmentLocation},
+      media != null ? new String[] {Lang.getString(R.string.Gallery), Lang.getString(R.string.PollAttachmentLink), Lang.getString(R.string.Location), Lang.getString(R.string.PollAttachmentRemove)} :
+        new String[] {Lang.getString(R.string.Gallery), Lang.getString(R.string.PollAttachmentLink), Lang.getString(R.string.Location)},
+      media != null ? new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.RED} : new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.NORMAL},
+      media != null ? new int[] {R.drawable.baseline_image_24, R.drawable.baseline_link_24, R.drawable.baseline_location_on_24, R.drawable.baseline_delete_24} :
+        new int[] {R.drawable.baseline_image_24, R.drawable.baseline_link_24, R.drawable.baseline_location_on_24}, (view, id) -> {
+        if (id == R.id.btn_pollAttachmentRemove) setAttachment(item, null, null);
+        else if (id == R.id.btn_pollAttachmentLink) {
+          openInputAlert(Lang.getString(R.string.PollAttachmentLink), "https://", R.string.Done, R.string.Cancel,
+            media instanceof TdApi.InputPollMediaLink ? ((TdApi.InputPollMediaLink) media).url : null, (input, value) -> {
+              String url = value.trim();
+              if (!url.contains(":")) url = "https://" + url;
+              android.net.Uri uri = android.net.Uri.parse(url);
+              if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme())) || StringUtils.isEmpty(uri.getHost())) {
+                input.setInErrorState(true);
+                return false;
+              }
+              setAttachment(item, new TdApi.InputPollMediaLink(url), null);
+              return true;
+            }, false);
+        } else if (id == R.id.btn_pollAttachmentLocation) {
+          org.thunderdog.challegram.component.attach.MediaLayout layout = new org.thunderdog.challegram.component.attach.MediaLayout(this) {
+            @Override public long getTargetChatId () { return getArgumentsStrict().chatId; }
+            @Override public void sendLocation (double latitude, double longitude, double accuracy, int heading, int livePeriod) {
+              setAttachment(item, new TdApi.InputPollMediaLocation(new TdApi.Location(latitude, longitude, accuracy)), null);
+              hide(false);
+            }
+            @Override public void sendVenue (org.thunderdog.challegram.component.attach.MediaLocationData place) {
+              TdApi.InputMessageVenue venue = place.convertToInputMessage();
+              setAttachment(item, new TdApi.InputPollMediaVenue(venue.venue), null);
+              hide(false);
+            }
+          };
+          layout.init(org.thunderdog.challegram.component.attach.MediaLayout.MODE_LOCATION, null);
+          layout.preload(() -> { if (!isDestroyed()) layout.show(false); }, 300L);
+        } else if (id == R.id.btn_pollAttachmentGallery) {
+          if (attachmentPicker == null) attachmentPicker = new org.thunderdog.challegram.component.attach.MediaToReplacePickerManager(this);
+          int rights = (1 << org.thunderdog.challegram.telegram.RightId.SEND_PHOTOS) | (1 << org.thunderdog.challegram.telegram.RightId.SEND_VIDEOS) | (1 << org.thunderdog.challegram.telegram.RightId.SEND_OTHER_MESSAGES);
+          rights |= 1 << org.thunderdog.challegram.telegram.RightId.SEND_DOCS;
+          if (item == questionItem) rights |= 1 << org.thunderdog.challegram.telegram.RightId.SEND_AUDIO;
+          attachmentPicker.openMediaView(file -> prepareAttachment(item, file), getArgumentsStrict().chatId, null, false, null, rights, false);
+        }
+        return true;
+      });
+  }
+
+  private void setAttachment (ListItem item, @Nullable TdApi.InputPollMedia media, @Nullable org.thunderdog.challegram.component.attach.MediaToReplacePickerManager.LocalPickedFile file) {
+    attachmentRevisions.put(item, attachmentRevisions.containsKey(item) ? attachmentRevisions.get(item) + 1 : 1);
+    preparingAttachments.remove(item);
+    if (media != null) attachments.put(item, media); else attachments.remove(item);
+    if (file != null) pickedFiles.put(item, file); else pickedFiles.remove(item);
+    int position = adapter.indexOfView(item);
+    if (position != -1) {
+      RecyclerView.ViewHolder holder = getRecyclerView().findViewHolderForAdapterPosition(position);
+      AttachmentButton button = holder != null ? holder.itemView.findViewById(R.id.btn_pollAttachment) : null;
+      // Keep the active editor and its focus instead of replacing its holder.
+      if (button != null) button.bind(item);
+      else adapter.notifyItemChanged(position);
+    }
+    checkSend();
+  }
+
+  private void prepareAttachment (ListItem item, org.thunderdog.challegram.component.attach.MediaToReplacePickerManager.LocalPickedFile file) {
+    int revision = attachmentRevisions.containsKey(item) ? attachmentRevisions.get(item) + 1 : 1;
+    attachmentRevisions.put(item, revision);
+    preparingAttachments.add(item);
+    checkSend();
+    org.thunderdog.challegram.core.Media.instance().post(() -> {
+      TdApi.InputPollMedia prepared = null;
+      try {
+        TdApi.InputMessageContent content = file.imageGalleryFile != null ? TD.toContent(tdlib, file.imageGalleryFile, false, true, false, false, false) :
+          file.inlineResult != null ? TD.toInputMessageContent(Td.emptyFormattedText(), file.inlineResult, false, false, item == questionItem, item == questionItem, true, true) : null;
+        prepared = moe.kirao.mgx.utils.PollMediaUtils.fromMessage(content, item == questionItem);
+      } catch (RuntimeException e) {
+        org.thunderdog.challegram.Log.w("Unable to prepare poll attachment", e);
+      }
+      TdApi.InputPollMedia media = prepared;
+      runOnUiThreadOptional(() -> {
+        if (!java.util.Objects.equals(attachmentRevisions.get(item), revision) || item != questionItem && !options.contains(item)) return;
+        preparingAttachments.remove(item);
+        if (media != null) setAttachment(item, media, file);
+        else {
+          org.thunderdog.challegram.tool.UI.showToast(R.string.PollAttachmentUnsupported, android.widget.Toast.LENGTH_LONG);
+          checkSend();
+        }
+      });
+    });
+  }
 
   private ListItem createNewOption () {
     ListItem option = new ListItem(ListItem.TYPE_EDITTEXT_POLL_OPTION, R.id.option).setInputFilters(new InputFilter[] {
@@ -717,6 +884,7 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
   }
 
   private boolean canSendPoll () {
+    if (!preparingAttachments.isEmpty()) return false;
     if (isQuiz && correctOptionItems.isEmpty())
       return false;
     CharSequence title = StringUtils.trim(questionItem.getCharSequenceValue());
@@ -746,6 +914,7 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
   }
 
   private boolean hasUnsavedPoll () {
+    if (!attachments.isEmpty() || !preparingAttachments.isEmpty()) return true;
     CharSequence title = StringUtils.trim(questionItem.getCharSequenceValue());
     if (!StringUtils.isEmpty(title))
       return true;
@@ -810,7 +979,7 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
   }
 
   private void send (TdApi.MessageSendOptions sendOptions, boolean disableMarkdown) {
-    if (getDoneButton().isInProgress())
+    if (getDoneButton().isInProgress() || !preparingAttachments.isEmpty())
       return;
     TdApi.FormattedText question = TD.toFormattedText(StringUtils.trim(questionItem.getCharSequenceValue()), false);
     if (Td.isEmpty(question) || Td.codePointCount(question) > TdConstants.MAX_POLL_QUESTION_LENGTH) {
@@ -838,7 +1007,7 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
         int correctOptionId = options.size();
         correctOptionIds.append(correctOptionId);
       }
-      options.add(new TdApi.InputPollOption(option, null));
+      options.add(new TdApi.InputPollOption(option, attachments.get(optionItem)));
     }
     if (options.size() < 2)
       return;
@@ -883,7 +1052,7 @@ public class CreatePollController extends RecyclerViewController<CreatePollContr
       question,
       optionsArray,
       description,
-      null,
+      attachments.get(questionItem),
       settingShowVoters == null || !settingShowVoters.getBoolValue(),
       isMultiAnswers(),
       settingRevoting != null && settingRevoting.getBoolValue(),

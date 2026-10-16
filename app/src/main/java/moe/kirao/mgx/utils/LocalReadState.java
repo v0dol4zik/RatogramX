@@ -50,4 +50,21 @@ public final class LocalReadState {
   public long[] counter () {
     return new long[] {serverReadMessageId, serverUnreadCount, unreadCount};
   }
+
+  public int locallyReadCount () {
+    return readMessageId > serverReadMessageId && serverUnreadCount >= 0 && unreadCount >= 0 ?
+      Math.max(0, serverUnreadCount - unreadCount) : 0;
+  }
+
+  public int locallyReadCountAfter (long parentReadId) {
+    // A partial overlap cannot be counted twice in the parent and topic inboxes.
+    return parentReadId <= serverReadMessageId ? locallyReadCount() : 0;
+  }
+
+  public boolean invalidateEstimate (long serverReadId) {
+    if (serverReadId <= serverReadMessageId || serverReadId >= readMessageId) return false;
+    serverReadMessageId = serverReadId;
+    serverUnreadCount = unreadCount = -1;
+    return true;
+  }
 }

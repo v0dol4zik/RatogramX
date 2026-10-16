@@ -291,7 +291,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       tdlib.updateParameters(client);
       if (Config.NEED_ONLINE) {
         if (tdlib.isOnline) {
-          client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(!GhostModeUtils.shouldForceOffline())), tdlib.okHandler());
+          client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(false)), tdlib.okHandler());
         }
       }
       tdlib.context.modifyClient(tdlib, client);
@@ -472,6 +472,9 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   private final TdlibSingleUnreadReactionsManager unreadReactionsManager;
   private final TdlibEditMediaManager editMediaManager;
   private final TdlibMessageViewer messageViewer;
+  private final moe.kirao.mgx.utils.GhostOnlineManager ghostOnline;
+
+  public moe.kirao.mgx.utils.GhostOnlineManager ghostOnline () { return ghostOnline; }
 
   private final HashSet<Long> channels = new HashSet<>();
   private final LongSparseLongArray accessibleChatTimers = new LongSparseLongArray();
@@ -630,6 +633,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       ms = SystemClock.uptimeMillis();
     }
     this.messageViewer = new TdlibMessageViewer(this);
+    this.ghostOnline = new moe.kirao.mgx.utils.GhostOnlineManager(this);
     if (needMeasure) {
       Log.v("INITIALIZATION: Tdlib.messageViewer -> %dms", SystemClock.uptimeMillis() - ms);
       ms = SystemClock.uptimeMillis();
@@ -1311,6 +1315,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       Log.v("INITIALIZATION: TDLIB FINISHED INITIALIZATION & SENT VALID AUTH STATE IN %dMS, WASTED: %dMS", timeSinceInitialization - timeWasted, timeWasted);
     }
     Log.i(Log.TAG_ACCOUNTS, "updateAuthState accountId:%d %s", accountId, newAuthState.getClass().getSimpleName());
+    refreshOnlineStatus();
     if (newStatus == Status.READY) {
       setNeedPeriodicSync(true);
     } else if (newStatus == Status.UNAUTHORIZED) {
@@ -6709,8 +6714,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       this.isOnline = isOnline;
       Log.i("SetOnline accountId:%d -> %b", accountId, isOnline);
       if (Config.NEED_ONLINE) {
-        boolean effectiveOnline = !GhostModeUtils.shouldForceOffline() && isOnline;
-        performOptional(client -> client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(effectiveOnline)), okHandler()), null);
+        ghostOnline.refresh();
       }
       // cache().setPauseStatusRefreshers(!isOnline);
     }
@@ -6719,8 +6723,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   /** Re-applies the current online preference after a client-only privacy setting changes. */
   public void refreshOnlineStatus () {
     if (Config.NEED_ONLINE) {
-      boolean effectiveOnline = !GhostModeUtils.shouldForceOffline() && isOnline;
-      performOptional(client -> client.send(new TdApi.SetOption("online", new TdApi.OptionValueBoolean(effectiveOnline)), okHandler()), null);
+      ghostOnline.refresh();
     }
   }
 
@@ -8458,12 +8461,14 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
   private void updateChatReadInbox (TdApi.UpdateChatReadInbox update) {
     final TdApi.Chat chat;
     final boolean availabilityChanged;
+    final boolean reconcileLocalTopics;
     final TdlibChatList[] chatLists;
     synchronized (dataLock) {
       chat = chats.get(update.chatId);
       if (TdlibUtils.assertChat(update.chatId, chat, update)) {
         return;
       }
+      reconcileLocalTopics = update.lastReadInboxMessageId > chat.lastReadInboxMessageId || update.unreadCount < chat.unreadCount;
       chat.lastReadInboxMessageId = update.lastReadInboxMessageId;
       if (Config.TEST_CHAT_COUNTERS) {
         update.unreadCount = MathUtils.random(1, 250000);
@@ -8473,6 +8478,13 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       chatLists = chatListsImpl(chat.positions);
     }
     GhostReadStore.serverRead(accountId, update.chatId, null, update.lastReadInboxMessageId);
+    if (reconcileLocalTopics && isForum(update.chatId)) {
+      for (long topicId : GhostReadStore.forumTopicIds(accountId, update.chatId)) {
+        send(new TdApi.GetForumTopic(update.chatId, (int) topicId), (topic, error) -> {
+          if (topic != null) GhostReadStore.syncForumInbox(accountId, update.chatId, topic);
+        });
+      }
+    }
     listeners.updateChatReadInbox(update, availabilityChanged, chat, chatLists);
   }
 
@@ -9165,6 +9177,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         }
       }
       listeners.updateConnectionState(state, prevState);
+      refreshOnlineStatus();
       context.onConnectionStateChanged(this, state);
       notifyConnectionDisplayStatusChanged();
       if (state == ConnectionState.CONNECTED) {
@@ -9286,6 +9299,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     context.onKnownUserIdChanged(accountId, myUserId);
     cache().onUpdateMyUserId(myUserId);
     notificationManager.onUpdateMyUserId(myUserId);
+    refreshOnlineStatus();
   }
 
   @TdlibThread

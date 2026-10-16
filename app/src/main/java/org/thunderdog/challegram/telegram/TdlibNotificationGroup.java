@@ -406,7 +406,12 @@ public class TdlibNotificationGroup implements Iterable<TdlibNotification> {
   }
 
   public boolean isHidden () {
-    return (flags & FLAG_VISIBLE) == 0 && isHidden(maxNotificationId());
+    if ((flags & FLAG_VISIBLE) == 0 && isHidden(maxNotificationId())) return true;
+    if (!notifications.isEmpty()) {
+      for (TdlibNotification notification : notifications) if (!notification.isHidden()) return false;
+      return true;
+    }
+    return false;
   }
 
   public boolean isHidden (int notificationId) {

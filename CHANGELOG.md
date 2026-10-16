@@ -21,9 +21,22 @@ in development build metadata.
 - Centered default topic icons and kept unread badges clear of the discussion button.
 - Ghost mode switches now reflect the master switch and restore the last selected
   submode when enabled again.
+- Added a configurable Ghost mode switch to the navigation drawer; hold it to
+  open its settings. Per-account online exceptions use Telegram privacy rules,
+  keep the client offline until confirmed, and restore previous privacy settings
+  when disabled while preserving changes made in another client.
 - Ghost mode remembers local read positions and unread progress per account,
   chat, and topic, including after restarting the client. Explicit Mark as read
   actions retain their server behavior.
+- Locally viewed messages dismiss their notifications without sending read
+  receipts, and local topic reading also reduces the forum's unread badge.
+- Expanded round-video playback stays inside the visible chat area, clear of
+  the composer, keyboard, and attachment panels.
+- Poll answers now display and open media attachments. Poll creation supports
+  question and answer attachments through the native gallery, links, and location
+  picker; descriptions appear below the question.
+- Message notifications use the selected app icon for their monochrome status
+  icon and colored app fallback, and refresh silently when the icon changes.
 - Unread badges in ordinary chats decrease while scrolling through loaded
   incoming messages, including while TDLib repairs a stale unread count.
 - Long videos resume from the last playback position when reopened. Bookmarks
