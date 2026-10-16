@@ -2,12 +2,13 @@
 
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 /path/to/ratogramx-icons" >&2
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 /path/to/ratogramx-icons [icon-id ...]" >&2
   exit 2
 fi
 
 source_dir=$1
+shift
 project_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 main_res="$project_dir/app/src/main/res"
 work_dir=$(mktemp -d)
@@ -23,7 +24,13 @@ declare -A source_names=(
   [steam]="steam"
   [twins]="twins"
   [xue]="xue"
+  [vintage]="vintage"
 )
+
+icon_ids=("$@")
+if [[ ${#icon_ids[@]} -eq 0 ]]; then
+  icon_ids=(original amoled lab malware not_you notele steam twins xue vintage)
+fi
 
 densities=(mdpi hdpi xhdpi xxhdpi xxxhdpi)
 sizes=(48 72 96 144 192)
@@ -46,7 +53,11 @@ for density in "${densities[@]}"; do
   mkdir -p "$main_res/mipmap-$density"
 done
 
-for icon_id in original amoled lab malware not_you notele steam twins xue; do
+for icon_id in "${icon_ids[@]}"; do
+  if [[ -z "${source_names[$icon_id]-}" ]]; then
+    echo "Unknown icon: $icon_id" >&2
+    exit 1
+  fi
   source_svg=$(find_source "$source_dir" "${source_names[$icon_id]}")
   round_svg=$(find_source "$source_dir/rounded" "${source_names[$icon_id]}")
   if [[ -z "$source_svg" || -z "$round_svg" ]]; then

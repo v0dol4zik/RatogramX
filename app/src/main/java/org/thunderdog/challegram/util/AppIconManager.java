@@ -64,7 +64,8 @@ public final class AppIconManager {
     new Icon("notele", "NoTele", "NoTele", R.drawable.app_icon_notele_full, R.mipmap.app_icon_notele),
     new Icon("steam", "Steam", "Steam", R.drawable.app_icon_steam_full, R.mipmap.app_icon_steam),
     new Icon("twins", "Twins", "Twins", R.drawable.app_icon_twins_full, R.mipmap.app_icon_twins),
-    new Icon("xue", "Xue", "Xue", R.drawable.app_icon_xue_full, R.mipmap.app_icon_xue)
+    new Icon("xue", "Xue", "Xue", R.drawable.app_icon_xue_full, R.mipmap.app_icon_xue),
+    new Icon("vintage", "Vintage", "Vintage", R.drawable.app_icon_vintage_full, R.mipmap.app_icon_vintage)
   };
 
   private static final long DEFERRED_CHANGE_DELAY = 1500;
@@ -251,6 +252,7 @@ public final class AppIconManager {
       case "steam": resource = R.drawable.app_icon_steam_foreground; break;
       case "twins": resource = R.drawable.app_icon_twins_foreground; break;
       case "xue": resource = R.drawable.app_icon_xue_foreground; break;
+      case "vintage": resource = R.drawable.app_icon_vintage_foreground; break;
       default: resource = R.drawable.app_icon_original_foreground; break;
     }
     Drawable drawable = ContextCompat.getDrawable(context, resource);

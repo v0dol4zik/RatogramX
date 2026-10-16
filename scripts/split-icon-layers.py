@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Splits a Ratogram X launcher icon SVG into adaptive icon layers.
 
-Source icons are exported with a single clip group: everything before the first
-<mask> is the full-bleed background, the <mask> and the masked group after it
-are the glyph.
+Artwork is either at the SVG root or inside a clip group. Everything before
+the first <mask> is the full-bleed background; the mask and masked group after
+it are the glyph.
 """
 
 import copy
@@ -20,7 +20,8 @@ def main():
     source_path, background_path, foreground_path = sys.argv[1:]
     ET.register_namespace('', SVG_NS)
     root = ET.parse(source_path).getroot()
-    group = root.find(f'{{{SVG_NS}}}g')
+    flat = root.find(f'{{{SVG_NS}}}mask') is not None
+    group = root if flat else root.find(f'{{{SVG_NS}}}g')
     if group is None:
         print(f'{source_path}: missing clip group', file=sys.stderr)
         return 1
@@ -32,10 +33,11 @@ def main():
 
     background = copy.deepcopy(root)
     foreground = copy.deepcopy(root)
-    background_group = background.find(f'{{{SVG_NS}}}g')
-    foreground_group = foreground.find(f'{{{SVG_NS}}}g')
+    background_group = background if flat else background.find(f'{{{SVG_NS}}}g')
+    foreground_group = foreground if flat else foreground.find(f'{{{SVG_NS}}}g')
     for child in list(background_group)[split_index:]:
-        background_group.remove(child)
+        if child.tag != f'{{{SVG_NS}}}defs':
+            background_group.remove(child)
     for child in list(foreground_group)[:split_index]:
         foreground_group.remove(child)
 

@@ -40,7 +40,7 @@ Ratogram X features and branding.
   [supported features and requirements](docs/MINI_APPS.md).
 - **Profile visibility controls** to locally hide phone numbers, music,
   birthdays, or personal channels from profile screens.
-- **Nine launcher icons** with matching legacy, adaptive, round, and themed
+- **Ten launcher icons** with matching legacy, adaptive, round, and themed
   icon resources.
 - **Customizable navigation drawer** with individually selectable entries.
 - **Sponsored-message visibility option** for Telegram-sponsored and

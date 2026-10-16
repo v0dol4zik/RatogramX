@@ -550,6 +550,20 @@
       </intent-filter>
     </activity-alias>
 
+    <activity-alias
+      android:name="${applicationId}.launcher.IconVintage"
+      android:targetActivity=".LauncherActivity"
+      android:enabled="false"
+      android:exported="true"
+      android:icon="@mipmap/app_icon_vintage"
+      android:roundIcon="@mipmap/app_icon_vintage_round"
+      android:label="@string/AppName">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
+
 
     <provider
       android:name=".FileProvider"

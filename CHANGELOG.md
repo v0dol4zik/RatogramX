@@ -79,6 +79,8 @@ in development build metadata.
   diff formatting and chat-list/notification previews. Formulas show raw LaTeX.
 - Launcher icons now use separate adaptive background, foreground, and
   monochrome layers, with matching square and round legacy variants.
+- Added the Vintage app icon with matching previews, launcher variants,
+  themed icons, and notification artwork.
 - Changing the launcher icon keeps the current app task open and updates its
   Recents icon; tasks opened before updating switch safely in the background.
 - Restored Telegram X's native chat-folder pager independently of Ratogram
@@ -105,7 +107,7 @@ in development build metadata.
   typing activity, and online presence.
 - Ratogram X branding, package identity, notification artwork, and launcher
   resources.
-- Runtime launcher icon selector with nine icon variants.
+- Runtime launcher icon selector with ten icon variants.
 - Search category tabs with swipe navigation and a client setting to disable
   them.
 - Configurable navigation drawer entries.
