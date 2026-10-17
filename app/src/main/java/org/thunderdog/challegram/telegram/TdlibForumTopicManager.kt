@@ -3,6 +3,7 @@ package org.thunderdog.challegram.telegram
 import me.vkryl.core.reference.ReferenceMap
 import org.drinkless.tdlib.TdApi.*
 import moe.kirao.mgx.utils.ForumReadPolicy
+import moe.kirao.mgx.utils.GhostReadStore
 
 class TdlibForumTopicManager(
   tdlib: Tdlib
@@ -37,6 +38,8 @@ class TdlibForumTopicManager(
           if (error != null) {
             processError(contextId, key, error)
           } else {
+            GhostReadStore.syncContentCounters(tdlib.id(), key.chatId, MessageTopicForum(key.forumTopicId),
+              forumTopic.unreadMentionCount, forumTopic.unreadReactionCount)
             processData(contextId, key, forumTopic)
           }
         }
@@ -52,6 +55,8 @@ class TdlibForumTopicManager(
 
   @TdlibThread
   fun updateForumTopic(update: UpdateForumTopic) {
+    GhostReadStore.syncContentCounters(tdlib.id(), update.chatId, MessageTopicForum(update.forumTopicId),
+      update.unreadMentionCount, update.unreadReactionCount)
     val key = Key(
       update.chatId,
       update.forumTopicId

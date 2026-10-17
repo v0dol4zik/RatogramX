@@ -33,6 +33,7 @@ import me.vkryl.core.lambda.RunnableBool;
 import me.vkryl.core.lambda.RunnableData;
 import me.vkryl.core.lambda.RunnableInt;
 import me.vkryl.core.reference.ReferenceList;
+import moe.kirao.mgx.utils.GhostReadStore;
 import tgx.td.ChatPosition;
 import tgx.td.Td;
 
@@ -183,7 +184,7 @@ public final class TdlibChatList implements Comparator<TdlibChatList.Entry> {
   public boolean hasUnreadMentions () {
     synchronized (list) {
       for (Entry entry : list) {
-        if (entry.chat.unreadMentionCount > 0)
+        if (GhostReadStore.unreadMentionCount(tdlib.id(), entry.chat.id, null, entry.chat.unreadMentionCount) > 0)
           return true;
       }
       return false;
@@ -193,7 +194,7 @@ public final class TdlibChatList implements Comparator<TdlibChatList.Entry> {
   public boolean hasUnreadReactions () {
     synchronized (list) {
       for (Entry entry : list) {
-        if (entry.chat.unreadReactionCount > 0)
+        if (GhostReadStore.unreadReactionCount(tdlib.id(), entry.chat.id, null, entry.chat.unreadReactionCount) > 0)
           return true;
       }
       return false;

@@ -779,12 +779,18 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
           return false;
         MessageProvider provider = (MessageProvider) view;
         TGMessage msg = provider.getMessage();
-        if (msg.markAsViewed() || msg.containsUnreadReactions()) {
+        boolean unreadMention = msg.containsUnreadMention();
+        boolean unreadReactions = msg.containsUnreadReactions();
+        boolean viewed = msg.markAsViewed() || msg.containsUnreadReactions();
+        if (canRead()) {
+          viewed |= GhostReadStore.recordViewedContent(tdlib.id(), loader.getMessageTopicId(), message, loader.messageSource());
+        }
+        if (viewed) {
           long messageId = msg.getBiggestId();
-          if (msg.containsUnreadMention() && messageId > lastViewedMentionMessageId) {
+          if (unreadMention && messageId > lastViewedMentionMessageId) {
             lastViewedMentionMessageId = messageId;
           }
-          if (msg.containsUnreadReactions() && messageId > lastViewedReactionMessageId) {
+          if (unreadReactions && messageId > lastViewedReactionMessageId) {
             lastViewedReactionMessageId = messageId;
           }
           return true;
@@ -2832,8 +2838,9 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void scrollToNextMention () {
-    if (closestMentions != null && !closestMentions.isEmpty()) {
+    while (closestMentions != null && !closestMentions.isEmpty()) {
       TdApi.Message message = closestMentions.remove(0);
+      if (!GhostReadStore.hasUnreadMention(tdlib.id(), message)) continue;
       highlightMessage(new MessageId(message.chatId, message.id), HIGHLIGHT_MODE_NORMAL, null, true);
       return;
     }
@@ -2868,7 +2875,8 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
         }
       }
     };
-    tdlib.client().send(new TdApi.SearchChatMessages(chatId, topicId, null, null, fromMessageId, -9, 10, new TdApi.SearchMessagesFilterUnreadMention()), mentionsHandler);
+    if (GhostModeUtils.shouldSuppressRead()) tdlib.searchLocalUnreadMessages(chatId, topicId, false, 0, mentionsHandler);
+    else tdlib.client().send(new TdApi.SearchChatMessages(chatId, topicId, null, null, fromMessageId, -9, 10, new TdApi.SearchMessagesFilterUnreadMention()), mentionsHandler);
   }
 
   private void setMentions (final CancellableResultHandler handler, final TdApi.FoundChatMessages messages, final long fromMessageId) {
@@ -2884,7 +2892,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
   private void setMentionsImpl (final TdApi.Message[] messages, final long fromMessageId) {
     ArrayList<TdApi.Message> mentions = new ArrayList<>(messages.length);
-    Collections.addAll(mentions, messages);
+    for (TdApi.Message message : messages) if (GhostReadStore.hasUnreadMention(tdlib.id(), message)) mentions.add(message);
     this.closestMentions = mentions;
     if (!mentions.isEmpty()) {
       scrollToNextMention();
@@ -2913,7 +2921,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
   private void setUnreadReactionsImpl (final TdApi.Message[] messages, final long fromMessageId) {
     ArrayList<TdApi.Message> reactions = new ArrayList<>(messages.length);
-    Collections.addAll(reactions, messages);
+    for (TdApi.Message message : messages) if (GhostReadStore.unreadReactions(tdlib.id(), message).length > 0) reactions.add(message);
     this.closestUnreadReactions = reactions;
     if (!reactions.isEmpty()) {
       scrollToNextUnreadReaction();
@@ -2921,8 +2929,9 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void scrollToNextUnreadReaction () {
-    if (closestUnreadReactions != null && !closestUnreadReactions.isEmpty()) {
+    while (closestUnreadReactions != null && !closestUnreadReactions.isEmpty()) {
       TdApi.Message message = closestUnreadReactions.remove(0);
+      if (GhostReadStore.unreadReactions(tdlib.id(), message).length == 0) continue;
       highlightMessage(new MessageId(message.chatId, message.id), HIGHLIGHT_MODE_NORMAL, null, true);
       return;
     }
@@ -2957,7 +2966,8 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
         }
       }
     };
-    tdlib.client().send(new TdApi.SearchChatMessages(chatId, topicId, null, null, fromMessageId, -9, 10, new TdApi.SearchMessagesFilterUnreadReaction()), reactionsHandler);
+    if (GhostModeUtils.shouldSuppressRead()) tdlib.searchLocalUnreadMessages(chatId, topicId, true, 0, reactionsHandler);
+    else tdlib.client().send(new TdApi.SearchChatMessages(chatId, topicId, null, null, fromMessageId, -9, 10, new TdApi.SearchMessagesFilterUnreadReaction()), reactionsHandler);
   }
 
 

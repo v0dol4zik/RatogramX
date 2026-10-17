@@ -14,6 +14,11 @@ public final class GhostReadPolicy {
       source instanceof TdApi.MessageSourceDirectMessagesChatTopicHistory;
   }
 
+  public static TdApi.ViewMessages viewRequest (long chatId, long[] messageIds, @Nullable TdApi.MessageSource source, boolean forceRead, boolean suppressRead) {
+    return new TdApi.ViewMessages(chatId, messageIds,
+      suppressRead && (source == null || isHistorySource(source)) ? new TdApi.MessageSourceOther() : source, !suppressRead && forceRead);
+  }
+
   public static String key (int accountId, long chatId, @Nullable TdApi.MessageTopic topicId) {
     String key = "ghost_read_" + accountId + "_" + chatId;
     if (topicId instanceof TdApi.MessageTopicForum) {
@@ -30,5 +35,9 @@ public final class GhostReadPolicy {
 
   public static boolean isReadCandidate (TdApi.Message message) {
     return message.id > 0 && message.sendingState == null && message.schedulingState == null;
+  }
+
+  public static boolean canReadMentionOnView (TdApi.Message message) {
+    return !(message.content instanceof TdApi.MessageVoiceNote) && !(message.content instanceof TdApi.MessageVideoNote);
   }
 }

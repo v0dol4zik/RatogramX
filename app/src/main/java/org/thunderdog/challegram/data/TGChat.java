@@ -851,7 +851,7 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
     if (isArchive()) {
       return archive != null && archive.hasUnreadReactions();
     } else {
-      return chat != null && chat.unreadReactionCount > 0;
+      return chat != null && GhostReadStore.unreadReactionCount(tdlib.id(), chat.id, null, chat.unreadReactionCount) > 0;
     }
   }
 
@@ -859,7 +859,7 @@ public class TGChat implements TdlibStatusManager.HelperTarget, ContentPreview.R
     if (isArchive()) {
       return archive.hasUnreadMentions();
     } else {
-      return chat.unreadMentionCount > 0;
+      return GhostReadStore.unreadMentionCount(tdlib.id(), chat.id, null, chat.unreadMentionCount) > 0;
     }
   }
 

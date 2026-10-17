@@ -1041,9 +1041,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     mentionButton.setOnLongClickListener(v -> {
       long chatId = getChatId();
       if (chatId != 0 && !isDestroyed()) {
-        TdApi.ForumTopic topic = getForumTopic();
-        if (topic != null) tdlib.send(new TdApi.ReadAllForumTopicMentions(chatId, topic.info.forumTopicId), tdlib.typedOkHandler());
-        else tdlib.send(new TdApi.ReadAllChatMentions(chatId), tdlib.typedOkHandler());
+        tdlib.readAllChatContent(chatId, getMessageTopicId(), false);
         return true;
       }
       return false;
@@ -1126,9 +1124,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
     reactionsButton.setOnLongClickListener(v -> {
       long chatId = getChatId();
       if (chatId != 0 && !isDestroyed()) {
-        TdApi.ForumTopic topic = getForumTopic();
-        if (topic != null) tdlib.send(new TdApi.ReadAllForumTopicReactions(chatId, topic.info.forumTopicId), tdlib.typedOkHandler());
-        else tdlib.send(new TdApi.ReadAllChatReactions(chatId), tdlib.typedOkHandler());
+        tdlib.readAllChatContent(chatId, getMessageTopicId(), true);
         return true;
       }
       return false;
@@ -1904,10 +1900,10 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public void onLocalReadStateChanged (int accountId, long chatId, @Nullable TdApi.MessageTopic topicId, long readMessageId) {
     if (isDestroyed() || contentView == null || accountId != tdlib.id() || chatId != getChatId() ||
-        !Td.equalsTo(topicId, getMessageTopicId()) || areScheduledOnly() || inPreviewMode || isInForceTouchMode()) return;
+        (topicId != null && !Td.equalsTo(topicId, getMessageTopicId())) || areScheduledOnly() || inPreviewMode || isInForceTouchMode()) return;
     GhostReadStore.Inbox inbox = getReadInbox();
     if (inbox != null) {
-      manager.updateInboxReadState(GhostReadStore.readMessageId(accountId, chatId, topicId, inbox.readMessageId));
+      manager.updateInboxReadState(GhostReadStore.readMessageId(accountId, chatId, getMessageTopicId(), inbox.readMessageId));
       updateCounters(true);
     }
   }
@@ -3310,12 +3306,12 @@ public class MessagesController extends ViewController<MessagesController.Argume
       } else if (isForumTopic()) {
         TdApi.ForumTopic topic = getForumTopic();
         setUnreadCountBadge(topic != null && !areScheduled ? getUnreadMessageCount() : 0, animated);
-        setMentionCountBadge(topic != null && !areScheduled ? topic.unreadMentionCount : 0);
-        setReactionCountBadge(topic != null && !areScheduled ? topic.unreadReactionCount : 0);
+        setMentionCountBadge(topic != null && !areScheduled ? GhostReadStore.unreadMentionCount(tdlib.id(), chat.id, getMessageTopicId(), topic.unreadMentionCount) : 0);
+        setReactionCountBadge(topic != null && !areScheduled ? GhostReadStore.unreadReactionCount(tdlib.id(), chat.id, getMessageTopicId(), topic.unreadReactionCount) : 0);
       } else {
         setUnreadCountBadge(getUnreadMessageCount(), animated);
-        setMentionCountBadge(chat.unreadMentionCount);
-        setReactionCountBadge(chat.unreadReactionCount);
+        setMentionCountBadge(GhostReadStore.unreadMentionCount(tdlib.id(), chat.id, null, chat.unreadMentionCount));
+        setReactionCountBadge(GhostReadStore.unreadReactionCount(tdlib.id(), chat.id, null, chat.unreadReactionCount));
       }
       if (bottomButtonAction == BOTTOM_ACTION_TOGGLE_MUTE) {
         showBottomButton(bottomButtonAction, 0, animated);

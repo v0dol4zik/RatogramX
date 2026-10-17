@@ -37,8 +37,10 @@ import org.thunderdog.challegram.MainActivity;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.component.chat.MessageView;
 import org.thunderdog.challegram.component.chat.MessageViewGroup;
+import org.thunderdog.challegram.component.chat.WallpaperView;
 import org.thunderdog.challegram.data.MediaWrapper;
 import org.thunderdog.challegram.data.TGMessage;
+import org.thunderdog.challegram.data.TGChat;
 import org.thunderdog.challegram.data.TGMessagePoll;
 import org.thunderdog.challegram.mediaview.MediaViewController;
 import org.thunderdog.challegram.navigation.HeaderView;
@@ -74,13 +76,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import moe.kirao.mgx.utils.GhostReadStore;
+import moe.kirao.mgx.utils.GhostReadPolicy;
 import tgx.bridge.DeviceTokenRetriever;
 import tgx.bridge.TokenRetrieverListener;
 
 /** Device regressions with local fixtures. Never sends messages or edits server privacy. */
 public final class EmulatorSmokeInstrumentation extends Instrumentation {
   private static final int FIXTURE_ACCOUNT = 2_147_483_000;
-  private static final long FIXTURE_CHAT = -9_000_000_000_000_000L;
+  private static final long FIXTURE_CHAT = -999_999_999_999L;
   private static final String CHANNEL = "ratogramx_emulator_smoke";
   private MainActivity activity;
   private Tdlib tdlib;
@@ -114,6 +117,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       waitForIdleSync();
       runCase("clip_pixels_and_extreme_insets", () -> onUi(this::clipPixels));
       runCase("forum_counters_storage_and_account_isolation", () -> onUi(this::forumCounters));
+      runCase("ghost_reactions_pins_and_service_reads", () -> onUi(this::ghostContentReads));
       runCase("local_notifications_and_delayed_push", () -> onUi(this::localNotifications));
       runCase("android_notification_icons", () -> onUi(this::notificationIcons));
       runCase("poll_media_render_and_update", this::pollRendering);
@@ -434,6 +438,105 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
     } finally {
       GhostReadStore.clearAccount(FIXTURE_ACCOUNT);
       GhostReadStore.clearAccount(FIXTURE_ACCOUNT + 1);
+    }
+  }
+
+  private void ghostContentReads () throws Exception {
+    require(tdlib.chat(FIXTURE_CHAT) == null, "Fixture chat identifier must be unused");
+    GhostReadStore.clear(tdlib.id(), FIXTURE_CHAT, null);
+    GhostReadStore.clearAccount(FIXTURE_ACCOUNT);
+    final TGMessage[] parsed = new TGMessage[3];
+    final WallpaperView[] wallpaper = new WallpaperView[1];
+    final MessageView[] serviceView = new MessageView[1];
+    try {
+      withReadGate(() -> {
+        TdApi.MessageTopic first = new TdApi.MessageTopicForum(11), second = new TdApi.MessageTopicForum(22);
+        TdApi.Message pin = message(100, FIXTURE_CHAT);
+        pin.content = new TdApi.MessagePinMessage(50);
+        pin.containsUnreadMention = true;
+        pin.topicId = first;
+        TdApi.Message reacted = message(50, FIXTURE_CHAT);
+        reacted.isOutgoing = true;
+        reacted.topicId = first;
+        TdApi.UnreadReaction old = new TdApi.UnreadReaction(new TdApi.ReactionTypeEmoji("❤"), new TdApi.MessageSenderUser(tdlib.myUserId()), false);
+        reacted.unreadReactions = new TdApi.UnreadReaction[] {old};
+        TdApi.Message title = message(150, FIXTURE_CHAT);
+        title.content = new TdApi.MessageChatChangeTitle("Local fixture title");
+        title.topicId = first;
+        TdApi.Chat chat = new TdApi.Chat();
+        chat.id = FIXTURE_CHAT;
+        chat.type = new TdApi.ChatTypeBasicGroup(-FIXTURE_CHAT);
+        chat.title = "Local ghost fixture";
+        chat.positions = new TdApi.ChatPosition[0];
+        chat.notificationSettings = new TdApi.ChatNotificationSettings();
+        chat.lastMessage = title;
+        MessagesController controller = new MessagesController(activity, tdlib) {
+          // The service-message render has no live chat viewport or video layer.
+          @Override public void checkRoundVideo (int first, int last, boolean onScroll) { }
+        };
+        attachEmptyAdapter(controller, new RecyclerView(activity));
+        wallpaper[0] = new WallpaperView(activity, controller.getManager(), tdlib);
+        field(MessagesController.class, "wallpaperView").set(controller, wallpaper[0]);
+        TGChat row = new TGChat(controller, new TdApi.ChatListMain(), chat, false);
+        row.updateChatUnreadMentionCount(chat.id, 1);
+        row.updateChatUnreadReactionCount(chat.id, 1);
+        parsed[0] = TGMessage.valueOf(controller.getManager(), pin, chat, null, (TdApi.ChatAdministrator) null);
+        parsed[1] = TGMessage.valueOf(controller.getManager(), reacted, chat, null, (TdApi.ChatAdministrator) null);
+        parsed[2] = TGMessage.valueOf(controller.getManager(), title, chat, null, (TdApi.ChatAdministrator) null);
+        require(row.hasUnreadMentions() && row.hasUnreadReactions(), "Fixture badges were not initially unread");
+        require(parsed[0].checkIsUnread(true) && parsed[1].containsUnreadReactions(), "Fixture content was not initially unread");
+        require(parsed[2].checkIsUnread(false), "Title service message was not initially unread");
+        require(!GhostReadStore.recordViewedContent(tdlib.id(), first, pin, new TdApi.MessageSourceSearch()), "Search preview marked a pin read");
+        require(GhostReadStore.recordViewedContent(tdlib.id(), first, pin, new TdApi.MessageSourceForumTopicHistory()), "Pin view did not record its mention");
+        require(GhostReadStore.recordViewedContent(tdlib.id(), first, reacted, new TdApi.MessageSourceForumTopicHistory()), "Reaction view was not recorded");
+        GhostReadStore.record(tdlib.id(), FIXTURE_CHAT, null, new GhostReadStore.Inbox(0, 2, 150), 150, 2, 0);
+        require(!parsed[0].checkIsUnread(true) && !parsed[0].containsUnreadMention(), "Pin stayed unread after viewing");
+        require(!parsed[2].checkIsUnread(false), "Title service message stayed unread after viewing");
+        require(!parsed[1].containsUnreadReactions(), "Viewed reaction stayed unread in the message UI");
+        row.updateLocalReadState();
+        require(!row.hasUnreadMentions() && !row.hasUnreadReactions(), "Chat-list badges did not use local content reads");
+        require(GhostReadStore.unreadMentionCount(tdlib.id(), FIXTURE_CHAT, first, 1) == 0, "Topic mention badge stayed unread");
+        require(GhostReadStore.unreadReactionCount(tdlib.id(), FIXTURE_CHAT, first, 1) == 0, "Topic reaction badge stayed unread");
+        require(GhostReadStore.unreadReactionCount(tdlib.id(), FIXTURE_CHAT, second, 1) == 1, "Another topic lost an unread reaction");
+        require(GhostReadStore.unreadReactionCount(FIXTURE_ACCOUNT, FIXTURE_CHAT, first, 1) == 1, "Local reaction state leaked to another account");
+        require(pin.containsUnreadMention && reacted.unreadReactions.length == 1 && chat.lastReadInboxMessageId == 0,
+          "Local reads mutated the server message or inbox");
+        ((Map<?, ?>) field(GhostReadStore.class, "contentStates").get(null)).remove("ghost_read_" + tdlib.id() + "_" + FIXTURE_CHAT + "_content");
+        require(!GhostReadStore.hasUnreadMention(tdlib.id(), pin) && GhostReadStore.unreadReactions(tdlib.id(), reacted).length == 0,
+          "Content read state did not survive a native database reload");
+        TdApi.UnreadReaction added = new TdApi.UnreadReaction(new TdApi.ReactionTypeEmoji("👍"), old.senderId, false);
+        reacted.unreadReactions = new TdApi.UnreadReaction[] {old, added};
+        GhostReadStore.serverContentRead(tdlib.id(), FIXTURE_CHAT, reacted.id, false, reacted.unreadReactions);
+        require(parsed[1].containsUnreadReactions() && row.hasUnreadReactions(), "New reaction on an old message was hidden");
+        require(GhostReadStore.unreadReactions(tdlib.id(), reacted).length == 1, "Already viewed reactions became unread again");
+        GhostReadStore.recordViewedContent(tdlib.id(), first, reacted, new TdApi.MessageSourceForumTopicHistory());
+        require(!parsed[1].containsUnreadReactions() && !row.hasUnreadReactions(), "New reaction did not become locally read");
+        GhostReadStore.serverContentRead(tdlib.id(), FIXTURE_CHAT, reacted.id, false, new TdApi.UnreadReaction[0]);
+        reacted.unreadReactions = new TdApi.UnreadReaction[] {old};
+        require(parsed[1].containsUnreadReactions(), "The same reaction stayed hidden after a server read and a new event");
+        GhostReadStore.serverContentRead(tdlib.id(), FIXTURE_CHAT, pin.id, true, null);
+        require(GhostReadStore.unreadMentionCount(tdlib.id(), FIXTURE_CHAT, first, 0) == 0, "Server acknowledgement double-deducted the mention");
+        TdApi.ViewMessages request = GhostReadPolicy.viewRequest(FIXTURE_CHAT, new long[] {pin.id, reacted.id, title.id}, new TdApi.MessageSourceForumTopicHistory(), true, true);
+        require(!request.forceRead && request.source instanceof TdApi.MessageSourceOther, "Ghost view could send a read-bearing request");
+        parsed[0].buildLayout(720);
+        MessageView view = new MessageView(activity);
+        serviceView[0] = view;
+        view.setManager(controller.getManager());
+        view.setParentOnMeasureDisabled(true);
+        view.setMessage(parsed[0]);
+        FrameLayout stage = new FrameLayout(activity);
+        stage.addView(view);
+        Bitmap render = renderPoll(stage, parsed[0]);
+        require(render.getHeight() > 0, "Pin service message failed to render");
+        saveBitmap(render, "ratogramx-smoke-ghost-service.png");
+        render.recycle();
+      });
+    } finally {
+      if (serviceView[0] != null) serviceView[0].performDestroy();
+      for (TGMessage message : parsed) if (message != null) message.onDestroy();
+      if (wallpaper[0] != null) wallpaper[0].performDestroy();
+      GhostReadStore.clear(tdlib.id(), FIXTURE_CHAT, null);
+      GhostReadStore.clearAccount(FIXTURE_ACCOUNT);
     }
   }
 

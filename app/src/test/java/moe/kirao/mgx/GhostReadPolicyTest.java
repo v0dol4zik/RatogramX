@@ -46,4 +46,30 @@ public class GhostReadPolicyTest {
     message.schedulingState = new TdApi.MessageSchedulingStateSendWhenOnline();
     assertFalse(GhostReadPolicy.isReadCandidate(message));
   }
+
+  @Test public void ghostViewsNeverCarryAReadBearingSourceOrForceRead () {
+    for (TdApi.MessageSource source : new TdApi.MessageSource[] {
+      null, new TdApi.MessageSourceChatHistory(), new TdApi.MessageSourceForumTopicHistory(),
+      new TdApi.MessageSourceMessageThreadHistory(), new TdApi.MessageSourceDirectMessagesChatTopicHistory()
+    }) {
+      TdApi.ViewMessages request = GhostReadPolicy.viewRequest(123, new long[] {100}, source, true, true);
+      assertTrue(request.source instanceof TdApi.MessageSourceOther);
+      assertFalse(request.forceRead);
+      request = GhostReadPolicy.viewRequest(123, new long[] {100}, source, true, false);
+      assertTrue(request.source == source);
+      assertTrue(request.forceRead);
+    }
+  }
+
+  @Test public void pinAndTitleNoticesAreReadableButVoiceMentionsRequirePlayback () {
+    TdApi.Message message = new TdApi.Message();
+    message.content = new TdApi.MessagePinMessage(12);
+    assertTrue(GhostReadPolicy.canReadMentionOnView(message));
+    message.content = new TdApi.MessageChatChangeTitle("Title");
+    assertTrue(GhostReadPolicy.canReadMentionOnView(message));
+    message.content = new TdApi.MessageVoiceNote();
+    assertFalse(GhostReadPolicy.canReadMentionOnView(message));
+    message.content = new TdApi.MessageVideoNote();
+    assertFalse(GhostReadPolicy.canReadMentionOnView(message));
+  }
 }

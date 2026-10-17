@@ -2851,6 +2851,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       chat.updateLocalReadState();
       chatsView.invalidateViewAt(position);
     }
+    if (archiveList != null) scheduleArchiveUpdate(ChatsAdapter.ArchiveUpdate.COUNTER);
   }
 
   @Override

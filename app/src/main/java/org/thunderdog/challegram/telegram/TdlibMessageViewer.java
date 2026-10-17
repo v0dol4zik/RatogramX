@@ -791,17 +791,14 @@ public class TdlibMessageViewer {
         // TDLib treats chat-history sources as read-bearing even when forceRead is
         // false. Use a non-history source in Ghost mode so media/view counters
         // are still updated without advancing the server read marker.
-        TdApi.MessageSource effectiveSource = messageSource;
         boolean suppressRead = GhostModeUtils.shouldSuppressRead();
         if (suppressRead && GhostReadPolicy.isHistorySource(messageSource)) {
           recordLocalRead(chatId, messageIds);
-          effectiveSource = new TdApi.MessageSourceOther();
         } else if (forceRead && onHistoryRead != null && GhostReadPolicy.isHistorySource(messageSource)) {
           long readId = viewedReadMessageId(chatId, messageIds);
           if (readId != 0) onHistoryRead.accept(readId);
         }
-        context.tdlib.send(new TdApi.ViewMessages(chatId, messageIds, effectiveSource,
-          suppressRead ? false : forceRead), (ok, error) -> {
+        context.tdlib.send(GhostReadPolicy.viewRequest(chatId, messageIds, messageSource, forceRead, suppressRead), (ok, error) -> {
           if (after != null) {
             after.runWithBool(error == null);
           }

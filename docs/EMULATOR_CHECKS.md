@@ -34,7 +34,7 @@ adb -s emulator-5554 shell am instrument -w -r \
 
 Adjust the serial and versioned application APK path to the actual build. Do
 not install over a public package or clear application data. A successful run
-ends with `9 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
+ends with `10 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
 exit code alone does not distinguish test failures from success.
 
 To repeat only affected cases, pass `-e check CASE_NAME` or a comma-separated
@@ -50,11 +50,23 @@ adb -s emulator-5554 shell am instrument -w -r \
 These three checks do not require Ghost mode or experiments. A successful
 targeted run ends with `3 passed, 0 failed`.
 
-The nine checks cover:
+For Ghost content reads and the related local inbox/notification checks:
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r \
+  -e check ghost_reactions_pins_and_service_reads,forum_counters_storage_and_account_isolation,local_notifications_and_delayed_push \
+  org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
+```
+
+The ten checks cover:
 
 - Pixel clipping, negative insets, and overlapping top/bottom insets.
 - Local forum unread aggregation, native database reload, account isolation,
   and a server read update that must not deduct the same count twice.
+- Local pin-mention and reaction reads in native message/chat models, topic
+  counters, database reload, new reactions on old messages, and unchanged raw
+  TDLib state. A pin service message is rendered with the native message view;
+  Ghost view requests use a source that does not send read receipts.
 - Locally read topic notifications, partially unread groups, and a delayed
   push fixture for an already viewed message.
 - All application icon variants, notification bitmap cache invalidation, and

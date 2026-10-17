@@ -9,6 +9,10 @@ in development build metadata.
 
 ## [Unreleased]
 
+- Ghost mode locally clears viewed reactions, mentions, and pin notices in
+  messages and chat badges, preserves this state across restarts, and keeps
+  new reactions on old messages unread. Unread navigation skips viewed items;
+  holding their counters marks them read locally while Ghost mode is active.
 - Fixed profile tab widths and selection after adding, removing, or replacing
   tabs, including empty lists.
 - Fixed emoji keyboard header/content alignment after interrupted transitions

@@ -346,6 +346,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
 
     this.manager = manager;
     this.tdlib = manager.controller().tdlib();
+    if (sponsoredMessage == null) GhostReadStore.syncMessageContent(tdlib.id(), msg);
 
     TdApi.MessageTopic topicId = msg.topicId;
     if (topicId != null && topicId.getConstructor() == TdApi.MessageTopicForum.CONSTRUCTOR) {
@@ -4781,26 +4782,26 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     synchronized (this) {
       if (combinedMessages != null) {
         for (int i = combinedMessages.size() - 1; i >= 0; i--) {
-          if (combinedMessages.get(i).unreadReactions != null && combinedMessages.get(i).unreadReactions.length > 0) {
+          if (GhostReadStore.unreadReactions(tdlib.id(), combinedMessages.get(i)).length > 0) {
             return true;
           }
         }
       }
     }
-    return msg.unreadReactions != null && msg.unreadReactions.length > 0;
+    return GhostReadStore.unreadReactions(tdlib.id(), msg).length > 0;
   }
 
   public final boolean containsUnreadMention () {
     synchronized (this) {
       if (combinedMessages != null) {
         for (int i = combinedMessages.size() - 1; i >= 0; i--) {
-          if (combinedMessages.get(i).containsUnreadMention) {
+          if (GhostReadStore.hasUnreadMention(tdlib.id(), combinedMessages.get(i))) {
             return true;
           }
         }
       }
     }
-    return msg.containsUnreadMention;
+    return GhostReadStore.hasUnreadMention(tdlib.id(), msg);
   }
 
   public final void readMention (long messageId) {
@@ -5220,7 +5221,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   public boolean checkIsUnread (boolean needMention) {
-    if (needMention && msg.containsUnreadMention)
+    if (needMention && GhostReadStore.hasUnreadMention(tdlib.id(), msg))
       return true;
     TdApi.Chat chat = getChat();
     ThreadInfo messageThread = messagesController().getMessageThread();
@@ -5280,7 +5281,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
 
     if (canMarkAsViewed()) {
       flags |= FLAG_VIEWED;
-      if (msg.containsUnreadMention) {
+      if (GhostReadStore.hasUnreadMention(tdlib.id(), msg)) {
         highlight(true);
       }
       result = true;
@@ -9559,13 +9560,14 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     needHighlightUnreadReactions = true;
     if (combinedMessages != null) {
       for (TdApi.Message message : combinedMessages) {
-        if (message.unreadReactions != null && message.unreadReactions.length > 0) {
-          savedUnreadReactions = message.unreadReactions;
+        TdApi.UnreadReaction[] unread = GhostReadStore.unreadReactions(tdlib.id(), message);
+        if (unread.length > 0) {
+          savedUnreadReactions = unread;
           break;
         }
       }
     } else {
-      savedUnreadReactions = msg.unreadReactions;
+      savedUnreadReactions = GhostReadStore.unreadReactions(tdlib.id(), msg);
     }
     invalidate();
   }

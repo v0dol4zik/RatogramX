@@ -1863,6 +1863,55 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     client().send(new TdApi.SearchContacts(searchQuery, limit), handler);
   }
 
+  public void searchLocalUnreadMessages (long chatId, @Nullable TdApi.MessageTopic topicId, boolean reactions, long fromMessageId, Client.ResultHandler handler) {
+    TdApi.SearchMessagesFilter filter = reactions ? new TdApi.SearchMessagesFilterUnreadReaction() : new TdApi.SearchMessagesFilterUnreadMention();
+    send(new TdApi.SearchChatMessages(chatId, topicId, "", null, fromMessageId, 0, 100, filter), (found, error) -> {
+      if (error != null) {
+        handler.onResult(error);
+        return;
+      }
+      List<TdApi.Message> unread = new ArrayList<>();
+      for (TdApi.Message message : found.messages) {
+        GhostReadStore.syncMessageContent(accountId, message);
+        if (reactions ? GhostReadStore.unreadReactions(accountId, message).length > 0 : GhostReadStore.hasUnreadMention(accountId, message)) unread.add(message);
+      }
+      long next = found.nextFromMessageId;
+      boolean hasNext = next > 0 && (fromMessageId == 0 || next < fromMessageId);
+      if (unread.isEmpty() && hasNext) {
+        searchLocalUnreadMessages(chatId, topicId, reactions, next, handler);
+      } else {
+        handler.onResult(new TdApi.FoundChatMessages(unread.size(), unread.toArray(new TdApi.Message[0]), hasNext ? next : 0));
+      }
+    });
+  }
+
+  public void readAllChatContent (long chatId, @Nullable TdApi.MessageTopic topicId, boolean reactions) {
+    if (GhostModeUtils.shouldSuppressRead()) {
+      readAllLocalChatContent(chatId, topicId, reactions, 0);
+    } else if (topicId instanceof TdApi.MessageTopicForum) {
+      int forumTopicId = ((TdApi.MessageTopicForum) topicId).forumTopicId;
+      if (reactions) send(new TdApi.ReadAllForumTopicReactions(chatId, forumTopicId), typedOkHandler());
+      else send(new TdApi.ReadAllForumTopicMentions(chatId, forumTopicId), typedOkHandler());
+    } else {
+      if (reactions) send(new TdApi.ReadAllChatReactions(chatId), typedOkHandler());
+      else send(new TdApi.ReadAllChatMentions(chatId), typedOkHandler());
+    }
+  }
+
+  private void readAllLocalChatContent (long chatId, @Nullable TdApi.MessageTopic topicId, boolean reactions, long fromMessageId) {
+    if (!GhostModeUtils.shouldSuppressRead()) return;
+    searchLocalUnreadMessages(chatId, topicId, reactions, fromMessageId, result -> {
+      if (!GhostModeUtils.shouldSuppressRead()) return;
+      if (result instanceof TdApi.Error) {
+        UI.showError((TdApi.Error) result);
+      } else {
+        TdApi.FoundChatMessages found = (TdApi.FoundChatMessages) result;
+        for (TdApi.Message message : found.messages) GhostReadStore.recordContentRead(accountId, topicId, message, !reactions, reactions);
+        if (found.nextFromMessageId != 0) readAllLocalChatContent(chatId, topicId, reactions, found.nextFromMessageId);
+      }
+    });
+  }
+
   public void loadMoreChats (@NonNull TdApi.ChatList chatList, int limit, Client.ResultHandler handler) {
     Log.ensureReturnType(TdApi.LoadChats.class, TdApi.Ok.class);
     client().send(new TdApi.LoadChats(chatList, limit), handler);
@@ -7788,6 +7837,8 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       chat.unreadMentionCount = update.unreadMentionCount;
     }
 
+    GhostReadStore.serverContentRead(accountId, update.chatId, update.messageId, true, null);
+    GhostReadStore.syncContentCounters(accountId, update.chatId, null, update.unreadMentionCount, -1);
     listeners.updateMessageMentionRead(update, counterChanged, availabilityChanged);
   }
 
@@ -7818,6 +7869,8 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
 
 
+    GhostReadStore.serverContentRead(accountId, update.chatId, update.messageId, false, update.unreadReactions);
+    GhostReadStore.syncContentCounters(accountId, update.chatId, null, -1, update.unreadReactionCount);
     listeners.updateMessageUnreadReactions(update, counterChanged, availabilityChanged, chat, chatLists);
   }
 
@@ -7838,6 +7891,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
     }
 
     Arrays.sort(update.messageIds);
+    GhostReadStore.removeContent(accountId, update.chatId, update.messageIds);
 
     listeners.updateMessagesDeleted(update);
 
@@ -7912,6 +7966,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
         chatLists = null;
       }
     }
+    GhostReadStore.syncContentCounters(accountId, update.chat.id, null, update.chat.unreadMentionCount, update.chat.unreadReactionCount);
     if (chatLists != null) {
       for (TdlibChatList chatList : chatLists) {
         chatList.onUpdateNewChat(update.chat);
@@ -7987,6 +8042,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       availabilityChanged = (chat.unreadMentionCount > 0) != (update.unreadMentionCount > 0);
       chat.unreadMentionCount = update.unreadMentionCount;
     }
+    GhostReadStore.syncContentCounters(accountId, update.chatId, null, update.unreadMentionCount, -1);
     listeners.updateChatUnreadMentionCount(update, availabilityChanged);
   }
 
@@ -8018,6 +8074,7 @@ public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, Da
       chat.unreadReactionCount = update.unreadReactionCount;
       chatLists = chatListsImpl(chat.positions);
     }
+    GhostReadStore.syncContentCounters(accountId, update.chatId, null, -1, update.unreadReactionCount);
     listeners.updateChatUnreadReactionCount(update, availabilityChanged, chat, chatLists);
   }
 
