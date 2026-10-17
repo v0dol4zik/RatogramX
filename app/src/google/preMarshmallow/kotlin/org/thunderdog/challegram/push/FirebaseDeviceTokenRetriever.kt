@@ -13,7 +13,7 @@ class FirebaseDeviceTokenRetriever : DefaultFirebaseTokenRetriever() {
     try {
       PushManagerBridge.log("FirebaseMessaging: requesting token...")
       FirebaseMessaging.getInstance().token.addOnSuccessListener(OnSuccessListener { token ->
-        PushManagerBridge.log("FirebaseMessaging: successfully fetched token: \"%s\"", token)
+        PushManagerBridge.log("FirebaseMessaging: successfully fetched token")
         listener.onTokenRetrievalSuccess(DeviceTokenFirebaseCloudMessaging(token, true))
       }).addOnFailureListener { e: Exception? ->
         val errorName = extractFirebaseErrorName(e!!)

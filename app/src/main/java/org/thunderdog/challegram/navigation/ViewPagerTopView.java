@@ -580,7 +580,7 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
   }
 
   public void setItems (@NonNull List<Item> items) {
-    if (getItemCount() == items.size()) {
+    if (this.items != null && getItemCount() == items.size()) {
       boolean foundDiff = false;
       int i = 0;
       for (Item item : items) {
@@ -593,15 +593,19 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
         return;
       }
     }
+    clearItemAnimations();
     removeAllViews();
     this.items = items;
     onUpdateItems();
+    selectionFactor = Math.max(0f, Math.min(selectionFactor, items.size() - 1));
+    resetFromTo();
 
     measureItems();
     for (int i = 0; i < items.size(); i++) {
       addView(newBackgroundView(i));
     }
     relayout();
+    invalidate();
   }
 
   public void addItem (String item) {
@@ -625,6 +629,7 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
   }
 
   public void addItemAtIndex (Item item, int index) {
+    clearItemAnimations();
     if (index == -1) {
       index = items.size();
     }
@@ -637,27 +642,16 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
 
     onUpdateItems();
 
-    if (index <= (int) selectionFactor) {
+    if (items.size() > 1 && index <= (int) selectionFactor) {
       selectionFactor++;
     }
 
-    TextPaint paint = getItemTextPaint(item);
-    measureItem(item, paint);
-    int itemWidth = item.width;
-    totalWidth += itemWidth + itemPadding * 2;
-    maxItemWidth = totalWidth / items.size();
-
-    commonItemWidth = calculateCommonItemWidth(itemWidth);
-
-    final int availTextWidth = commonItemWidth - itemPadding * 2;
-    if (!shouldWrapContent() && itemWidth < availTextWidth) {
-      item.trimString(availTextWidth, paint);
-    } else {
-      item.untrimString(paint);
-    }
+    measureItem(item, getItemTextPaint(item));
     // We already have backgroundView with insertion index, adding for the last one
     // (for which there is no backgroundView yet)
     addView(newBackgroundView(items.size() - 1));
+    resetFromTo();
+    relayout();
     invalidate();
   }
 
@@ -672,16 +666,20 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
       throw new IllegalArgumentException(index + " is out of range 0.." + (items.size() - 1));
     }
 
+    clearItemAnimations();
     items.remove(index);
 
     onUpdateItems();
 
-    if ((int) selectionFactor >= items.size()) {
+    if (index < selectionFactor) {
       selectionFactor--;
     }
+    selectionFactor = Math.max(0f, Math.min(selectionFactor, items.size() - 1));
 
     // Removing BackgroundView for the last item only, as other just update dimensions
     removeViewAt(getChildCount() - 1);
+    resetFromTo();
+    relayout();
     invalidate();
   }
 
@@ -706,6 +704,9 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
     this.maxStableWidth = calculateMaxStableWidth(totalWidth);
     this.maxItemWidth = items == null || items.isEmpty() ? 0 : (totalWidth / items.size());
     this.lastMeasuredWidth = 0; // force layout
+    if (getItemCount() == 0) {
+      this.selectionLeft = this.selectionWidth = this.commonItemWidth = 0;
+    }
     requestLayout();
   }
 
@@ -796,6 +797,9 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
   private int commonItemWidth;
 
   private int calculateCommonItemWidth (int parentWidth) {
+    if (items == null || items.isEmpty()) {
+      return 0;
+    }
     int itemWidth = Math.min(parentWidth / items.size(), maxItemWidth);
     if (parentWidth - itemWidth * items.size() < itemWidth / 2) {
       itemWidth = parentWidth / items.size();
@@ -840,6 +844,7 @@ public class ViewPagerTopView extends FrameLayoutFix implements RtlCheckListener
 
   private void recalculateSelection (float selectionFactor, boolean set) {
     if (items == null || items.isEmpty()) {
+      this.selectionLeft = this.selectionWidth = 0;
       return;
     }
     int selectionWidth, selectionLeft;

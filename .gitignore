@@ -22,6 +22,8 @@ obj
 /local.properties
 /gradle.properties
 /keystore.properties
+google-services.json
+agconnect-services.json
 /.env
 /.env.*
 /*.jks

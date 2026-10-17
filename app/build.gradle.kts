@@ -10,6 +10,10 @@ import tgx.gradle.*
 import tgx.gradle.source.GitInformationSource
 import tgx.gradle.task.*
 import java.util.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 plugins {
   id("java-toolchain-convention")
@@ -1174,9 +1178,30 @@ dependencies {
   compileOnly(libs.annotations.kotlin)
 }
 
-if (!config.isExperimentalBuild && !ratogramxDevPackage) {
+val debugFirebaseFile = layout.projectDirectory.file("src/debug/google-services.json").asFile
+val firebaseFile = if (ratogramxDevPackage && debugFirebaseFile.isFile) {
+  debugFirebaseFile
+} else {
+  layout.projectDirectory.file("google-services.json").asFile
+}
+val hasDevFirebaseConfiguration = if (ratogramxDevPackage && firebaseFile.isFile) {
+  try {
+    Json.parseToJsonElement(firebaseFile.readText()).jsonObject["client"]?.jsonArray?.any {
+      it.jsonObject["client_info"]?.jsonObject?.get("android_client_info")
+        ?.jsonObject?.get("package_name")?.jsonPrimitive?.content == "${config.applicationId}.debug"
+    } == true
+  } catch (_: Exception) {
+    error("Invalid local Firebase JSON. Check its format without publishing its contents.")
+  }
+} else {
+  false
+}
+if (ratogramxDevPackage && debugFirebaseFile.isFile && !hasDevFirebaseConfiguration) {
+  error("app/src/debug/google-services.json must contain the ${config.applicationId}.debug Android application.")
+}
+if (!config.isExperimentalBuild && (!ratogramxDevPackage || hasDevFirebaseConfiguration)) {
   apply(plugin = libs.plugins.google.services.get().pluginId)
-  if (config.isHuaweiBuild) {
+  if (config.isHuaweiBuild && !ratogramxDevPackage) {
     apply(plugin = libs.huawei.agconnect.get().group)
   }
 }

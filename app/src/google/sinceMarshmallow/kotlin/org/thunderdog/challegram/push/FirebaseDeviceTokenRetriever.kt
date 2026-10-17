@@ -17,7 +17,7 @@ class FirebaseDeviceTokenRetriever : DefaultFirebaseTokenRetriever() {
         PushManagerBridge.log("FirebaseMessaging: successfully registered, obtaining installation ID...")
         FirebaseInstallations.getInstance().id
           .addOnSuccessListener { installationId ->
-            PushManagerBridge.log("FirebaseMessaging: successfully fetched installation ID: \"%s\"", installationId)
+            PushManagerBridge.log("FirebaseMessaging: successfully fetched installation ID")
             listener.onTokenRetrievalSuccess(DeviceTokenFirebaseCloudMessaging(installationId, true))
           }
           .addOnFailureListener { e: Exception? ->

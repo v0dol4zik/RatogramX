@@ -268,6 +268,10 @@ public class TdlibNotificationUtils {
 
         @Override
         public void onTokenRetrievalError (@NonNull String errorKey, @Nullable Throwable e) {
+          if (!DeviceTokenRetriever.canRetry(errorKey)) {
+            listener.onTokenRetrievalError(errorKey, e);
+            return;
+          }
           UI.post(() ->
             getDeviceToken(context, retryCount - 1, listener),
             3500
@@ -286,7 +290,10 @@ public class TdlibNotificationUtils {
       deviceTokenRetriever.retrieveDeviceToken(context, listener);
     } else {
       TDLib.Tag.notifications("Token fetch failed because TokenRetriever was not initialized, retryCount: %d", retryCount);
-      listener.onTokenRetrievalError("INITIALIZATION_ERROR", new NotificationInitializationFailedError());
+      DeviceTokenRetriever retriever = DeviceTokenRetrieverInstance.get();
+      Throwable cause = retriever.getInitializationError();
+      listener.onTokenRetrievalError(retriever.getInitializationErrorKey(),
+        cause != null ? cause : new NotificationInitializationFailedError());
     }
   }
 }

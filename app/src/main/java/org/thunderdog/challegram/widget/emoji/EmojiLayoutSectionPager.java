@@ -52,7 +52,7 @@ public abstract class EmojiLayoutSectionPager extends FrameLayout implements Fac
   }
 
   public int getNextSection () {
-    return currentSection;
+    return nextSection;
   }
 
   public boolean canChangeSection () {

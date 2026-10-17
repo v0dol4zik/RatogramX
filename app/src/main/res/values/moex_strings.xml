@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="PushConfigurationMissing">Push notifications are not configured for this app build. An updated build with push support is required. Reinstalling Google Play Services or retrying will not resolve this configuration issue. Background notifications may be delayed.</string>
   <string name="RichMessageLabel">Rich message</string>
   <string name="RichMessageOpen">Open full message</string>
   <string name="RichMessageThinking">Thinking…</string>

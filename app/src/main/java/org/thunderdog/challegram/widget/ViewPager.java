@@ -36,10 +36,15 @@ public class ViewPager extends androidx.viewpager.widget.ViewPager {
   private boolean oneShot;
   private java.lang.reflect.Field mFirstLayoutField;
 
+  protected boolean needsFirstLayoutOnAttach () {
+    return false;
+  }
+
   @Override
   protected void onAttachedToWindow () {
     super.onAttachedToWindow();
-    if (oneShot) {
+    boolean needsFirstLayout = needsFirstLayoutOnAttach();
+    if (oneShot && !needsFirstLayout) {
       try {
         if (mFirstLayoutField == null) {
           mFirstLayoutField = androidx.viewpager.widget.ViewPager.class.getDeclaredField("mFirstLayout");
@@ -51,6 +56,9 @@ public class ViewPager extends androidx.viewpager.widget.ViewPager {
       }
     } else {
       oneShot = true;
+    }
+    if (needsFirstLayout) {
+      requestLayout();
     }
   }
 

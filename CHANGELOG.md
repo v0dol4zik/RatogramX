@@ -9,6 +9,13 @@ in development build metadata.
 
 ## [Unreleased]
 
+- Fixed profile tab widths and selection after adding, removing, or replacing
+  tabs, including empty lists.
+- Fixed emoji keyboard header/content alignment after interrupted transitions
+  and reopening, and corrected reporting of pending sticker/GIF sections.
+- Development packages support their own local Firebase configuration. Missing
+  configuration has a clear notification warning and is not retried; push
+  token and installation ID values are no longer logged on successful retrieval.
 - Updated the Telegram X base to 0.29.1.1817, including the matching TDLib,
   call libraries, native toolchain, and background-notification fixes.
 - Restored VPN detection on Android 5 and verified the Android 5 ARM32 build;

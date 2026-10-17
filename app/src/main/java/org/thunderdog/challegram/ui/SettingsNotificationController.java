@@ -454,6 +454,12 @@ public class SettingsNotificationController extends RecyclerViewController<Setti
         guideRes = R.string.NotificationsGuideFirebaseUnavailable;
         break;
       case TdlibNotificationManager.Status.PUSH_SERVICE_ERROR:
+        if (DeviceTokenRetriever.ERROR_CONFIGURATION_MISSING.equals(tdlib.context().getTokenError())) {
+          return Lang.getString(R.string.PushConfigurationMissing);
+        }
+        if (DeviceTokenRetriever.ERROR_SERVICE_UNAVAILABLE.equals(tdlib.context().getTokenError())) {
+          return Lang.getString(R.string.NotificationsGuideFirebaseUnavailable);
+        }
         return Lang.getMarkdownString(this, R.string.NotificationsGuideFirebaseError, Lang.boldCreator(), tdlib.context().getTokenError());
       case TdlibNotificationManager.Status.INTERNAL_ERROR: {
         @StringRes int
@@ -1510,10 +1516,12 @@ public class SettingsNotificationController extends RecyclerViewController<Setti
           break;
         }
         case TdlibNotificationManager.Status.PUSH_SERVICE_ERROR: {
-          showOptions(new Options.Builder()
-            .item(new OptionItem(R.id.btn_retry, Lang.getString(R.string.FirebaseErrorResolveTryAgain), OptionColor.BLUE, R.drawable.baseline_sync_problem_24))
-            .item(new OptionItem(R.id.btn_share, Lang.getString(R.string.FirebaseErrorResolveShareError), OptionColor.NORMAL, R.drawable.baseline_forward_24))
-            .build(), (optionView, optionId) -> {
+          Options.Builder options = new Options.Builder();
+          if (DeviceTokenRetriever.canRetry(tdlib.context().getTokenError())) {
+            options.item(new OptionItem(R.id.btn_retry, Lang.getString(R.string.FirebaseErrorResolveTryAgain), OptionColor.NORMAL, R.drawable.baseline_sync_problem_24));
+          }
+          options.item(new OptionItem(R.id.btn_share, Lang.getString(R.string.FirebaseErrorResolveShareError), OptionColor.NORMAL, R.drawable.baseline_forward_24));
+          showOptions(options.build(), (optionView, optionId) -> {
             if (optionId == R.id.btn_retry) {
               tdlib.context().checkDeviceToken(0, null);
             } else if (optionId == R.id.btn_share) {

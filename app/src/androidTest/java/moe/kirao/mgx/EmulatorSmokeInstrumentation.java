@@ -16,6 +16,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -41,16 +42,26 @@ import org.thunderdog.challegram.data.TGMessage;
 import org.thunderdog.challegram.data.TGMessagePoll;
 import org.thunderdog.challegram.mediaview.MediaViewController;
 import org.thunderdog.challegram.navigation.HeaderView;
+import org.thunderdog.challegram.navigation.ViewController;
+import org.thunderdog.challegram.navigation.ViewPagerTopView;
 import org.thunderdog.challegram.player.RoundVideoController;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.telegram.TdlibNotification;
 import org.thunderdog.challegram.telegram.TdlibNotificationGroup;
+import org.thunderdog.challegram.telegram.TdlibNotificationUtils;
+import org.thunderdog.challegram.telegram.EmojiMediaType;
+import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.ui.MessagesController;
 import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.AppIconManager;
 import org.thunderdog.challegram.v.MessagesRecyclerView;
 import org.thunderdog.challegram.widget.PopupLayout;
 import org.thunderdog.challegram.widget.RectFrameLayout;
+import org.thunderdog.challegram.widget.EmojiLayout;
+import org.thunderdog.challegram.widget.emoji.EmojiLayoutSectionPager;
+import org.thunderdog.challegram.widget.emoji.section.EmojiSection;
+import org.thunderdog.challegram.widget.emoji.section.EmojiSectionView;
+import org.thunderdog.challegram.widget.rtl.RtlViewPager;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -63,6 +74,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import moe.kirao.mgx.utils.GhostReadStore;
+import tgx.bridge.DeviceTokenRetriever;
+import tgx.bridge.TokenRetrieverListener;
 
 /** Device regressions with local fixtures. Never sends messages or edits server privacy. */
 public final class EmulatorSmokeInstrumentation extends Instrumentation {
@@ -105,6 +118,9 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       runCase("android_notification_icons", () -> onUi(this::notificationIcons));
       runCase("poll_media_render_and_update", this::pollRendering);
       runCase("round_video_playback_with_keyboard_and_panels", this::roundVideo);
+      runCase("profile_tab_mutations", () -> onUi(this::profileTabs));
+      runCase("emoji_keyboard_navigation_and_reopen", this::emojiKeyboard);
+      runCase("push_configuration_error", this::pushConfiguration);
       require(passed + failed > 0, "Unknown check: " + requestedCheck);
     } catch (Throwable error) {
       failed++;
@@ -118,7 +134,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
   private interface Check { void run () throws Exception; }
 
   private void runCase (String name, Check check) {
-    if (requestedCheck != null && !requestedCheck.equals(name)) return;
+    if (requestedCheck != null && !Arrays.asList(requestedCheck.split(",")).contains(name)) return;
     Throwable failure = null;
     try { check.run(); } catch (Throwable error) { failure = error; }
     if (failure == null) passed++; else failed++;
@@ -169,6 +185,220 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
   }
 
   private static int exact (int value) { return View.MeasureSpec.makeMeasureSpec(value, View.MeasureSpec.EXACTLY); }
+
+  private void profileTabs () throws Exception {
+    ViewPagerTopView tabs = new ViewPagerTopView(activity);
+    try {
+      for (int width : new int[] {ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT}) {
+        tabs.setLayoutParams(new FrameLayout.LayoutParams(width, Screen.dp(48)));
+        tabs.setItems(new String[0]);
+        tabs.addItem("Members");
+        measureTabs(tabs);
+        tabs.setItems(new String[] {"Media", "Files", "Music", "Links"});
+        tabs.setSelectionFactor(2);
+        measureTabs(tabs);
+        tabs.removeItemAt(0);
+        require(tabs.getSelectionFactor() == 1, "Removing a preceding tab changed selection");
+        measureTabs(tabs);
+        tabs.removeItemAt(1);
+        measureTabs(tabs);
+        tabs.addItemAtIndex("Shared media", 0);
+        require(tabs.getSelectionFactor() == 2, "Inserting a preceding tab changed selection");
+        measureTabs(tabs);
+        tabs.removeLastItem();
+        measureTabs(tabs);
+        tabs.removeItemAt(0);
+        tabs.removeLastItem();
+        measureTabs(tabs);
+        require(tabs.getSelectionFactor() == 0 && tabs.getChildCount() == 0, "Empty tabs retained selection or hit targets");
+        tabs.addItem("Members");
+        measureTabs(tabs);
+        require(tabs.getSelectionFactor() == 0, "First added tab was not selected");
+        tabs.setItems(new String[0]);
+        measureTabs(tabs);
+        tabs.setItems(new String[] {"Media", "Files", "Links"});
+        tabs.setSelectionFactor(2);
+        tabs.setItems(new String[] {"Members"});
+        measureTabs(tabs);
+        require(tabs.getSelectionFactor() == 0, "Replacing tabs retained an invalid selection");
+      }
+    } finally { tabs.performDestroy(); }
+  }
+
+  private void measureTabs (ViewPagerTopView tabs) throws Exception {
+    tabs.measure(exact(720), exact(Screen.dp(48)));
+    tabs.layout(0, 0, tabs.getMeasuredWidth(), tabs.getMeasuredHeight());
+    require(tabs.getChildCount() == tabs.getItemCount(), "Tab hit target count is stale");
+    require(field(ViewPagerTopView.class, "totalWidth").getInt(tabs) ==
+      (int) method(ViewPagerTopView.class, "calculateTotalWidth").invoke(tabs), "Tab width cache is stale");
+    int left = field(ViewPagerTopView.class, "selectionLeft").getInt(tabs);
+    int width = field(ViewPagerTopView.class, "selectionWidth").getInt(tabs);
+    require(left >= 0 && left + width <= tabs.getMeasuredWidth(), "Selection escaped tab bounds");
+  }
+
+  private void emojiKeyboard () throws Exception {
+    final EmojiLayout[] keyboard = new EmojiLayout[1];
+    final ViewController<?>[] owner = new ViewController<?>[1];
+    final FrameLayout[] stage = new FrameLayout[1];
+    final int[] saved = new int[2];
+    final int[] searches = new int[1];
+    try {
+      onUi(() -> {
+        saved[0] = Settings.instance().getEmojiPosition();
+        saved[1] = Settings.instance().getEmojiMediaSection();
+        Settings.instance().setEmojiPosition(1);
+        Settings.instance().setEmojiMediaSection(EmojiMediaType.STICKER);
+        owner[0] = new ViewController<Void>(activity, tdlib) {
+          @Override public int getId () { return 0; }
+          @Override protected View onCreateView (Context context) { return new FrameLayout(context); }
+        };
+        keyboard[0] = new EmojiLayout(activity);
+        keyboard[0].initWithMediasEnabled(owner[0], true, false, new EmojiLayout.Listener() {
+          @Override public void onSearchRequested (EmojiLayout layout, boolean stickers) { searches[0]++; }
+        }, owner[0], false, true);
+        keyboard[0].setForceHeight(Screen.dp(320));
+        stage[0] = new FrameLayout(activity);
+        stage[0].setClickable(true);
+        stage[0].addView(keyboard[0], new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(320), Gravity.BOTTOM));
+        activity.addToRoot(stage[0], false);
+      });
+      awaitFrame();
+      SystemClock.sleep(400);
+      onUi(() -> assertEmojiPage(keyboard[0], 1));
+      tapEmojiSection(keyboard[0], "mediaSectionsView", -1);
+      onUi(() -> assertEmojiPage(keyboard[0], 0));
+      tapEmojiSection(keyboard[0], "emojiHeaderView", EmojiSection.SECTION_EMOJI_SMILEYS);
+      onUi(() -> assertEmojiPage(keyboard[0], 0));
+      tapEmojiSection(keyboard[0], "emojiHeaderView", EmojiSection.SECTION_SWITCH_TO_MEDIA);
+      onUi(() -> assertEmojiPage(keyboard[0], 1));
+      tapEmojiSection(keyboard[0], "mediaSectionsView", -2);
+      onUi(() -> require(searches[0] > 0 || keyboard[0].getCurrentEmojiSection() == EmojiMediaType.GIF, "GIF tab neither opened GIFs nor requested search"));
+      // Interrupt an outer page transition by closing the keyboard immediately.
+      onUi(() -> {
+        RtlViewPager pager = (RtlViewPager) field(EmojiLayout.class, "pager").get(keyboard[0]);
+        pager.setCurrentItem(0, true);
+        stage[0].removeView(keyboard[0]);
+      });
+      SystemClock.sleep(100);
+      onUi(() -> stage[0].addView(keyboard[0]));
+      awaitFrame();
+      SystemClock.sleep(700);
+      onUi(() -> assertEmojiPage(keyboard[0], 0));
+      onUi(() -> {
+        RtlViewPager pager = (RtlViewPager) field(EmojiLayout.class, "pager").get(keyboard[0]);
+        pager.setCurrentItem(1, true);
+        stage[0].removeView(keyboard[0]);
+      });
+      SystemClock.sleep(100);
+      onUi(() -> stage[0].addView(keyboard[0]));
+      awaitFrame();
+      SystemClock.sleep(700);
+      onUi(() -> assertEmojiPage(keyboard[0], 1));
+      tapEmojiSection(keyboard[0], "mediaSectionsView", -1);
+      onUi(() -> assertEmojiPage(keyboard[0], 0));
+      tapEmojiSection(keyboard[0], "emojiHeaderView", EmojiSection.SECTION_SWITCH_TO_MEDIA);
+      onUi(() -> assertEmojiPage(keyboard[0], 1));
+      tapEmojiSection(keyboard[0], "mediaSectionsView", -3);
+      onUi(() -> {
+        EmojiLayoutSectionPager sections = mediaSectionPager(keyboard[0]);
+        require(sections.canChangeSection() && sections.getNextSection() == -1, "Media section transition did not finish");
+      });
+    } finally {
+      onUi(() -> {
+        if (stage[0] != null) activity.removeFromRoot(stage[0]);
+        if (keyboard[0] != null) keyboard[0].destroy();
+        if (owner[0] != null) owner[0].destroy();
+        Settings.instance().setEmojiPosition(saved[0]);
+        Settings.instance().setEmojiMediaSection(saved[1]);
+      });
+    }
+  }
+
+  private EmojiLayoutSectionPager mediaSectionPager (EmojiLayout keyboard) throws Exception {
+    Object adapter = field(EmojiLayout.class, "adapter").get(keyboard);
+    ViewController<?> media = (ViewController<?>) method(adapter.getClass(), "getCachedItem", int.class).invoke(adapter, 1);
+    return (EmojiLayoutSectionPager) media.getValue();
+  }
+
+  private void assertEmojiPage (EmojiLayout keyboard, int expected) throws Exception {
+    RtlViewPager pager = (RtlViewPager) field(EmojiLayout.class, "pager").get(keyboard);
+    View emojiHeader = (View) field(EmojiLayout.class, "emojiHeaderView").get(keyboard);
+    View mediaHeader = (View) field(EmojiLayout.class, "mediaSectionsView").get(keyboard);
+    require(pager.getCurrentItem() == expected, "Keyboard page did not switch");
+    require(field(EmojiLayout.class, "scrollState").getInt(keyboard) == 0, "Keyboard kept an unfinished outer transition");
+    require(Math.abs(field(EmojiLayout.class, "currentPageFactor").getFloat(keyboard) - expected) < .001f, "Header and content page factors differ");
+    require(Math.abs((expected == 0 ? emojiHeader : mediaHeader).getTranslationX()) < 1f, "Selected header is offscreen");
+    Object adapter = field(EmojiLayout.class, "adapter").get(keyboard);
+    ViewController<?> content = (ViewController<?>) method(adapter.getClass(), "getCachedItem", int.class).invoke(adapter, expected);
+    require(Math.abs(content.getValue().getLeft() - pager.getScrollX()) <= 1, "Selected content is offscreen: left=" +
+      content.getValue().getLeft() + ", scrollX=" + pager.getScrollX() + ", width=" + pager.getWidth() +
+      ", firstLayout=" + field(androidx.viewpager.widget.ViewPager.class, "mFirstLayout").getBoolean(pager));
+  }
+
+  private void tapEmojiSection (EmojiLayout keyboard, String headerName, int index) throws Exception {
+    final int[] point = new int[2];
+    onUi(() -> {
+      View header = (View) field(EmojiLayout.class, headerName).get(keyboard);
+      View section = findEmojiSection(header, index);
+      require(section != null, "Missing visible header section " + index);
+      section.getLocationOnScreen(point);
+      point[0] += section.getWidth() / 2;
+      point[1] += section.getHeight() / 2;
+    });
+    long time = SystemClock.uptimeMillis();
+    MotionEvent down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN, point[0], point[1], 0);
+    MotionEvent up = MotionEvent.obtain(time, time + 50, MotionEvent.ACTION_UP, point[0], point[1], 0);
+    try { sendPointerSync(down); sendPointerSync(up); } finally { down.recycle(); up.recycle(); }
+    SystemClock.sleep(700);
+    waitForIdleSync();
+  }
+
+  private View findEmojiSection (View view, int index) {
+    if (view.getVisibility() != View.VISIBLE || view.getAlpha() == 0f) return null;
+    if (view instanceof EmojiSectionView && ((EmojiSectionView) view).getSection().index == index) return view;
+    if (view instanceof ViewGroup) {
+      ViewGroup group = (ViewGroup) view;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        View found = findEmojiSection(group.getChildAt(i), index);
+        if (found != null) return found;
+      }
+    }
+    return null;
+  }
+
+  private void pushConfiguration () throws Exception {
+    DeviceTokenRetriever missing = new DeviceTokenRetriever("local-fixture") {
+      @Override public boolean isAvailable (Context context) { return true; }
+      @Override protected boolean performInitialization (Context context) {
+        return initializationFailed(ERROR_CONFIGURATION_MISSING, null);
+      }
+      @Override protected void fetchDeviceToken (Context context, TokenRetrieverListener listener) {
+        throw new AssertionError("Uninitialized retriever attempted a network request");
+      }
+    };
+    final String[] failure = new String[1];
+    final int[] callbacks = new int[1];
+    TokenRetrieverListener listener = new TokenRetrieverListener() {
+      @Override public void onTokenRetrievalSuccess (TdApi.DeviceToken token) { throw new AssertionError("Unexpected push token"); }
+      @Override public void onTokenRetrievalError (String errorKey, Throwable error) { callbacks[0]++; failure[0] = errorKey; }
+    };
+    missing.retrieveDeviceToken(getTargetContext(), listener);
+    require(callbacks[0] == 1 && DeviceTokenRetriever.ERROR_INITIALIZATION.equals(failure[0]), "Uninitialized retriever did not report its error");
+    require(!missing.initialize(getTargetContext()), "Missing configuration initialized successfully");
+    missing.retrieveDeviceToken(getTargetContext(), listener);
+    require(callbacks[0] == 2 && DeviceTokenRetriever.ERROR_CONFIGURATION_MISSING.equals(failure[0]), "Initialization reason was lost");
+    require(!DeviceTokenRetriever.canRetry(failure[0]) && !DeviceTokenRetriever.canRetry(DeviceTokenRetriever.ERROR_SERVICE_UNAVAILABLE), "Permanent push error would be retried");
+    require(DeviceTokenRetriever.canRetry("SERVICE_NOT_AVAILABLE"), "Transient Firebase error cannot retry");
+    if (getTargetContext().getResources().getIdentifier("google_app_id", "string", getTargetContext().getPackageName()) == 0) {
+      CountDownLatch done = new CountDownLatch(1);
+      TdlibNotificationUtils.getDeviceToken(getTargetContext(), 3, new TokenRetrieverListener() {
+        @Override public void onTokenRetrievalSuccess (TdApi.DeviceToken token) { failure[0] = "unexpected-success"; done.countDown(); }
+        @Override public void onTokenRetrievalError (String errorKey, Throwable error) { failure[0] = errorKey; done.countDown(); }
+      });
+      require(done.await(2, TimeUnit.SECONDS), "Missing configuration entered delayed retries");
+      require(DeviceTokenRetriever.ERROR_CONFIGURATION_MISSING.equals(failure[0]), "Missing build configuration was reported as a generic initialization failure");
+    }
+  }
 
   private void withReadGate (Check check) throws Exception {
     require(Settings.instance().isExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS), "Enable experiments for the Ghost fixture");

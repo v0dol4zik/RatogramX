@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <string name="PushConfigurationMissing">В этой сборке не настроены push-уведомления. Нужна обновлённая сборка с поддержкой push. Переустановка сервисов Google и повторные попытки не исправят эту настройку. Фоновые уведомления могут приходить с задержкой.</string>
   <string name="RichMessageLabel">Сообщение с блоками</string>
   <string name="RichMessageOpen">Открыть полностью</string>
   <string name="RichMessageThinking">Думает…</string>

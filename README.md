@@ -161,6 +161,26 @@ flavors include `lollipop` (API 21), `marshmallow` (API 23), and `legacy`
 Release builds require your own signing configuration. Never reuse or share a
 development keystore for public releases.
 
+### Separate development installation and push notifications
+
+Add `-PratogramxDevPackage=true` to build the separate `.debug` application
+alongside the public client. It uses the local Android debug key and keeps its
+own account data.
+
+Firebase configuration must match the installed application ID. To enable FCM
+in the development package, register an Android app with that exact `.debug`
+ID in your Firebase project and save its downloaded configuration as
+`app/src/debug/google-services.json`. A root `app/google-services.json`
+containing a matching client is also supported. Changing the package name in
+an existing configuration does not register a new Firebase app.
+
+A development build without a matching configuration still compiles and uses
+Telegram X's background connection, but reports that push support is missing;
+background delivery may be delayed. Google Play Services are required for FCM.
+Public builds use your local `app/google-services.json`; Huawei builds also
+require their own `app/agconnect-services.json`. These files are ignored by
+Git and must stay private.
+
 ## Development
 
 Before opening a pull request:

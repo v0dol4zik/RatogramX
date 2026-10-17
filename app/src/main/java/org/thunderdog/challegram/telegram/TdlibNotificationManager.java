@@ -609,6 +609,9 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
     if (!NotificationManagerCompat.from(AppContext.get()).areNotificationsEnabled()) {
       return Status.BLOCKED_ALL;
     }
+    if (tdlib.context().hasTokenError() && tgx.bridge.DeviceTokenRetriever.ERROR_CONFIGURATION_MISSING.equals(tdlib.context().getTokenError())) {
+      return Status.PUSH_SERVICE_ERROR;
+    }
     boolean hasPushServices = hasRemotePushService();
     if (!hasPushServices) {
       // Sync matters only when push service (firebase, hms, ...) unavailable

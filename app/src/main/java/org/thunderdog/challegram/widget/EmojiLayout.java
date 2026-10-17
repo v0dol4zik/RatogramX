@@ -302,7 +302,13 @@ public class EmojiLayout extends FrameLayoutFix implements ViewPager.OnPageChang
     emojiSectionsSize = 7 + (allowMedia ? 1 : 0);
 
     adapter = new Adapter(context, this, allowMedia, themeProvider);
-    pager = new RtlViewPager(getContext());
+    pager = new RtlViewPager(getContext()) {
+      @Override
+      protected boolean needsFirstLayoutOnAttach () {
+        // Closing the keyboard may interrupt a page transition.
+        return true;
+      }
+    };
     pager.setOverScrollMode(Config.HAS_NICE_OVER_SCROLL_EFFECT ? View.OVER_SCROLL_IF_CONTENT_SCROLLS :View.OVER_SCROLL_NEVER);
     pager.addOnPageChangeListener(this);
     pager.setAdapter(adapter);
@@ -369,13 +375,14 @@ public class EmojiLayout extends FrameLayoutFix implements ViewPager.OnPageChang
 
     int position;
     if (allowMedia) {
-      position = Settings.instance().getEmojiPosition();
+      position = Math.max(0, Math.min(adapter.getCount() - 1, Settings.instance().getEmojiPosition()));
       if (pager.getCurrentItem() != position) {
         pager.setCurrentItem(position, false);
       }
     } else {
       position = 0;
     }
+    setCurrentPageFactor(position);
 
     final int padding = Screen.dp(4);
     params = FrameLayoutFix.newParams(Screen.dp(23f) * 2 + padding * 2, Screen.dp(23f) * 2 + padding * 2, Gravity.RIGHT | Gravity.BOTTOM);
@@ -1136,6 +1143,9 @@ public class EmojiLayout extends FrameLayoutFix implements ViewPager.OnPageChang
   public void onPageScrollStateChanged (int state) {
     this.scrollState = state;
     setAffectHeight(state != ViewPager.SCROLL_STATE_IDLE);
+    if (state == ViewPager.SCROLL_STATE_IDLE) {
+      setCurrentPageFactor(pager.getCurrentItem());
+    }
   }
 
   public boolean canSlideBack () {

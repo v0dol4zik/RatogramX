@@ -34,13 +34,23 @@ adb -s emulator-5554 shell am instrument -w -r \
 
 Adjust the serial and versioned application APK path to the actual build. Do
 not install over a public package or clear application data. A successful run
-ends with `6 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
+ends with `9 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
 exit code alone does not distinguish test failures from success.
 
-To repeat only an affected case, pass `-e check CASE_NAME` before the runner
-component, using a case name from its `PASS`/`FAIL` output.
+To repeat only affected cases, pass `-e check CASE_NAME` or a comma-separated
+list before the runner component, using names from its `PASS`/`FAIL` output.
+For the profile, keyboard, and push-configuration regressions only:
 
-The six checks cover:
+```bash
+adb -s emulator-5554 shell am instrument -w -r \
+  -e check profile_tab_mutations,emoji_keyboard_navigation_and_reopen,push_configuration_error \
+  org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
+```
+
+These three checks do not require Ghost mode or experiments. A successful
+targeted run ends with `3 passed, 0 failed`.
+
+The nine checks cover:
 
 - Pixel clipping, negative insets, and overlapping top/bottom insets.
 - Local forum unread aggregation, native database reload, account isolation,
@@ -53,8 +63,14 @@ The six checks cover:
   reordered answers after a content update.
 - Actual local round-video decoding, composer clipping, the Android keyboard,
   and a simulated attachment panel.
+- Profile tab insertion, removal, replacement, empty lists, cached widths,
+  selection bounds, and both wrapping and full-width layouts.
+- Pointer taps on emoji, sticker, and GIF headers, their alignment with content,
+  and reopening a keyboard after interrupting a page transition.
+- Reporting an unavailable push configuration through the listener, preserving
+  its reason, and avoiding delayed retries for a missing development config.
 
-Fixtures use reserved local storage keys, restore the selected icon setting,
+Fixtures use reserved local storage keys, restore the icon and keyboard settings,
 cancel their notification, and release their media views. Screenshots are
 saved to the development app's cache under `ratogramx-smoke-*.png`; treat them
 as private because the emulator's surrounding UI may be visible. No server
