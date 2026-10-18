@@ -77,11 +77,13 @@ of opening a lossy editor. The ordinary text composer is unchanged.
 The local Premium experiment enables Markdown rich messages in Saved Messages
 for accounts without Telegram Premium. The source is sent as an ordinary
 Telegram message with a single full-span `PreCode` entity whose language is
-`ratogramx-rich-v1` (or `ratogramx-rich-v1-rtl`). Other Telegram clients show
+`markdown` (or `markdown-rtl`). Other Telegram clients show
 the literal source, including `#` headings and `**` formatting. Ratogram X
 recognizes this explicit marker only in the current account's Saved Messages
-and renders a rich bubble and Instant View. Ordinary Markdown and unrelated
-code blocks keep their normal appearance. TDLib's stored message is unchanged.
+and renders a rich bubble and Instant View. Plain, unformatted Markdown and
+code blocks in other languages keep their normal appearance. The earlier
+`ratogramx-rich-v1` and `ratogramx-rich-v1-rtl` markers remain readable; existing
+messages are not rewritten. TDLib's stored message is unchanged.
 
 Source beyond Telegram's text limit is uploaded as a UTF-8
 `RatogramX-rich-*.md` file, with a marked source excerpt in its caption.
@@ -106,6 +108,11 @@ account caches at most 16 parsed documents and 262,144 source UTF-16 units;
 at most four source/attachment loads run concurrently. No periodic scan or
 full-history rewrite is used for new messages. Markdown files download only
 when their loaded bubble needs rendering, with a 256 KiB download bound.
+
+After creation, synchronization of a legacy entry, or replacement with a file,
+the chat reveals the confirmed Telegram message ID after merging legacy history.
+If its message update has not reached the adapter yet, the native history loader
+fetches it by that ID.
 
 Older device-only entries are still marked **Local** and retain their private
 account/user-specific storage and images. Their menu offers **Sync to Saved
@@ -173,6 +180,13 @@ external source edit and closed after deletion. All generated cloud fixtures
 were removed. Send listeners are retained until success, failure or deletion,
 since TDLib's listener registry uses weak references. The native preview was
 visually inspected. Telegram Desktop UI and Android 13 runtime were not tested.
+
+The history follow-up passed 49 JVM checks, including compatibility with both
+previous code-block markers. The Android 15 cloud creation case verified a
+visible native bubble after saving next to an older local entry, recovery when
+its confirmed update is missing from the adapter, and visibility after reopening
+Saved Messages. Generated fixtures were removed. The new wire label is
+`markdown`; existing source messages retain their original labels until edited.
 
 Device/account checks still required:
 

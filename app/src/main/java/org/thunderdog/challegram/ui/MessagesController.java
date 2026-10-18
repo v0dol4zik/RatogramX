@@ -10839,8 +10839,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
           tdlib.savedRichMessages().save(entry.document, null, entry, (sent, error) -> {
             if (isDestroyed()) return;
             if (error != null) UI.showToast(R.string.RichMessageSavedError, Toast.LENGTH_LONG);
-            refreshLocalRichMessages();
-            if (error == null) manager.scrollToStart(true);
+            if (error == null) manager.revealSavedRichMessage(sent.id);
+            else refreshLocalRichMessages();
           });
         }
         if (id == R.id.btn_messageEdit) {

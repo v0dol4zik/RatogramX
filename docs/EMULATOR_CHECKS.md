@@ -105,6 +105,13 @@ markers; no other chat is targeted. It needs an online, authorized account.
 This verifies the Telegram wire representation; it does not automate the
 Telegram Desktop UI or authenticate a second client.
 
+`saved_rich_messages_cloud_creation` runs the native creation/history portion
+separately. It keeps an older generated local entry in Saved Messages, creates
+a new message through the editor, checks the actual visible bubble, reopens the
+chat and simulates a missing message update in its local adapter. The confirmed
+cloud message must be loaded and revealed again. This opt-in case also sends
+only to the development account's Saved Messages and removes its fixtures.
+
 `github_updater_release_check` makes a read-only request to the public
 Ratogram X GitHub Releases API. It checks completion and the GitHub update
 source without downloading or installing an APK. Unlike the local fixtures,

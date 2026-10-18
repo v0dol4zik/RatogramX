@@ -29,7 +29,19 @@ public class SavedRichMessageCodecTest {
     assertEquals(0, text.entities[0].offset);
     assertEquals(source.length(), text.entities[0].length);
     assertTrue(text.entities[0].type instanceof TdApi.TextEntityTypePreCode);
+    assertEquals("markdown", ((TdApi.TextEntityTypePreCode) text.entities[0].type).language);
     assertFalse(SavedRichMessageCodec.isRtl(message.content));
+  }
+
+  @Test public void legacyMarkersRemainReadableWithTheirOriginalDirection () {
+    for (boolean rtl : new boolean[] {false, true}) {
+      TdApi.FormattedText text = SavedRichMessageCodec.marked("# Existing message 🐀", rtl);
+      assertEquals(rtl ? "markdown-rtl" : "markdown", ((TdApi.TextEntityTypePreCode) text.entities[0].type).language);
+      text.entities[0].type = new TdApi.TextEntityTypePreCode(rtl ? "ratogramx-rich-v1-rtl" : "ratogramx-rich-v1");
+      TdApi.Message message = message(text);
+      assertTrue(SavedRichMessageCodec.recognizes(message, 77));
+      assertEquals(rtl, SavedRichMessageCodec.isRtl(message.content));
+    }
   }
 
   @Test public void sourceIsNeverInterpretedInAnotherChatOrAccount () {
@@ -44,7 +56,7 @@ public class SavedRichMessageCodecTest {
   @Test public void ordinaryMarkdownAndUnrelatedCodeBlocksStayOrdinary () {
     assertFalse(SavedRichMessageCodec.recognizes(message(new TdApi.FormattedText("# Header", null)), 77));
     TdApi.FormattedText text = SavedRichMessageCodec.marked("# Header", false);
-    text.entities[0].type = new TdApi.TextEntityTypePreCode("markdown");
+    text.entities[0].type = new TdApi.TextEntityTypePreCode("java");
     assertFalse(SavedRichMessageCodec.recognizes(message(text), 77));
     text.entities[0].type = new TdApi.TextEntityTypePreCode("ratogramx-rich-v2");
     assertFalse(SavedRichMessageCodec.recognizes(message(text), 77));

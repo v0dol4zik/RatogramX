@@ -1318,16 +1318,39 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void refreshLocalRichMessages () {
+    refreshLocalRichMessages(null);
+  }
+
+  public void revealSavedRichMessage (long messageId) {
+    if (messageId <= 0 || !showsLocalRichMessages()) return;
+    refreshLocalRichMessages(() -> {
+      revokeReturnMessages();
+      int index = adapter.indexOfMessageContainer(messageId);
+      if (index == -1) {
+        // Sending can finish before the chat receives its pending/final message update.
+        resetByMessage(new MessageId(loader.getChatId(), messageId), HIGHLIGHT_MODE_START);
+      } else {
+        scrollToMessage(index, adapter.getMessage(index), HIGHLIGHT_MODE_START, false, false);
+      }
+    });
+  }
+
+  private void refreshLocalRichMessages (@Nullable Runnable afterRefresh) {
     if (!showsLocalRichMessages()) return;
     int generation = ++localRichGeneration;
     long userId = tdlib.myUserId();
     new moe.kirao.mgx.utils.LocalRichMessageStore(tdlib.id(), userId).load((entries, error) -> {
       if (generation != localRichGeneration || controller.isDestroyed() || tdlib.myUserId() != userId || !showsLocalRichMessages()) return;
-      if (error != null) { UI.showToast(R.string.RichMessageLocalError, Toast.LENGTH_LONG); return; }
+      if (error != null) {
+        UI.showToast(R.string.RichMessageLocalError, Toast.LENGTH_LONG);
+        if (afterRefresh != null) afterRefresh.run();
+        return;
+      }
       localRichMessages = entries;
       syncLocalRichMessages();
       if (revealLocalRichMessage) { revealLocalRichMessage = false; scrollToBottom(false); }
       if (!entries.isEmpty()) onChatAwaitFinish();
+      if (afterRefresh != null) afterRefresh.run();
     });
   }
 

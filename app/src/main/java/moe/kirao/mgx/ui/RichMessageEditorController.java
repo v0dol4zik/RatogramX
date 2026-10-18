@@ -211,8 +211,8 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
         if (error != null) UI.showToast(R.string.RichMessageSavedError, Toast.LENGTH_LONG);
         else {
           dirty = false;
-          args.parent.refreshLocalRichMessages();
-          if (args.source == null || args.local != null || args.source.id != message.id) args.parent.getManager().scrollToStart(true);
+          if (args.source == null || args.local != null || args.source.id != message.id) args.parent.getManager().revealSavedRichMessage(message.id);
+          else args.parent.refreshLocalRichMessages();
           navigateBack();
         }
       });

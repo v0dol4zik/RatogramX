@@ -105,11 +105,13 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
   private int passed, failed;
   private boolean resumeAfterFixtureCrash;
   private String requestedCheck;
+  private String interruptedSavedFixture;
 
   @Override public void onCreate (Bundle arguments) {
     super.onCreate(arguments);
     resumeAfterFixtureCrash = arguments != null && "true".equals(arguments.getString("resumeAfterFixtureCrash"));
     requestedCheck = arguments != null ? arguments.getString("check") : null;
+    interruptedSavedFixture = arguments != null ? arguments.getString("cleanupSavedRichFixture") : null;
     start();
   }
 
@@ -140,6 +142,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       runCase("rich_messages_editor_preview_and_history", this::richMessageEditor);
       runCase("saved_rich_messages_cache_and_updates", this::savedRichCache);
       if ("saved_rich_messages_cloud_roundtrip".equals(requestedCheck)) runCase("saved_rich_messages_cloud_roundtrip", this::savedRichCloud);
+      if ("saved_rich_messages_cloud_creation".equals(requestedCheck)) runCase("saved_rich_messages_cloud_creation", this::savedRichCloudCreation);
       runCase("rich_messages_restart_write", this::richMessageRestartWrite);
       runCase("rich_messages_restart_read_cleanup", this::richMessageRestartRead);
       runCase("github_updater_release_check", this::githubUpdaterCheck);
@@ -642,6 +645,8 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       for (String name : SavedRichMessageCodec.photoNames(photoReload.markdownSource)) created.add(SavedRichMessageCodec.photoMessageId(name));
       cloudProgress("Photo migration confirmed; checking native editor and live viewer");
       savedRichCloudUi(migrated, photoReload);
+      cloudProgress("Checking creation from the editor with legacy history, then reopening Saved Messages");
+      savedRichCloudCreation(marker, created);
       require(((java.util.Set<?>) field(SavedRichMessages.class, "sending").get(tdlib.savedRichMessages())).isEmpty(), "Confirmed send retained its listener");
     } finally {
       photo.delete();
@@ -672,6 +677,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
         require(activity.navigation().navigateTo(parent[0]), "Could not open synced Saved Messages");
       });
       waitForNavigation(parent[0]);
+      waitForSavedRichBubble(parent[0], message.id);
       onUi(() -> {
         editor[0] = new RichMessageEditorController(activity, tdlib);
         editor[0].setArguments(new RichMessageEditorController.Args(parent[0], RichMessagePolicy.Mode.LOCAL, message, null, document));
@@ -686,6 +692,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       waitForNavigation(parent[0]);
       TdApi.Message updated = tdResult(new TdApi.GetMessage(message.chatId, message.id));
       require(((TdApi.MessageText) updated.content).text.text.endsWith("**Native edit**"), "Native editor did not sync the update");
+      waitForSavedRichBubble(parent[0], message.id);
       RichMessageDocument rich = savedResult(callback -> tdlib.savedRichMessages().load(updated, callback));
       onUi(() -> {
         viewer[0] = new org.thunderdog.challegram.ui.InstantViewController(activity, tdlib);
@@ -725,8 +732,166 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
     }
   }
 
-  private void waitForNavigation (ViewController<?> expected) throws Exception {
+  private void waitForSavedRichBubble (MessagesController parent, long messageId) throws Exception {
     long deadline = SystemClock.uptimeMillis() + 20_000;
+    boolean[] found = {false};
+    int[] counts = new int[2];
+    do {
+      onUi(() -> {
+        TGMessage message = parent.getManager().getAdapter().findMessageById(messageId);
+        found[0] = message != null && message.isSavedRichMessage() && message.getHeight() > 0;
+        counts[0] = parent.getManager().getAdapter().getMessageCount();
+        counts[1] = parent.getManager().getAdapter().countMessages(TGMessage::isSavedRichMessage);
+      });
+      if (found[0]) return;
+      SystemClock.sleep(100);
+    } while (SystemClock.uptimeMillis() < deadline);
+    throw new AssertionError("Synced rich message is missing from native history (" + counts[0] + " messages, " + counts[1] + " rich)");
+  }
+
+  private void savedRichCloudCreation () throws Exception {
+    String marker = "RatogramHistoryTest" + System.currentTimeMillis();
+    java.util.Set<Long> created = new java.util.LinkedHashSet<>();
+    boolean attempted = false;
+    try {
+      long deadline = SystemClock.uptimeMillis() + 90_000;
+      while (tdlib.connectionState() != org.thunderdog.challegram.telegram.ConnectionState.CONNECTED && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
+      require(tdlib.connectionState() == org.thunderdog.challegram.telegram.ConnectionState.CONNECTED, "Telegram is offline");
+      cloudProgress("Telegram connected; checking native creation and visible history");
+      attempted = true;
+      savedRichCloudCreation(marker, created);
+    } finally {
+      if (attempted) {
+        TdApi.FoundChatMessages found = tdResult(new TdApi.SearchChatMessages(tdlib.myUserId(), null, marker, null, 0, 0, 100, null));
+        for (TdApi.Message message : found.messages) if (tgx.td.Td.textOrCaption(message.content) != null &&
+          tgx.td.Td.textOrCaption(message.content).text.contains(marker)) created.add(message.id);
+        if (interruptedSavedFixture != null && interruptedSavedFixture.matches("RatogramHistoryTest[0-9]{13}")) {
+          TdApi.FoundChatMessages interrupted = tdResult(new TdApi.SearchChatMessages(tdlib.myUserId(), null, interruptedSavedFixture, null, 0, 0, 100, null));
+          for (TdApi.Message message : interrupted.messages) if (message.content instanceof TdApi.MessageText &&
+            ("# " + interruptedSavedFixture + " native creation\n\n**Saved** from the editor").equals(((TdApi.MessageText) message.content).text.text)) created.add(message.id);
+        }
+        if (!created.isEmpty()) tdResult(new TdApi.DeleteMessages(tdlib.myUserId(), created.stream().mapToLong(Long::longValue).toArray(), true));
+        cloudProgress("Generated history fixtures removed");
+      }
+    }
+  }
+
+  private void savedRichCloudCreation (String marker, java.util.Set<Long> created) throws Exception {
+    MessagesController[] parent = new MessagesController[1];
+    RichMessageEditorController[] editor = new RichMessageEditorController[1];
+    Settings settings = Settings.instance();
+    long previous = (long) method(Settings.class, "getExperiments").invoke(settings);
+    LocalRichMessageStore store = new LocalRichMessageStore(tdlib.id(), tdlib.myUserId());
+    // Recover only this generated fixture after an interrupted emulator run.
+    for (LocalRichMessageStore.Entry entry : this.<java.util.List<LocalRichMessageStore.Entry>>localResult(store::load)) {
+      if (entry.document.blocks.size() == 3 && entry.document.blocks.get(0).text.matches("Ratogram(?:History|Sync)Test[0-9]+ legacy")) {
+        this.<Boolean>localResult(callback -> store.delete(entry.id, callback));
+      }
+    }
+    LocalRichMessageStore.Entry generated = localResult(callback -> store.save(0, richDocument(marker + " legacy"), callback));
+    // The emulator's wall clock can run ahead of Telegram after a host restart.
+    LocalRichMessageStore.Entry legacy = new LocalRichMessageStore.Entry(generated.id,
+      (int) Math.min(generated.date, tdlib.currentTime(TimeUnit.SECONDS)) - 60, 0, generated.document);
+    java.util.List<LocalRichMessageStore.Entry> entries = localResult(store::load);
+    entries.replaceAll(entry -> entry.id == legacy.id ? legacy : entry);
+    method(LocalRichMessageStore.class, "write", java.util.List.class).invoke(store, entries);
+    String source = "# " + marker + " native creation\n\n**Saved** from the editor";
+    try {
+      waitForNavigation(null);
+      onUi(() -> {
+        settings.setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, true);
+        settings.setLocalPremiumExperimentEnabled(true);
+        require(settings.isLocalPremiumExperimentEnabled(), "Local Premium was not enabled for native creation");
+        parent[0] = new MessagesController(activity, tdlib);
+        parent[0].setArguments(new MessagesController.Arguments(null, tdlib.chat(tdlib.myUserId()), null, null, null, 0, null));
+        require(activity.navigation().navigateTo(parent[0]), "Could not open Saved Messages for native creation");
+      });
+      waitForNavigation(parent[0]);
+      long deadline = SystemClock.uptimeMillis() + 20_000;
+      boolean[] loaded = {false};
+      do {
+        onUi(() -> loaded[0] = parent[0].getManager().getAdapter().findMessageById(legacy.id) != null);
+        if (loaded[0]) break;
+        SystemClock.sleep(100);
+      } while (SystemClock.uptimeMillis() < deadline);
+      require(loaded[0], "Legacy fixture did not appear before native creation");
+      cloudProgress("Legacy history loaded; creating through the native Markdown editor");
+      onUi(() -> {
+        editor[0] = new RichMessageEditorController(activity, tdlib);
+        editor[0].setArguments(new RichMessageEditorController.Args(parent[0], RichMessagePolicy.Mode.LOCAL, null, null, new RichMessageDocument()));
+        parent[0].navigateTo(editor[0]);
+      });
+      waitForNavigation(editor[0]);
+      onUi(() -> {
+        org.thunderdog.challegram.widget.MaterialEditTextGroup input = (org.thunderdog.challegram.widget.MaterialEditTextGroup) field(RichMessageEditorController.class, "sourceInput").get(editor[0]);
+        input.setText(source);
+        require(source.equals(field(RichMessageEditorController.class, "markdown").get(editor[0])), "Native input did not update the source");
+        require((Boolean) method(RichMessageEditorController.class, "validateDocument").invoke(editor[0]), "Native source is invalid");
+        require(settings.isLocalPremiumExperimentEnabled(), "Local Premium changed before native save");
+        require(!parent[0].isDestroyed() && parent[0].getChatId() == tdlib.myUserId(), "Native parent is no longer Saved Messages");
+        method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]);
+        require((Boolean) method(org.thunderdog.challegram.ui.EditBaseController.class, "isDoneInProgress").invoke(editor[0]), "Native save did not start");
+      });
+      waitForNavigation(parent[0], 90_000);
+      TdApi.Messages history = tdResult(new TdApi.GetChatHistory(tdlib.myUserId(), 0, 0, 50, false));
+      TdApi.Message sent = Arrays.stream(history.messages).filter(m -> m.content instanceof TdApi.MessageText &&
+        source.equals(((TdApi.MessageText) m.content).text.text)).findFirst().orElseThrow(() -> new AssertionError("Native creation did not reach Telegram history"));
+      created.add(sent.id);
+      require(legacy.date < sent.date, "Legacy fixture is newer than the Telegram message");
+      waitForSavedRichBubble(parent[0], sent.id);
+      requireSavedRichVisible(parent[0], sent.id);
+      cloudProgress("Checking recovery when the chat has not received the confirmed message update");
+      onUi(() -> {
+        int position = parent[0].getManager().getAdapter().indexOfMessageContainer(sent.id);
+        parent[0].getManager().getAdapter().removeItem(position).onDestroy();
+        parent[0].getManager().revealSavedRichMessage(sent.id);
+      });
+      waitForSavedRichBubble(parent[0], sent.id);
+      requireSavedRichVisible(parent[0], sent.id);
+      cloudProgress("New rich bubble is visible; reopening Saved Messages");
+      onUi(() -> parent[0].navigateBack());
+      waitForNavigation(null);
+      onUi(() -> {
+        parent[0] = new MessagesController(activity, tdlib);
+        parent[0].setArguments(new MessagesController.Arguments(null, tdlib.chat(tdlib.myUserId()), null, null, null, 0, null));
+        require(activity.navigation().navigateTo(parent[0]), "Could not reopen Saved Messages");
+      });
+      waitForNavigation(parent[0]);
+      waitForSavedRichBubble(parent[0], sent.id);
+      requireSavedRichVisible(parent[0], sent.id);
+    } finally {
+      this.<Boolean>localResult(callback -> store.delete(legacy.id, callback));
+      onUi(() -> {
+        settings.setLocalPremiumExperimentEnabled((previous & Settings.EXPERIMENT_FLAG_LOCAL_PREMIUM) != 0);
+        settings.setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, (previous & Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) != 0);
+        ViewController<?> current = activity.navigation().getCurrentStackItem();
+        if (current == editor[0]) current.navigateBack();
+        if (parent[0] != null && !parent[0].isDestroyed()) parent[0].refreshLocalRichMessages();
+      });
+      waitForNavigation(null);
+      onUi(() -> { if (activity.navigation().getCurrentStackItem() == parent[0]) parent[0].navigateBack(); });
+    }
+  }
+
+  private void requireSavedRichVisible (MessagesController parent, long messageId) throws Exception {
+    waitForIdleSync();
+    onUi(() -> {
+      int position = parent.getManager().getAdapter().indexOfMessageContainer(messageId);
+      View view = parent.getMessagesView().getLayoutManager().findViewByPosition(position);
+      require(view != null && view.getHeight() > 0 && view.getBottom() > 0 && view.getTop() < parent.getMessagesView().getHeight(),
+        "Synced rich message is in the adapter but missing from the visible chat");
+      require(view instanceof org.thunderdog.challegram.component.chat.MessagesManager.MessageProvider &&
+        ((org.thunderdog.challegram.component.chat.MessagesManager.MessageProvider) view).getMessage().isDescendantOrSelf(messageId),
+        "Visible rich bubble is bound to a different message");
+    });
+  }
+
+  private void waitForNavigation (ViewController<?> expected) throws Exception {
+    waitForNavigation(expected, 20_000);
+  }
+
+  private void waitForNavigation (ViewController<?> expected, long timeoutMillis) throws Exception {
+    long deadline = SystemClock.uptimeMillis() + timeoutMillis;
     boolean[] ready = {false};
     do {
       onUi(() -> {

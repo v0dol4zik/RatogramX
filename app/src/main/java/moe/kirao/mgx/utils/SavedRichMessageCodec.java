@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
 
 /** A normal Telegram code block, interpreted as Markdown only in Saved Messages. */
 public final class SavedRichMessageCodec {
-  public static final String LANGUAGE = "ratogramx-rich-v1", LANGUAGE_RTL = LANGUAGE + "-rtl";
+  public static final String LANGUAGE = "markdown", LANGUAGE_RTL = LANGUAGE + "-rtl";
+  private static final String LEGACY_LANGUAGE = "ratogramx-rich-v1", LEGACY_LANGUAGE_RTL = LEGACY_LANGUAGE + "-rtl";
   public static final String FILE_PREFIX = "RatogramX-rich-";
   public static final int MAX_FILE_BYTES = RichMessageMarkdown.MAX_SOURCE * 4;
   private static final Pattern PHOTO = Pattern.compile("^!\\[[^\\r\\n]*]\\(attachment:([a-zA-Z0-9_-]+)\\)$");
@@ -47,7 +48,9 @@ public final class SavedRichMessageCodec {
     TdApi.TextEntity entity = text.entities[0];
     if (entity == null || entity.offset != 0 || entity.length != text.text.length() || !(entity.type instanceof TdApi.TextEntityTypePreCode)) return null;
     String language = ((TdApi.TextEntityTypePreCode) entity.type).language;
-    return LANGUAGE.equals(language) || LANGUAGE_RTL.equals(language) ? language : null;
+    if (LANGUAGE.equals(language) || LEGACY_LANGUAGE.equals(language)) return LANGUAGE;
+    if (LANGUAGE_RTL.equals(language) || LEGACY_LANGUAGE_RTL.equals(language)) return LANGUAGE_RTL;
+    return null;
   }
 
   public static boolean isRtl (TdApi.MessageContent content) {
