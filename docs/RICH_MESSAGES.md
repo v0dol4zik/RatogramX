@@ -1,4 +1,4 @@
-# Rich message viewing
+# Rich messages
 
 Ratogram X displays TDLib's `MessageRichMessage` in a native chat bubble with
 a compact text preview, the first available media thumbnail, an attachment
@@ -38,13 +38,33 @@ when restoring the playlist.
 
 ## Scope
 
-This is viewing support. The ordinary text composer cannot edit a rich
-message without losing its blocks, so rich-message editing remains disabled.
-Block composition, AI creation/proofreading, rich-message translation and
-multi-attachment entries in shared-media tabs are separate follow-up work.
+The attachment panel has a **Create rich message** action for Telegram
+Premium users in writable, non-secret chats. The separate native block
+editor supports paragraphs, headings at levels 1–6, lists, quotes, code and
+gallery photos, block reordering/removal, RTL and Instant View preview.
+Sending uses structured TDLib input and the existing chat send path;
+editing rechecks Telegram Premium and message edit permissions.
+Existing inline text styles, nested supported blocks and list metadata are
+retained when their text is unchanged. Messages containing unsupported
+block types cannot be edited yet and show an explanation; they are never
+flattened into ordinary text. The ordinary text composer is unchanged.
+
+The local Premium experiment enables device-only creation in Saved Messages
+for accounts without Telegram Premium. These entries are explicitly marked
+**Local**, stored in private account/user-specific storage, and have private
+copies of their images. They appear alongside the loaded Saved Messages
+history and support local edit, copy and deletion. They survive restarting
+the app and disabling the experiment. Local identities are excluded from
+TDLib message IDs, cloud paging, reading, selection, replies, reactions and
+forwarding. They are not uploaded, synced or included in cloud search.
+An actual Telegram Premium account uses the Telegram path, including in
+Saved Messages; enabling the local experiment does not redirect its sends.
+
+AI creation/proofreading, rich-message translation and multi-attachment
+entries in shared-media tabs are separate follow-up work.
 Bot callback, login, Web App and switch-inline button actions also remain
 follow-up work for rich content.
-No server or Premium permissions are changed.
+Local Premium does not grant server Premium permissions.
 
 Metadata traversal limits depth to 32, visits to 1,024 blocks and output to
 32,768 UTF-16 units. Truncation preserves complete surrogate pairs and keeps
@@ -60,8 +80,20 @@ duplicate file IDs, thinking replacements, formulas/references/dates, diff
 and spoiler entities, labeled links, tables, Unicode truncation, unknown
 blocks and traversal bounds.
 
+On 2026-10-18, 31 targeted JVM checks passed for editable documents,
+Premium/local routing, persistence encoding, rich-text previews and GitHub
+release selection. ARM64 development and instrumentation APKs assembled
+successfully. Android 15 emulator fixtures verified private storage,
+account/user isolation, local editing/deletion, private image copies,
+native editor and Instant View photo preview, and history visibility after
+disabling local Premium. A separate process restart with networking disabled
+verified that the local message and its image survived.
+
 Device/account checks still required:
 
+- Create and edit rich messages with a real Telegram Premium account in
+  Saved Messages and another writable chat. Emulator fixtures do not send
+  real messages or grant server-side Premium permissions.
 - Receive a full and an incomplete rich message from a supporting bot.
 - Open it during generation; check `Thinking`, updates, scroll position,
   retry after a failed request, navigating away and source deletion.
@@ -73,5 +105,5 @@ Device/account checks still required:
   previews enabled and disabled. Forward through Telegram and export text.
 - Reopen ordinary text messages and web Instant Views to check regressions.
 
-Real bot streaming, visual layout, playback and protection behavior have not
-been verified on a device.
+Real bot streaming, playback and protection behavior with live rich messages
+have not been verified on a device.

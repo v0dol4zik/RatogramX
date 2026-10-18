@@ -106,6 +106,7 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
   @Override
   public void fillMenuItems (int id, HeaderView header, LinearLayout menu) {
     if (id == R.id.menu_more) {
+      if (mediaLayout.canCreateRichMessage()) header.addButton(menu, R.id.btn_richCreate, R.drawable.baseline_edit_24, 49f, this, getHeaderIconColorId()).setContentDescription(Lang.getString(R.string.RichMessageCreate));
       if (mediaLayout.getMode() != MediaLayout.MODE_AVATAR_PICKER) {
         header.addSearchButton(menu, this);
       }
@@ -122,7 +123,9 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
 
   @Override
   public void onMenuItemPressed (int id, View view) {
-    if (id == R.id.menu_btn_clear) {
+    if (id == R.id.btn_richCreate) {
+      mediaLayout.createRichMessage();
+    } else if (id == R.id.menu_btn_clear) {
       clearSearchInput();
     } else if (id == R.id.menu_btn_search) {
       if (true) {
@@ -145,9 +148,9 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
       FrameLayout.LayoutParams params = ((FrameLayout.LayoutParams) headerCell.getLayoutParams());
       params.width = ViewGroup.LayoutParams.MATCH_PARENT;
       if (Lang.rtl()) {
-        params.leftMargin = Screen.dp(49f) * 2;
+        params.leftMargin = Screen.dp(49f) * (mediaLayout.canCreateRichMessage() ? 3 : 2);
       } else {
-        params.rightMargin = Screen.dp(49f) * 2;
+        params.rightMargin = Screen.dp(49f) * (mediaLayout.canCreateRichMessage() ? 3 : 2);
       }
       updateHeaderText();
     }

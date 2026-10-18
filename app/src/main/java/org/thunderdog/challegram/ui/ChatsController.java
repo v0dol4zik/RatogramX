@@ -1331,13 +1331,11 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
   @Override
   public void onMenuItemPressed (int id, View view) {
     if (id == R.id.menu_btn_ghostMode) {
-      boolean hadForcedOffline = GhostModeUtils.shouldForceOffline();
-      MoexConfig.instance().toggleGhostMode();
-      if (hadForcedOffline != GhostModeUtils.shouldForceOffline()) {
+      GhostModeUtils.toggleWithWarning(this, () -> {
         tdlib.refreshOnlineStatus();
-      }
-      updateGhostModeButton();
-      UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+        updateGhostModeButton();
+        UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+      });
     } else if (id == R.id.menu_btn_search) {
       openSearchMode();
     } else if (id == R.id.menu_btn_settings) {

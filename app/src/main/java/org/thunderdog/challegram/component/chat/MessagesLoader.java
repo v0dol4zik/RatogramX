@@ -1381,9 +1381,9 @@ public class MessagesLoader implements Client.ResultHandler {
 
     final boolean needMeasureSpeed = Log.isEnabled(Log.TAG_MESSAGES_LOADER) && Log.checkLogLevel(Log.LEVEL_INFO);
 
-    final TGMessage bottomMessage = manager.getAdapter().getBottomMessage();
+    final TGMessage bottomMessage = manager.getAdapter().getBottomActiveMessage();
     final long startBottom = bottomMessage != null ? bottomMessage.getBiggestId() : 0;
-    final TGMessage topMessage = manager.getAdapter().getTopMessage();
+    final TGMessage topMessage = manager.getAdapter().getTopActiveMessage();
     final long startTop = topMessage != null ? topMessage.getSmallestId() : 0;
 
     long adminUserId = 0;

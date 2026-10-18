@@ -1177,7 +1177,7 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
         getWindow().setFlags(0, WindowManager.LayoutParams.FLAG_SECURE);
       }
     }*/
-    appUpdater.checkForUpdates();
+    appUpdater.checkForUpdates(false);
     runEmulatorChecks();
   }
 
@@ -1212,6 +1212,9 @@ public abstract class BaseActivity extends FragmentActivity implements View.OnTo
       throw t;
     }
     setOrientationLockFlags(0);
+    if (appUpdater != null) {
+      appUpdater.destroy();
+    }
     if (navigation != null) {
       navigation.getStack().removeChangeListener(navigationStackChangeListener);
       navigation.destroy();

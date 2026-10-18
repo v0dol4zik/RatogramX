@@ -1540,7 +1540,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   @UiThread
   public final void openUpdateAlert (CharSequence text) {
-    openAlert(R.string.AppUpdateRequiredTitle, text, Lang.getString(R.string.AppUpdateOk), (dialog, which) -> Intents.openSelfGooglePlay(), 0);
+    openAlert(R.string.AppUpdateRequiredTitle, text, Lang.getString(R.string.AppUpdateOk), (dialog, which) -> UI.openUrl(moe.kirao.mgx.utils.GithubReleasePolicy.RELEASES), 0);
   }
 
   public final AlertDialog showAlert (AlertDialog.Builder b) {

@@ -546,6 +546,8 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void destroy (ViewController<?> context) {
+    localRichGeneration++;
+    localRichMessages = Collections.emptyList();
     resetScroll();
     returnToMessageIds = null;
     highlightMode = 0;
@@ -1296,6 +1298,52 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
         break;
       }
     }
+    syncLocalRichMessages();
+  }
+
+  private List<moe.kirao.mgx.utils.LocalRichMessageStore.Entry> localRichMessages = Collections.emptyList();
+  private int localRichGeneration;
+  private boolean revealLocalRichMessage;
+
+  public void revealLocalRichMessage () { revealLocalRichMessage = true; refreshLocalRichMessages(); }
+
+  private boolean showsLocalRichMessages () {
+    return loader.getChatId() == tdlib.myUserId() && tdlib.myUserId() != 0 && loader.getMessageTopicId() == null &&
+      loader.getSpecialMode() == MessagesLoader.SPECIAL_MODE_NONE && !loader.hasSearchFilter() && !controller.inPreviewMode();
+  }
+
+  public @Nullable moe.kirao.mgx.utils.LocalRichMessageStore.Entry localRichMessage (long id) {
+    for (moe.kirao.mgx.utils.LocalRichMessageStore.Entry entry : localRichMessages) if (entry.id == id) return entry;
+    return null;
+  }
+
+  public void refreshLocalRichMessages () {
+    if (!showsLocalRichMessages()) return;
+    int generation = ++localRichGeneration;
+    long userId = tdlib.myUserId();
+    new moe.kirao.mgx.utils.LocalRichMessageStore(tdlib.id(), userId).load((entries, error) -> {
+      if (generation != localRichGeneration || controller.isDestroyed() || tdlib.myUserId() != userId || !showsLocalRichMessages()) return;
+      if (error != null) { UI.showToast(R.string.RichMessageLocalError, Toast.LENGTH_LONG); return; }
+      localRichMessages = entries;
+      syncLocalRichMessages();
+      if (revealLocalRichMessage) { revealLocalRichMessage = false; scrollToBottom(false); }
+      if (!entries.isEmpty()) onChatAwaitFinish();
+    });
+  }
+
+  private void syncLocalRichMessages () {
+    if (!showsLocalRichMessages() || localRichMessages.isEmpty() && (adapter.getItems() == null || adapter.getItems().stream().noneMatch(TGMessage::isLocalRichMessage))) return;
+    TGMessage oldest = adapter.getTopActiveMessage(), newest = adapter.getBottomActiveMessage();
+    ArrayList<TGMessage> messages = new ArrayList<>();
+    for (moe.kirao.mgx.utils.LocalRichMessageStore.Entry entry : localRichMessages) {
+      if (oldest != null && loader.canLoadTop() && entry.date < oldest.getDate()) continue;
+      if (newest != null && loader.canLoadBottom() && entry.date > newest.getDate()) continue;
+      TGMessage message = TGMessage.valueOf(this, entry.toMessage(tdlib.myUserId()), tdlib.chat(loader.getChatId()), null, (TdApi.ChatAdministrator) null);
+      message.setUnread(Long.MAX_VALUE);
+      message.prepareLayout();
+      messages.add(message);
+    }
+    maintainScrollPositionAndOffset(() -> { adapter.replaceLocalRichMessages(messages); return true; });
   }
 
   // Bot info
@@ -1345,6 +1393,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void onTopEndLoaded () {
+    syncLocalRichMessages();
     insertHeaderMessageIfNeeded();
     checkBotStart();
     onChatAwaitFinish();
@@ -1354,6 +1403,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
   }
 
   public void onBottomEndLoaded () {
+    syncLocalRichMessages();
     onChatAwaitFinish();
     onCanLoadMoreBottomChanged();
     checkMessageThreadReplyCounter();
@@ -2661,6 +2711,8 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
 
     TGMessage message = adapter.getMessage(firstVisibleItemPosition);
 
+    if (message != null && message.isLocalRichMessage()) return;
+
     if (firstVisibleItemPosition != RecyclerView.NO_POSITION && MessagesHolder.isMessageType(adapter.getItemViewType(firstVisibleItemPosition))) {
       boolean isBottomSponsored = adapter.getBottomMessage() != null && adapter.getBottomMessage().isSponsoredMessage() && adapter.getMessageCount() > 1;
 
@@ -3607,6 +3659,7 @@ public class MessagesManager implements Client.ResultHandler, MessagesSearchMana
     tdlib.ui().post(() -> {
       if (loader.getChatId() == chatId) {
         updateNewMessage(message);
+        syncLocalRichMessages();
       }
     });
   }

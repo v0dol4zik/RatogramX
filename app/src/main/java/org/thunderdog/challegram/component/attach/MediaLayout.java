@@ -175,6 +175,14 @@ public class MediaLayout extends FrameLayoutFix implements
     init(MODE_DEFAULT, target);
   }
 
+  public boolean canCreateRichMessage () {
+    return target != null && mode == MODE_DEFAULT && target.richMessageCreationMode() != moe.kirao.mgx.utils.RichMessagePolicy.Mode.UNAVAILABLE;
+  }
+
+  public void createRichMessage () {
+    if (canCreateRichMessage()) { hide(false); target.createRichMessage(); }
+  }
+
   public int getMode () {
     return mode;
   }

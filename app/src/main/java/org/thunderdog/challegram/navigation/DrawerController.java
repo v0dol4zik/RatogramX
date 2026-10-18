@@ -885,8 +885,8 @@ public class DrawerController extends ViewController<Void> implements View.OnCli
   public void onClick (View v) {
     int viewId = v.getId();
     if (viewId == R.id.btn_ghostMode) {
-      MoexConfig.instance().toggleGhostMode();
-      UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+      moe.kirao.mgx.utils.GhostModeUtils.toggleWithWarning(this, () ->
+        UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT));
     } else if (viewId == R.id.btn_tdlib_clearLogs) {
       TdlibUi.clearLogs(true, size -> TdlibUi.clearLogs(false, size2 -> UI.showToast("Logs Cleared", Toast.LENGTH_SHORT)));
     } else if (viewId == R.id.btn_tdlib_shareLogs) {

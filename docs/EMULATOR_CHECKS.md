@@ -34,7 +34,7 @@ adb -s emulator-5554 shell am instrument -w -r \
 
 Adjust the serial and versioned application APK path to the actual build. Do
 not install over a public package or clear application data. A successful run
-ends with `10 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
+ends with `15 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
 exit code alone does not distinguish test failures from success.
 
 To repeat only affected cases, pass `-e check CASE_NAME` or a comma-separated
@@ -58,7 +58,28 @@ adb -s emulator-5554 shell am instrument -w -r \
   org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
 ```
 
-The ten checks cover:
+For local rich messages and their native editor:
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r \
+  -e check rich_messages_private_storage,rich_messages_editor_preview_and_history \
+  org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
+```
+
+Open Saved Messages once before the editor fixture so its chat is cached.
+The fixture restores experiment settings and deletes only its own entries.
+To check a real process restart, run `rich_messages_restart_write`, force-stop
+only the development package, then run `rich_messages_restart_read_cleanup`.
+The second case verifies the persisted message and private image and removes
+that fixture. It can run offline; restore the emulator's previous network
+settings afterwards.
+
+`github_updater_release_check` makes a read-only request to the public
+Ratogram X GitHub Releases API. It checks completion and the GitHub update
+source without downloading or installing an APK. Unlike the local fixtures,
+it requires internet access.
+
+The checks cover:
 
 - Pixel clipping, negative insets, and overlapping top/bottom insets.
 - Local forum unread aggregation, native database reload, account isolation,
@@ -67,6 +88,10 @@ The ten checks cover:
   counters, database reload, new reactions on old messages, and unchanged raw
   TDLib state. A pin service message is rendered with the native message view;
   Ghost view requests use a source that does not send read receipts.
+- Local rich-message storage, account/user isolation, editing/deletion,
+  independent image copies, native editor and Instant View rendering,
+  visibility with local Premium disabled, and persistence across restart.
+- Live Ratogram GitHub release checking without Telegram X update downloads.
 - Locally read topic notifications, partially unread groups, and a delayed
   push fixture for an already viewed message.
 - All application icon variants, notification bitmap cache invalidation, and
@@ -84,7 +109,8 @@ The ten checks cover:
 
 Fixtures use reserved local storage keys, restore the icon and keyboard settings,
 cancel their notification, and release their media views. Screenshots are
-saved to the development app's cache under `ratogramx-smoke-*.png`; treat them
+saved to the development app's cache, including `ratogramx-smoke-*.png` and
+`rich-message-preview-smoke.png`; treat them
 as private because the emulator's surrounding UI may be visible. No server
 privacy settings are changed. Account-dependent fixtures require an existing
 login but do not test switching two authenticated accounts.

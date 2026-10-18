@@ -275,11 +275,7 @@ public class TdlibCache implements LiveLocationManager.OutputDelegate, CleanupSt
   }
 
   private @NonNull AppInstallationUtil.DownloadUrl toDownloadUrl (@Nullable TdApi.HttpUrl url) {
-    final String httpUrl = url != null ? url.url : null;
-    if (!StringUtils.isEmpty(httpUrl) && tdlib.hasUrgentInAppUpdate()) {
-      return new AppInstallationUtil.DownloadUrl(httpUrl);
-    }
-    return AppUpdater.getDownloadUrl(httpUrl);
+    return AppUpdater.getDownloadUrl(null);
   }
 
   public void getDownloadUrl (@Nullable final RunnableData<AppInstallationUtil.DownloadUrl> callback) {

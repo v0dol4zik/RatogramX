@@ -50,7 +50,11 @@ public final class TGMessageRichMessage extends TGMessage implements TGInlineKey
     if (text != null) text.performDestroy();
     if (thinkingText != null) thinkingText.performDestroy();
     if (mediaCountText != null) mediaCountText.performDestroy();
-    FormattedText formatted = FormattedText.parseRichText(controller(), RichMessageUtils.previewRichText(richMessage),
+    TdApi.RichText preview = RichMessageUtils.previewRichText(richMessage);
+    if (isLocalRichMessage()) preview = new TdApi.RichTexts(new TdApi.RichText[] {
+      new TdApi.RichTextBold(new TdApi.RichTextPlain(Lang.getString(R.string.RichMessageLocal) + "\n")), preview
+    });
+    FormattedText formatted = FormattedText.parseRichText(controller(), preview,
       new TdlibUi.UrlOpenParameters().sourceMessage(this));
     boolean thinking = RichMessageUtils.isThinking(richMessage);
     if (formatted.isEmpty() && !thinking) formatted = new FormattedText(Lang.getString(R.string.RichMessageLabel), null);
@@ -145,7 +149,12 @@ public final class TGMessageRichMessage extends TGMessage implements TGInlineKey
   }
 
   @Override public boolean performLongPress (View view, float x, float y) {
+    if (isLocalRichMessage()) return messagesController().showLocalRichMessageOptions(this);
     return (canBeSaved() && text != null && text.performLongPress(view)) || super.performLongPress(view, x, y);
+  }
+
+  @Override public boolean onMessageClick (MessageView view, org.thunderdog.challegram.ui.MessagesController controller) {
+    return isLocalRichMessage() ? controller.showLocalRichMessageOptions(this) : super.onMessageClick(view, controller);
   }
 
   @Override public void onClick (View view, TGInlineKeyboard keyboard, TGInlineKeyboard.Button button) {

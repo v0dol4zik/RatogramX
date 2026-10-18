@@ -206,12 +206,12 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesHolder> {
   }
 
   public TGMessage getBottomActiveMessage () {
-    int index = indexOfMessage(m -> !m.isSponsoredMessage());
+    int index = indexOfMessage(m -> !m.isSponsoredMessage() && !m.isLocalRichMessage());
     return getMessage(index);
   }
 
   public TGMessage getTopActiveMessage () {
-    int index = indexOfMessageReverse(m -> !m.isSponsoredMessage());
+    int index = indexOfMessageReverse(m -> !m.isSponsoredMessage() && !m.isLocalRichMessage());
     return getMessage(index);
   }
 
@@ -281,6 +281,26 @@ public class MessagesAdapter extends RecyclerView.Adapter<MessagesHolder> {
 
   public @Nullable ArrayList<TGMessage> getItems () {
     return items;
+  }
+
+  public void replaceLocalRichMessages (List<TGMessage> local) {
+    if ((items == null || items.stream().noneMatch(TGMessage::isLocalRichMessage)) && local.isEmpty()) return;
+    if (items == null) items = new ArrayList<>();
+    for (int i = items.size() - 1; i >= 0; i--) {
+      if (items.get(i).isLocalRichMessage()) { items.get(i).onDestroy(); items.remove(i); }
+    }
+    for (TGMessage message : local) {
+      int index = 0;
+      while (index < items.size() && (items.get(index).getDate() > message.getDate() ||
+        items.get(index).getDate() == message.getDate() && items.get(index).isLocalRichMessage() && items.get(index).getId() > message.getId())) index++;
+      items.add(index, message);
+    }
+    for (int i = items.size() - 1; i >= 0; i--) {
+      TGMessage message = items.get(i);
+      message.mergeWith(i + 1 < items.size() ? items.get(i + 1) : null, i == 0);
+      message.rebuildLayout();
+    }
+    notifyDataSetChanged();
   }
 
   // Index getters

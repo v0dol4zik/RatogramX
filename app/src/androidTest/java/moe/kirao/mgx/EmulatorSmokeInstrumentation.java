@@ -34,6 +34,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.drinkless.tdlib.TdApi;
 import org.thunderdog.challegram.BuildConfig;
 import org.thunderdog.challegram.MainActivity;
+import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.U;
 import org.thunderdog.challegram.component.chat.MessageView;
 import org.thunderdog.challegram.component.chat.MessageViewGroup;
@@ -74,9 +75,15 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import moe.kirao.mgx.utils.GhostReadStore;
 import moe.kirao.mgx.utils.GhostReadPolicy;
+import moe.kirao.mgx.utils.LocalRichMessageStore;
+import moe.kirao.mgx.utils.RichMessageDocument;
+import moe.kirao.mgx.utils.RichMessagePolicy;
+import moe.kirao.mgx.ui.RichMessageEditorController;
 import tgx.bridge.DeviceTokenRetriever;
 import tgx.bridge.TokenRetrieverListener;
 
@@ -85,6 +92,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
   private static final int FIXTURE_ACCOUNT = 2_147_483_000;
   private static final long FIXTURE_CHAT = -999_999_999_999L;
   private static final String CHANNEL = "ratogramx_emulator_smoke";
+  private static final String RICH_RESTART_MARKER = "Ratogram X rich restart fixture";
   private MainActivity activity;
   private Tdlib tdlib;
   private int passed, failed;
@@ -118,6 +126,11 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       runCase("clip_pixels_and_extreme_insets", () -> onUi(this::clipPixels));
       runCase("forum_counters_storage_and_account_isolation", () -> onUi(this::forumCounters));
       runCase("ghost_reactions_pins_and_service_reads", () -> onUi(this::ghostContentReads));
+      runCase("rich_messages_private_storage", this::richMessageStorage);
+      runCase("rich_messages_editor_preview_and_history", this::richMessageEditor);
+      runCase("rich_messages_restart_write", this::richMessageRestartWrite);
+      runCase("rich_messages_restart_read_cleanup", this::richMessageRestartRead);
+      runCase("github_updater_release_check", this::githubUpdaterCheck);
       runCase("local_notifications_and_delayed_push", () -> onUi(this::localNotifications));
       runCase("android_notification_icons", () -> onUi(this::notificationIcons));
       runCase("poll_media_render_and_update", this::pollRendering);
@@ -136,6 +149,241 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
   }
 
   private interface Check { void run () throws Exception; }
+
+  private <T> T localResult (Consumer<LocalRichMessageStore.Callback<T>> operation) throws Exception {
+    CountDownLatch done = new CountDownLatch(1);
+    AtomicReference<T> value = new AtomicReference<>();
+    AtomicReference<Exception> failure = new AtomicReference<>();
+    operation.accept((result, error) -> { value.set(result); failure.set(error); done.countDown(); });
+    require(done.await(20, TimeUnit.SECONDS), "Local storage operation timed out");
+    if (failure.get() != null) throw failure.get();
+    return value.get();
+  }
+
+  private RichMessageDocument richDocument (String text) {
+    RichMessageDocument document = new RichMessageDocument();
+    RichMessageDocument.Block heading = new RichMessageDocument.Block(RichMessageDocument.HEADING);
+    heading.text = text; heading.size = 1; document.blocks.add(heading);
+    RichMessageDocument.Block list = new RichMessageDocument.Block(RichMessageDocument.LIST);
+    list.text = "First item\nSecond item"; list.ordered = true; document.blocks.add(list);
+    RichMessageDocument.Block code = new RichMessageDocument.Block(RichMessageDocument.CODE);
+    code.text = "local only 🐀"; code.extra = "text"; document.blocks.add(code);
+    return document;
+  }
+
+  private void richMessageStorage () throws Exception {
+    File root = new File(getTargetContext().getCacheDir(), "rich-store-smoke-" + java.util.UUID.randomUUID());
+    LocalRichMessageStore store = new LocalRichMessageStore(root, FIXTURE_ACCOUNT, 77);
+    LocalRichMessageStore anotherAccount = new LocalRichMessageStore(root, FIXTURE_ACCOUNT - 1, 77);
+    LocalRichMessageStore anotherUser = new LocalRichMessageStore(root, FIXTURE_ACCOUNT, 78);
+    RichMessageDocument document = richDocument("Private rich fixture");
+    File source = richFixturePhoto(root);
+    RichMessageDocument.Block photo = new RichMessageDocument.Block(RichMessageDocument.PHOTO);
+    photo.photoPath = source.getAbsolutePath(); photo.width = 96; photo.height = 64;
+    document.blocks.add(photo);
+    LocalRichMessageStore.Entry entry = localResult(callback -> store.save(0, document, callback));
+    try {
+      File storedPhoto = new File(entry.document.blocks.get(3).photoPath);
+      require(!source.equals(storedPhoto) && storedPhoto.isFile(), "Image was not copied into private history");
+      require(source.delete(), "Could not remove source image fixture");
+      java.util.List<LocalRichMessageStore.Entry> reloaded = localResult(callback -> new LocalRichMessageStore(root, FIXTURE_ACCOUNT, 77).load(callback));
+      require(reloaded.size() == 1 && reloaded.get(0).id == entry.id, "Local history did not survive reopening the store");
+      require(new File(reloaded.get(0).document.blocks.get(3).photoPath).isFile(), "Private image depends on the removed source");
+      java.util.List<LocalRichMessageStore.Entry> other = localResult(anotherAccount::load);
+      require(other.isEmpty(), "Local history leaked across accounts");
+      other = localResult(anotherUser::load);
+      require(other.isEmpty(), "Reused account slot exposed another user's history");
+      RichMessageDocument changed = entry.document.copy(); changed.blocks.get(0).text = "Edited private fixture";
+      LocalRichMessageStore.Entry edited = localResult(callback -> store.save(entry.id, changed, callback));
+      require(edited.id == entry.id && edited.date == entry.date && edited.editDate != 0, "Editing replaced identity or creation date");
+      require(localResult(callback -> store.delete(entry.id, callback)), "Local delete did not remove the entry");
+      reloaded = localResult(store::load);
+      require(reloaded.isEmpty(), "Deleted entry reappeared on reload");
+      require(!storedPhoto.exists(), "Deleting the entry retained its private image");
+    } finally {
+      // Only this randomly named fixture directory is removed.
+      File[] accountDirs = root.listFiles();
+      if (accountDirs != null) for (File dir : accountDirs) {
+        File[] files = dir.listFiles(); if (files != null) for (File file : files) file.delete();
+        dir.delete();
+      }
+      root.delete();
+    }
+  }
+
+  private File richFixturePhoto (File directory) throws Exception {
+    require(directory.isDirectory() || directory.mkdirs(), "Could not create image fixture directory");
+    File source = new File(directory, "rich-photo-fixture-" + java.util.UUID.randomUUID() + ".jpg");
+    Bitmap bitmap = Bitmap.createBitmap(96, 64, Bitmap.Config.ARGB_8888);
+    Canvas canvas = new Canvas(bitmap);
+    canvas.drawColor(Color.rgb(45, 65, 90));
+    android.graphics.Paint paint = new android.graphics.Paint(); paint.setColor(Color.rgb(180, 60, 70));
+    canvas.drawRect(8, 8, 88, 56, paint);
+    try (FileOutputStream out = new FileOutputStream(source)) {
+      require(bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out), "Could not encode image fixture");
+    } finally { bitmap.recycle(); }
+    return source;
+  }
+
+  private void richMessageRestartWrite () throws Exception {
+    LocalRichMessageStore store = new LocalRichMessageStore(tdlib.id(), tdlib.myUserId());
+    java.util.List<LocalRichMessageStore.Entry> entries = localResult(store::load);
+    for (LocalRichMessageStore.Entry entry : entries) if (RICH_RESTART_MARKER.equals(entry.document.blocks.get(0).text))
+      this.<Boolean>localResult(callback -> store.delete(entry.id, callback));
+    File source = richFixturePhoto(getTargetContext().getCacheDir());
+    try {
+      RichMessageDocument document = richDocument(RICH_RESTART_MARKER);
+      RichMessageDocument.Block photo = new RichMessageDocument.Block(RichMessageDocument.PHOTO);
+      photo.photoPath = source.getAbsolutePath(); photo.width = 96; photo.height = 64; document.blocks.add(photo);
+      LocalRichMessageStore.Entry entry = localResult(callback -> store.save(0, document, callback));
+      require(RichMessagePolicy.isLocalId(entry.id), "Restart fixture has no private identity");
+    } finally { source.delete(); }
+  }
+
+  private void richMessageRestartRead () throws Exception {
+    LocalRichMessageStore store = new LocalRichMessageStore(tdlib.id(), tdlib.myUserId());
+    java.util.List<LocalRichMessageStore.Entry> entries = localResult(store::load);
+    LocalRichMessageStore.Entry fixture = null;
+    for (LocalRichMessageStore.Entry entry : entries) if (RICH_RESTART_MARKER.equals(entry.document.blocks.get(0).text)) fixture = entry;
+    require(fixture != null, "Restart fixture did not survive the process restart");
+    long id = fixture.id;
+    try {
+      require(new File(fixture.document.blocks.get(3).photoPath).isFile(), "Private photo did not survive the process restart");
+      require(fixture.toMessage(tdlib.myUserId()).content instanceof TdApi.MessageRichMessage, "Restored content has the wrong type");
+    } finally { this.<Boolean>localResult(callback -> store.delete(id, callback)); }
+  }
+
+  private void githubUpdaterCheck () throws Exception {
+    org.thunderdog.challegram.util.AppUpdater updater = activity.appUpdater();
+    CountDownLatch done = new CountDownLatch(1);
+    org.thunderdog.challegram.util.AppUpdater.Listener listener = (state, old, isApk) -> {
+      if (old == org.thunderdog.challegram.util.AppUpdater.State.CHECKING) done.countDown();
+    };
+    onUi(() -> {
+      require(updater.state() == org.thunderdog.challegram.util.AppUpdater.State.NONE, "Updater is already busy");
+      updater.addListener(listener);
+      updater.checkForUpdates();
+    });
+    try {
+      require(done.await(60, TimeUnit.SECONDS), "GitHub release check timed out");
+      onUi(() -> {
+        require(!updater.checkFailed(), "GitHub release check failed");
+        int state = updater.state();
+        require(state == org.thunderdog.challegram.util.AppUpdater.State.NONE || state == org.thunderdog.challegram.util.AppUpdater.State.AVAILABLE, "Unexpected update state after checking GitHub");
+        if (state == org.thunderdog.challegram.util.AppUpdater.State.AVAILABLE) {
+          require(updater.flowType() == org.thunderdog.challegram.util.AppUpdater.FlowType.GITHUB, "Update came from an unexpected source");
+          activity.hideContextualPopups(false);
+        }
+      });
+    } finally { onUi(() -> updater.removeListener(listener)); }
+  }
+
+  private void richMessageEditor () throws Exception {
+    waitForNavigation(null);
+    Settings settings = Settings.instance();
+    long previous = (long) method(Settings.class, "getExperiments").invoke(settings);
+    String marker = "Rich editor smoke " + java.util.UUID.randomUUID();
+    LocalRichMessageStore store = new LocalRichMessageStore(tdlib.id(), tdlib.myUserId());
+    MessagesController[] parent = new MessagesController[1];
+    RichMessageEditorController[] editor = new RichMessageEditorController[1];
+    File sourcePhoto = richFixturePhoto(getTargetContext().getCacheDir());
+    File[] preparedPhoto = {null};
+    long[] createdId = {0};
+    try {
+      onUi(() -> {
+        settings.setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, true);
+        settings.setLocalPremiumExperimentEnabled(true);
+        TdApi.Chat saved = tdlib.chat(tdlib.myUserId());
+        require(saved != null, "Open Saved Messages once before running the editor fixture");
+        parent[0] = new MessagesController(activity, tdlib);
+        parent[0].setArguments(new MessagesController.Arguments(null, saved, null, null, null, 0, null));
+        require(activity.navigation().navigateTo(parent[0]), "Could not open Saved Messages");
+      });
+      waitForNavigation(parent[0]);
+      onUi(() -> {
+        editor[0] = new RichMessageEditorController(activity, tdlib);
+        editor[0].setArguments(new RichMessageEditorController.Args(parent[0], RichMessagePolicy.Mode.LOCAL, null, null, richDocument(marker)));
+        require(parent[0].navigateTo(editor[0]), "Could not open the editor");
+      });
+      waitForNavigation(editor[0]);
+      onUi(() -> {
+        require(editor[0].getRecyclerView().getAdapter().getItemCount() >= 8, "Editor blocks did not render");
+        ViewGroup textRow = (ViewGroup) editor[0].getRecyclerView().getLayoutManager().findViewByPosition(2);
+        require(textRow != null, "Editor text field did not render");
+        org.thunderdog.challegram.widget.MaterialEditTextGroup textInput = (org.thunderdog.challegram.widget.MaterialEditTextGroup) textRow.getChildAt(0);
+        RichMessageDocument document = (RichMessageDocument) field(RichMessageEditorController.class, "document").get(editor[0]);
+        textInput.setText(marker + " edited");
+        require(document.blocks.get(0).text.equals(marker + " edited"), "Native text field did not update the block");
+        textInput.setText(marker);
+        RichMessageDocument.Block photo = (RichMessageDocument.Block) method(RichMessageEditorController.class, "preparePhoto", String.class).invoke(editor[0], sourcePhoto.getAbsolutePath());
+        preparedPhoto[0] = new File(photo.photoPath);
+        document.blocks.add(1, photo);
+        editor[0].onMenuItemPressed(R.id.menu_btn_view, null);
+      });
+      waitForNavigation(null);
+      SystemClock.sleep(400);
+      onUi(() -> {
+        ViewController<?> viewer = activity.navigation().getCurrentStackItem();
+        require(viewer instanceof org.thunderdog.challegram.ui.InstantViewController, "Preview did not use Instant View");
+        org.thunderdog.challegram.ui.InstantViewController instant = (org.thunderdog.challegram.ui.InstantViewController) viewer;
+        require(RichMessagePolicy.isLocalId(instant.getRichMessageSource().id), "Preview has a server identity");
+        View view = viewer.getValue();
+        require(view.getWidth() > 0 && view.getHeight() > 0, "Preview has no layout");
+        Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        view.draw(new Canvas(bitmap)); saveBitmap(bitmap, "rich-message-preview-smoke.png"); bitmap.recycle();
+        viewer.navigateBack();
+      });
+      waitForNavigation(editor[0]);
+      onUi(() -> method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]));
+      waitForNavigation(parent[0]);
+      java.util.List<LocalRichMessageStore.Entry> entries = localResult(store::load);
+      for (LocalRichMessageStore.Entry entry : entries) if (marker.equals(entry.document.blocks.get(0).text)) createdId[0] = entry.id;
+      require(createdId[0] != 0, "Editor did not save a local entry");
+      onUi(() -> {
+        settings.setLocalPremiumExperimentEnabled(false);
+        parent[0].refreshLocalRichMessages();
+      });
+      waitForIdleSync(); SystemClock.sleep(600);
+      onUi(() -> {
+        TGMessage bubble = parent[0].getManager().getAdapter().findMessageById(createdId[0]);
+        require(bubble != null && bubble.isFakeMessage() && !bubble.isRealMessage(), "Local entry is missing from history or treated as server data");
+        require(!bubble.canBeSelected() && !bubble.canReplyTo() && !bubble.canBeReacted(), "Local entry exposes server actions");
+        require(bubble.getIds().length == 0, "Local identity leaked into server message IDs");
+        require(parent[0].getManager().localRichMessage(createdId[0]) != null, "Disabling local Premium hid existing entries");
+        bubble.buildLayout(720);
+        require(bubble.getHeight() > 0, "Local bubble cannot be rendered");
+      });
+    } finally {
+      if (createdId[0] != 0) this.<Boolean>localResult(callback -> store.delete(createdId[0], callback));
+      sourcePhoto.delete();
+      if (preparedPhoto[0] != null) preparedPhoto[0].delete();
+      onUi(() -> {
+        settings.setLocalPremiumExperimentEnabled((previous & Settings.EXPERIMENT_FLAG_LOCAL_PREMIUM) != 0);
+        settings.setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, (previous & Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS) != 0);
+        if (parent[0] != null && !parent[0].isDestroyed()) {
+          parent[0].refreshLocalRichMessages();
+          ViewController<?> current = activity.navigation().getCurrentStackItem();
+          if (current == editor[0]) current.navigateBack();
+          else if (current == parent[0]) current.navigateBack();
+        }
+      });
+    }
+  }
+
+  private void waitForNavigation (ViewController<?> expected) throws Exception {
+    long deadline = SystemClock.uptimeMillis() + 20_000;
+    boolean[] ready = {false};
+    do {
+      onUi(() -> {
+        ViewController<?> current = activity.navigation().getCurrentStackItem();
+        ready[0] = !activity.navigation().isAnimating() && !activity.navigation().getStack().isLocked() &&
+          current != null && current.isFocused() && (expected == null || current == expected);
+      });
+      if (ready[0]) return;
+      SystemClock.sleep(100);
+    } while (SystemClock.uptimeMillis() < deadline);
+    throw new AssertionError("Navigation did not finish opening the expected screen");
+  }
 
   private void runCase (String name, Check check) {
     if (requestedCheck != null && !Arrays.asList(requestedCheck.split(",")).contains(name)) return;

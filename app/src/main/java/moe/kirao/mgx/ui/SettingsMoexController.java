@@ -205,9 +205,10 @@ public class SettingsMoexController extends RecyclerViewController<SettingsMoexC
         navigateTo(controller);
       });
     } else if (viewId == R.id.btn_ghostMode) {
-      MoexConfig.instance().toggleGhostMode();
-      updateGhostModeSettings();
-      UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+      moe.kirao.mgx.utils.GhostModeUtils.toggleWithWarning(this, () -> {
+        updateGhostModeSettings();
+        UI.showToast(MoexConfig.ghostMode ? R.string.GhostModeEnabledToast : R.string.GhostModeDisabledToast, Toast.LENGTH_SHORT);
+      });
     } else if (viewId == R.id.btn_ghostOnlineExceptions) {
       org.thunderdog.challegram.ui.ContactsController picker = new org.thunderdog.challegram.ui.ContactsController(context, tdlib);
       picker.setArguments(new org.thunderdog.challegram.ui.ContactsController.Args(this).useGlobalSearch(

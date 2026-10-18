@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <item name="controller_richMessageEditor" type="id" />
+  <item name="btn_richCreate" type="id" />
+  <item name="btn_richPreview" type="id" />
+  <item name="btn_richAddBlock" type="id" />
+  <item name="btn_richBlock" type="id" />
+  <item name="input_richText" type="id" />
+  <item name="input_richLanguage" type="id" />
+  <item name="btn_richParagraph" type="id" />
+  <item name="btn_richHeading" type="id" />
+  <item name="btn_richList" type="id" />
+  <item name="btn_richQuote" type="id" />
+  <item name="btn_richCode" type="id" />
+  <item name="btn_richPhoto" type="id" />
+  <item name="btn_richMoveUp" type="id" />
+  <item name="btn_richMoveDown" type="id" />
+  <item name="btn_richOrdered" type="id" />
+  <item name="btn_richRtl" type="id" />
   <item name="controller_basicThemeEditor" type="id" />
   <item name="theme_category_basic" type="id" />
   <item name="btn_basicThemeAdvanced" type="id" />

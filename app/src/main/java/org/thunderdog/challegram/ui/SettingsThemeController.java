@@ -573,7 +573,7 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
       }*/
       items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
 
-      if (AppInstallationUtil.isAppSideLoaded(AppContext.get())) {
+      {
         items.addAll(Arrays.asList(
           new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.InAppUpdates),
           new ListItem(ListItem.TYPE_SHADOW_TOP),
@@ -582,14 +582,6 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
         if (Settings.instance().getAutoUpdateMode() != Settings.AUTO_UPDATE_MODE_NEVER) {
           items.addAll(newAutoUpdateConfigurationItems());
         }
-      } else {
-        items.addAll(Arrays.asList(
-          new ListItem(ListItem.TYPE_HEADER, 0, 0, R.string.AppUpdates),
-          new ListItem(ListItem.TYPE_SHADOW_TOP),
-          new ListItem(ListItem.TYPE_SETTING, R.id.btn_checkUpdates, 0, R.string.CheckForUpdates),
-          new ListItem(ListItem.TYPE_SEPARATOR_FULL),
-          new ListItem(ListItem.TYPE_SETTING, R.id.btn_subscribeToBeta, 0, R.string.SubscribeToBeta)
-        ));
       }
       items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
       context().appUpdater().addListener(this);
@@ -780,7 +772,7 @@ public class SettingsThemeController extends RecyclerViewController<SettingsThem
 
   @Override
   public void onAppUpdateStateChanged (int state, int oldState, boolean isApk) {
-    if (oldState == AppUpdater.State.CHECKING && state == AppUpdater.State.NONE) {
+    if (oldState == AppUpdater.State.CHECKING && state == AppUpdater.State.NONE && !context().appUpdater().checkFailed()) {
       // Slight delay
       runOnUiThread(() ->
         adapter.updateValuedSettingById(R.id.btn_checkUpdates),

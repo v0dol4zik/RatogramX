@@ -58,6 +58,16 @@ remain verified separately with `apksigner verify --print-certs`.
 
 - Tag the exact source commit used for the binaries.
 - Create a GitHub Release from that tag.
+- Use a stable release for the in-app updater. Drafts and prereleases are
+  excluded. Keep the generated `Ratogram-X-<version>[-<sdk>][-<abi>].apk`
+  names so the updater can choose the correct Android version and ABI;
+  a universal APK is the fallback. Publish compatible legacy variants when
+  supporting older Android releases.
+- Increase the four-part application version and Android version code for
+  every public update, including Ratogram-only fixes. Changing just the
+  GitHub tag suffix does not change the installed application version and
+  will not make that APK an update. The updater refuses downgrades,
+  mismatched package names and APKs signed with a different key.
 - Attach APKs to the release instead of committing them to Git.
 - Publish SHA-256 checksums and signing-certificate fingerprints.
 - Include user-visible changes, supported Android/ABI information, and known

@@ -4354,6 +4354,7 @@ public class MessagesController extends ViewController<MessagesController.Argume
   @Override
   public void onFocus () {
     super.onFocus();
+    refreshLocalRichMessages();
     if (isForumTopic() && !forumTopicLoading) refreshForumTopic(false);
     if (promptDraftPrefillOnFocus) {
       promptDraftPrefillOnFocus = false;
@@ -5630,7 +5631,8 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   private boolean canEditSelectedMessages () {
     MessageWithProperties msg = getSingleSelectedMessage();
-    return !arePinnedMessages() && pagerScrollPosition == 0 && msg != null && msg.properties.canBeEdited && TD.canEditText(msg.message.content);
+    return !arePinnedMessages() && pagerScrollPosition == 0 && msg != null && msg.properties.canBeEdited && TD.canEditText(msg.message.content) &&
+      (!(msg.message.content instanceof TdApi.MessageRichMessage) || tdlib.hasTelegramPremium());
   }
 
   private boolean canShareSelectedMessages () {
@@ -7906,6 +7908,18 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   public void editMessage (@NonNull MessageWithProperties m) {
+    if (m.message.content instanceof TdApi.MessageRichMessage) {
+      if (!tdlib.hasTelegramPremium() || !m.properties.canBeEdited || !canWriteMessages()) return;
+      if (inSelectMode()) finishSelectMode(-1);
+      TdApi.RichMessage rich = ((TdApi.MessageRichMessage) m.message.content).message;
+      if (rich.isFull) openRichMessageEditor(m.message, rich);
+      else tdlib.send(new TdApi.GetFullRichMessage(m.message.chatId, m.message.id), (content, error) -> UI.post(() -> {
+        if (isDestroyed()) return;
+        if (error != null) UI.showError(error);
+        else openRichMessageEditor(m.message, content);
+      }));
+      return;
+    }
     if (isEditingMessage() || !TD.canEditText(m.message.content)) {
       return;
     }
@@ -10746,6 +10760,81 @@ public class MessagesController extends ViewController<MessagesController.Argume
   }
 
   // Attach
+
+  public moe.kirao.mgx.utils.RichMessagePolicy.Mode richMessageCreationMode () {
+    if (chat == null || areScheduledOnly() || inPreviewMode() || isEventLog() || arePinnedMessages()) return moe.kirao.mgx.utils.RichMessagePolicy.Mode.UNAVAILABLE;
+    return moe.kirao.mgx.utils.RichMessagePolicy.creationMode(tdlib.hasTelegramPremium(), Settings.instance().isLocalPremiumExperimentEnabled(),
+      isSelfChat() && getMessageTopicId() == null, canWriteMessages() && tdlib.canSendBasicMessage(chat), isSecretChat());
+  }
+
+  public void createRichMessage () {
+    moe.kirao.mgx.utils.RichMessagePolicy.Mode mode = richMessageCreationMode();
+    if (mode == moe.kirao.mgx.utils.RichMessagePolicy.Mode.UNAVAILABLE) return;
+    moe.kirao.mgx.utils.RichMessageDocument document = new moe.kirao.mgx.utils.RichMessageDocument();
+    document.isRtl = Lang.rtl();
+    document.blocks.add(new moe.kirao.mgx.utils.RichMessageDocument.Block(moe.kirao.mgx.utils.RichMessageDocument.PARAGRAPH));
+    moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);
+    editor.setArguments(new moe.kirao.mgx.ui.RichMessageEditorController.Args(this, mode, null, null, document));
+    hideSoftwareKeyboard();
+    navigateTo(editor);
+  }
+
+  private void openRichMessageEditor (TdApi.Message message, TdApi.RichMessage rich) {
+    if (!tdlib.hasTelegramPremium() || !canWriteMessages() || message.chatId != getChatId()) return;
+    try {
+      moe.kirao.mgx.utils.RichMessageDocument document = moe.kirao.mgx.utils.RichMessageDocument.fromRichMessage(rich);
+      moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);
+      editor.setArguments(new moe.kirao.mgx.ui.RichMessageEditorController.Args(this, moe.kirao.mgx.utils.RichMessagePolicy.Mode.TELEGRAM, message, null, document));
+      hideSoftwareKeyboard();
+      navigateTo(editor);
+    } catch (IllegalArgumentException e) { UI.showToast(R.string.RichMessageEditUnsupported, Toast.LENGTH_LONG); }
+  }
+
+  public void refreshLocalRichMessages () {
+    if (manager != null && chat != null && !isDestroyed()) manager.refreshLocalRichMessages();
+  }
+
+  public void revealLocalRichMessage () { if (!isDestroyed()) manager.revealLocalRichMessage(); }
+
+  public boolean showLocalRichMessageOptions (TGMessage message) {
+    if (!message.isLocalRichMessage() || !isFocused()) return false;
+    moe.kirao.mgx.utils.LocalRichMessageStore.Entry entry = manager.localRichMessage(message.getId());
+    if (entry == null) return false;
+    showOptions(Lang.getString(R.string.RichMessageLocalInfo), new int[] {R.id.btn_messageEdit, R.id.btn_messageCopy, R.id.btn_messageDelete},
+      new String[] {Lang.getString(R.string.Edit), Lang.getString(R.string.Copy), Lang.getString(R.string.Delete)},
+      new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.RED},
+      new int[] {R.drawable.baseline_edit_24, R.drawable.baseline_content_copy_24, R.drawable.baseline_delete_24}, (view, id) -> {
+        if (id == R.id.btn_messageEdit) {
+          moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);
+          editor.setArguments(new moe.kirao.mgx.ui.RichMessageEditorController.Args(this, moe.kirao.mgx.utils.RichMessagePolicy.Mode.LOCAL, message.getMessage(), entry, entry.document));
+          navigateTo(editor);
+        } else if (id == R.id.btn_messageCopy) {
+          UI.copyText(moe.kirao.mgx.utils.RichMessageUtils.text(entry.document.output()).text, R.string.CopiedText);
+        } else if (id == R.id.btn_messageDelete) {
+          showConfirm(Lang.getString(R.string.RichMessageDeleteLocal), Lang.getString(R.string.Delete), () ->
+            new moe.kirao.mgx.utils.LocalRichMessageStore(tdlib.id(), tdlib.myUserId()).delete(entry.id, (removed, error) -> {
+              if (error != null) UI.showToast(R.string.RichMessageLocalError, Toast.LENGTH_LONG);
+              else refreshLocalRichMessages();
+            }));
+        }
+        return true;
+      });
+    return true;
+  }
+
+  public boolean sendRichMessage (TdApi.InputMessageRichMessage content, RunnableData<TdApi.Message> after) {
+    if (!tdlib.hasTelegramPremium() || !canWriteMessages() || isSecretChat()) return false;
+    CharSequence restriction = tdlib.getRestrictionText(chat, content);
+    if (restriction == null) {
+      for (TdApi.InputPageBlock block : ((TdApi.RichMessageSourceBlocks) content.message.source).blocks) {
+        if (block instanceof TdApi.InputPageBlockPhoto) { restriction = tdlib.getDefaultRestrictionText(chat, RightId.SEND_PHOTOS); break; }
+      }
+    }
+    if (restriction != null) { UI.showToast(restriction, Toast.LENGTH_LONG); return false; }
+    if (showSlowModeRestriction(null, Td.newSendOptions())) return false;
+    send(content, true, Td.newSendOptions(), after);
+    return true;
+  }
 
   private boolean openingMediaLayout;
 

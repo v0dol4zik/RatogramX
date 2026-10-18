@@ -395,7 +395,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
 
     context().appUpdater().addListener(this);
     if (context().appUpdater().state() == AppUpdater.State.READY_TO_INSTALL) {
-      onAppUpdateAvailable(context().appUpdater().flowType() == AppUpdater.FlowType.TELEGRAM_CHANNEL, true);
+      onAppUpdateAvailable(context().appUpdater().flowType() == AppUpdater.FlowType.GITHUB, true);
     }
   }
 
@@ -1143,7 +1143,7 @@ public class MainController extends ViewPagerController<Void> implements Menu, M
         }
       });
       updateSnackBar.addThemeListeners(this);
-      updateSnackBar.setText(Lang.getString(R.string.AppUpdateReady));
+      updateSnackBar.setText(Lang.getString(R.string.RatogramUpdateReady));
       mainWrap.addView(updateSnackBar);
     }
     updateSnackBar.setAction(Lang.getString(isApk ? R.string.AppUpdateInstall : R.string.AppUpdateRestart), context().appUpdater()::installUpdate, !isApk);

@@ -693,44 +693,8 @@ public class SettingsController extends ViewController<Void> implements
 
     items.add(new ListItem(ListItem.TYPE_SHADOW_TOP));
     AppInstallationUtil.DownloadUrl downloadUrl = AppUpdater.getDownloadUrl(null);
-    @DrawableRes int downloadIconRes;
+    @DrawableRes int downloadIconRes = R.drawable.baseline_update_24;
     @StringRes int downloadStringRes = R.string.CheckForUpdates;
-    if (tdlib.hasUrgentInAppUpdate() && tdlib.isProduction()) {
-      downloadIconRes = R.drawable.baseline_warning_24;
-      downloadUrl = new AppInstallationUtil.DownloadUrl(downloadUrl.installerId, tdlib.tMeUrl(BuildConfig.TELEGRAM_UPDATES_CHANNEL));
-    } else {
-      switch (downloadUrl.installerId) {
-        case AppInstallationUtil.InstallerId.UNKNOWN:
-        case AppInstallationUtil.InstallerId.MEMU_EMULATOR: {
-          if (!StringUtils.isEmpty(BuildConfig.GOOGLE_PLAY_URL)) {
-            downloadUrl = new AppInstallationUtil.DownloadUrl(AppInstallationUtil.InstallerId.GOOGLE_PLAY, BuildConfig.GOOGLE_PLAY_URL);
-            downloadIconRes = R.drawable.baseline_google_play_24;
-            downloadStringRes = R.string.AppOnGooglePlay;
-          } else {
-            downloadIconRes = R.drawable.baseline_update_24;
-          }
-          break;
-        }
-        case AppInstallationUtil.InstallerId.GOOGLE_PLAY: {
-          downloadIconRes = R.drawable.baseline_google_play_24;
-          break;
-        }
-        case AppInstallationUtil.InstallerId.GALAXY_STORE: {
-          downloadIconRes = R.drawable.baseline_galaxy_store_24;
-          break;
-        }
-        case AppInstallationUtil.InstallerId.HUAWEI_APPGALLERY: {
-          downloadIconRes = R.drawable.baseline_huawei_24;
-          break;
-        }
-        case AppInstallationUtil.InstallerId.AMAZON_APPSTORE: {
-          downloadIconRes = R.drawable.baseline_amazon_24;
-          break;
-        }
-        default:
-          throw new UnsupportedOperationException();
-      }
-    }
     items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_checkUpdates, downloadIconRes, downloadStringRes)
       .setData(downloadUrl));
     if (downloadUrl.installerId == AppInstallationUtil.InstallerId.GOOGLE_PLAY) {
@@ -1280,7 +1244,7 @@ public class SettingsController extends ViewController<Void> implements
     } else if (viewId == R.id.btn_moexSettings) {
       navigateTo(new SettingsMoexController(context, tdlib));
     } else if (viewId == R.id.btn_checkUpdates) {
-      openInstallerPage(((AppInstallationUtil.DownloadUrl) ((ListItem) v.getTag()).getData()));
+      context().appUpdater().checkForUpdates();
     } else if (viewId == R.id.btn_subscribeToBeta) {
       tdlib.ui().subscribeToBeta(this);
     } else if (viewId == R.id.btn_sourceCodeChanges) {// TODO provide an ability to view changes in PRs if they are present in both builds

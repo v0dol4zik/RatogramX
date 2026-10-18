@@ -3715,8 +3715,7 @@ public class TD {
       case TdApi.MessageAudio.CONSTRUCTOR:
         return true;
       case TdApi.MessageRichMessage.CONSTRUCTOR:
-        // A block editor is required; flattening to MessageText would lose media and layout.
-        break;
+        return true;
       default:
         Td.assertMessageContent_af730a78();
         break;

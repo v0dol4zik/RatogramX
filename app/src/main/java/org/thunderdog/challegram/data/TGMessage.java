@@ -4672,11 +4672,16 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   public boolean isFakeMessage () {
+    if (isLocalRichMessage()) return true;
     //noinspection WrongConstant
     if (msg.content.getConstructor() == TdApiExt.MessageChatEvent.CONSTRUCTOR) {
       return true;
     }
     return isDemoChat();
+  }
+
+  public final boolean isLocalRichMessage () {
+    return moe.kirao.mgx.utils.RichMessagePolicy.isLocalId(msg.id) && msg.chatId == tdlib.myUserId() && msg.content instanceof TdApi.MessageRichMessage;
   }
 
   public final void getIds (@NonNull LongSet ids, long afterMessageId, long beforeMessageId) {
@@ -5199,6 +5204,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   public boolean canEditText () {
+    if (msg.content instanceof TdApi.MessageRichMessage && !tdlib.hasTelegramPremium()) return false;
     TdApi.MessageProperties properties = lastMessageProperties();
     return properties.canBeEdited && TD.canEditText(msg.content) && allowInteraction() && messagesController().canWriteMessages();
   }
@@ -5209,7 +5215,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   public boolean canBeReacted () {
-    return !isSponsoredMessage() && !isEventLog() && !Td.isEmpty(messageAvailableReactions) && !MoexConfig.disableReactions && (tdlib.hasPremium() || Td.hasNonPremiumReactions(messageAvailableReactions));
+    return !isLocalRichMessage() && !isSponsoredMessage() && !isEventLog() && !Td.isEmpty(messageAvailableReactions) && !MoexConfig.disableReactions && (tdlib.hasPremium() || Td.hasNonPremiumReactions(messageAvailableReactions));
   }
 
   public boolean canBeSaved () {
@@ -8764,6 +8770,7 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   @AnyThread
   @NonNull
   public TdApi.MessageProperties lastMessageProperties (long messageId) {
+    if (isLocalRichMessage()) return new TdApi.MessageProperties();
     TdApi.MessageProperties properties = cachedProperties != null ? cachedProperties.get(messageId) : null;
     if (properties == null) {
       if (tdlib.inTdlibThread()) {
