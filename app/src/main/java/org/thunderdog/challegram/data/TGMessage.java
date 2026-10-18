@@ -4684,6 +4684,10 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
     return moe.kirao.mgx.utils.RichMessagePolicy.isLocalId(msg.id) && msg.chatId == tdlib.myUserId() && msg.content instanceof TdApi.MessageRichMessage;
   }
 
+  public final boolean isSavedRichMessage () {
+    return this instanceof TGMessageRichMessage && ((TGMessageRichMessage) this).isSavedMarkdown();
+  }
+
   public final void getIds (@NonNull LongSet ids, long afterMessageId, long beforeMessageId) {
     if (isFakeMessage()) {
       return;
@@ -5490,6 +5494,11 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
   }
 
   protected boolean isSupportedMessageContent (TdApi.Message message, TdApi.MessageContent messageContent) {
+    boolean saved = moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(message, tdlib.myUserId());
+    boolean newSaved = message.chatId == tdlib.myUserId() && message.senderId instanceof TdApi.MessageSenderUser &&
+      ((TdApi.MessageSenderUser) message.senderId).userId == tdlib.myUserId() && moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(messageContent);
+    if (saved != newSaved) return false;
+    if (saved) return true;
     return message.content.getConstructor() == messageContent.getConstructor();
   }
 
@@ -8324,6 +8333,9 @@ public abstract class TGMessage implements InvalidateContentProvider, TdlibDeleg
         return message;
       }
 
+      if (moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(msg, tdlib.myUserId())) {
+        return new TGMessageRichMessage(context, msg);
+      }
       switch (content.getConstructor()) {
         case TdApi.MessageAnimatedEmoji.CONSTRUCTOR: {
           TdApi.MessageAnimatedEmoji emoji = nonNull((TdApi.MessageAnimatedEmoji) content);

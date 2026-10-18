@@ -17,6 +17,15 @@
   <string name="RichMessageSyntaxInfo">Пишите в Markdown, затем нажмите на глазок для предпросмотра.\n\n**жирный**\n__курсив__\n~~зачёркнутый~~\n||спойлер||\n`код`\n[текст](https://example.com)\n\n# Заголовок (уровни 1–6)\n- Пункт списка\n1. Нумерованный пункт\n- [x] Отмеченный пункт\n&gt; Цитата\n```java\nБлок кода\n```\n\nРазделяйте абзацы пустой строкой. Вложенные пункты списка начинайте с двух пробелов. «Вставить фото» добавляет изображение на отдельной строке; текст внутри ![подпись] станет подписью к нему. Обратная косая черта экранирует символы форматирования.</string>
   <string name="RichMessageMarkdownInvalid">Не удалось открыть предпросмотр Markdown. Добавьте текст или изображение, проверьте ссылки на фото и язык кода. Допускается до 100 блоков, 10 фото и 32 768 символов текста.</string>
   <string name="RichMessageLocal">Локально</string>
+  <string name="RichMessageSync">Синхронизировать с «Избранным»</string>
+  <string name="RichMessageSyncStarted">Синхронизация с «Избранным»…</string>
+  <string name="RichMessageReplaceWithFile">Исходник превышает лимит текста Telegram. Сохранить его файлом Markdown? Новое сообщение появится в конце «Избранного», а исходное будет удалено после подтверждения загрузки.</string>
+  <string name="RichMessageSyncCleanupError">Сообщение синхронизировано, но его старую локальную копию не удалось удалить. Повторите перенос для завершения очистки.</string>
+  <string name="RichMessageReplaceCleanupError">Файл Markdown сохранён, но исходное текстовое сообщение не удалось удалить. Старое сообщение можно удалить отдельно.</string>
+  <string name="RichMessageSavedInfo">Синхронизируется через «Избранное». Другие клиенты показывают исходный Markdown. Длинные сообщения сохраняются файлами .md, фотографии — отдельными вложениями в «Избранном».</string>
+  <string name="RichMessageSavedError">Не удалось загрузить или синхронизировать rich message. Проверьте соединение и прикреплённые фотографии. Существующие локальные данные сохранены.</string>
+  <string name="RichMessageSavedPhoto">Фотография rich message</string>
+  <string name="RichMessageDeleteSaved">Удалить это rich message из «Избранного» на всех устройствах? Отдельно сохранённые фотографии останутся.</string>
   <string name="RichMessageLocalInfo">Сохранится только на этом устройстве в «Избранном» этого аккаунта. Сообщение не отправляется в Telegram и не синхронизируется с другими устройствами.</string>
   <string name="RichMessageTelegramInfo">Сообщение будет отправлено в этот чат через Telegram. Требуются Telegram Premium и разрешение на отправку сообщений.</string>
   <string name="RichMessageAddBlock">Добавить блок</string>

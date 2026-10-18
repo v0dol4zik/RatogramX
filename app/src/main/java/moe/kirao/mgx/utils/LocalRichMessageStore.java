@@ -125,6 +125,43 @@ public final class LocalRichMessageStore {
     });
   }
 
+  private AtomicFile syncedFile (long id) {
+    if (!RichMessagePolicy.isLocalId(id)) throw new IllegalArgumentException("Local identity required");
+    return new AtomicFile(new File(directory, "synced-" + Long.toHexString(id) + ".bin"));
+  }
+
+  public void syncedMessage (long id, Callback<Long> callback) {
+    Background.instance().post(() -> {
+      try {
+        AtomicFile file = syncedFile(id);
+        long messageId = 0;
+        if (file.getBaseFile().exists() || new File(file.getBaseFile() + ".bak").exists()) {
+          try (DataInputStream in = new DataInputStream(file.openRead())) {
+            messageId = in.readLong();
+            if (messageId <= 0 || in.read() != -1) throw new IOException("Invalid synchronization record");
+          }
+        }
+        long result = messageId;
+        UI.post(() -> callback.onResult(result, null));
+      } catch (Exception e) { UI.post(() -> callback.onResult(null, e)); }
+    });
+  }
+
+  public void recordSyncedMessage (long id, long messageId, Callback<Boolean> callback) {
+    Background.instance().post(() -> {
+      try {
+        if (messageId <= 0 || !directory.isDirectory()) throw new IOException("Invalid synchronization target");
+        AtomicFile file = syncedFile(id);
+        FileOutputStream stream = file.startWrite();
+        try {
+          DataOutputStream out = new DataOutputStream(stream);
+          out.writeLong(messageId); out.flush(); file.finishWrite(stream);
+        } catch (Exception e) { file.failWrite(stream); throw e; }
+        UI.post(() -> callback.onResult(true, null));
+      } catch (Exception e) { UI.post(() -> callback.onResult(null, e)); }
+    });
+  }
+
   private AtomicFile index () { return new AtomicFile(new File(directory, "messages.bin")); }
 
   private List<Entry> read () throws IOException {

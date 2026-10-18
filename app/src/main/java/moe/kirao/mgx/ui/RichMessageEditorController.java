@@ -76,7 +76,7 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
   private int previewSelectionStart, previewSelectionEnd, previewInputScroll;
   private SettingsAdapter adapter;
   private MediaToReplacePickerManager picker;
-  private boolean dirty, preparingPhoto;
+  private boolean dirty, preparingPhoto, fileReplacementConfirmed;
 
   public RichMessageEditorController (Context context, Tdlib tdlib) { super(context, tdlib); }
   @Override public int getId () { return R.id.controller_richMessageEditor; }
@@ -129,7 +129,7 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
     adapter.setItems(new ListItem[] {
       new ListItem(ListItem.TYPE_EDITTEXT, R.id.input_richText, 0, R.string.RichMessageMarkdown).setStringValue(markdown)
         .setInputFilters(new InputFilter[] {new InputFilter.LengthFilter(RichMessageMarkdown.MAX_SOURCE)}),
-      new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, getArgumentsStrict().mode == RichMessagePolicy.Mode.LOCAL ? R.string.RichMessageLocalInfo : R.string.RichMessageTelegramInfo)
+      new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, getArgumentsStrict().mode == RichMessagePolicy.Mode.LOCAL ? R.string.RichMessageSavedInfo : R.string.RichMessageTelegramInfo)
     }, false);
     recycler.setPadding(0, 0, 0, Screen.dp(88));
     recycler.setClipToPadding(false);
@@ -192,18 +192,27 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
     if (isDoneInProgress() || preparingPhoto || !validateDocument()) return true;
     Args args = getArgumentsStrict();
     if (args.userId != tdlib.myUserId() || args.parent.isDestroyed() || args.parent.getChatId() != args.chatId) return true;
+    if (args.mode == RichMessagePolicy.Mode.LOCAL && args.source != null && args.source.content instanceof TdApi.MessageText &&
+      markdown.length() > tdlib.maxMessageTextLength() && !fileReplacementConfirmed) {
+      showConfirm(Lang.getString(R.string.RichMessageReplaceWithFile), Lang.getString(R.string.Save), () -> {
+        fileReplacementConfirmed = true; onDoneClick();
+      });
+      return true;
+    }
+    fileReplacementConfirmed = false;
     if (args.mode == RichMessagePolicy.Mode.LOCAL) {
-      if (args.chatId != tdlib.myUserId() || args.local == null && !Settings.instance().isLocalPremiumExperimentEnabled()) {
+      if (args.chatId != tdlib.myUserId() || args.source == null && args.local == null && !Settings.instance().isLocalPremiumExperimentEnabled()) {
         UI.showToast(R.string.RichMessageAccessChanged, Toast.LENGTH_LONG); return true;
       }
       setInProgress(true);
-      new LocalRichMessageStore(tdlib.id(), args.userId).save(args.local != null ? args.local.id : 0, document, (entry, error) -> {
+      tdlib.savedRichMessages().save(document, args.source, args.local, (message, error) -> {
         if (isDestroyed()) return;
         setInProgress(false);
-        if (error != null) UI.showToast(R.string.RichMessageLocalError, Toast.LENGTH_LONG);
+        if (error != null) UI.showToast(R.string.RichMessageSavedError, Toast.LENGTH_LONG);
         else {
           dirty = false;
-          if (args.local == null) args.parent.revealLocalRichMessage(); else args.parent.refreshLocalRichMessages();
+          args.parent.refreshLocalRichMessages();
+          if (args.source == null || args.local != null || args.source.id != message.id) args.parent.getManager().scrollToStart(true);
           navigateBack();
         }
       });

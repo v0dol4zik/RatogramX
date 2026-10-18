@@ -89,10 +89,12 @@ import moe.kirao.mgx.utils.RichMessageMarkdown;
 import moe.kirao.mgx.utils.RichMessageUtils;
 import moe.kirao.mgx.utils.RichMessagePolicy;
 import moe.kirao.mgx.ui.RichMessageEditorController;
+import moe.kirao.mgx.utils.SavedRichMessageCodec;
+import moe.kirao.mgx.utils.SavedRichMessages;
 import tgx.bridge.DeviceTokenRetriever;
 import tgx.bridge.TokenRetrieverListener;
 
-/** Device regressions with local fixtures. Never sends messages or edits server privacy. */
+/** Local fixtures by default. The explicit cloud check writes only its own Saved Messages fixtures. */
 public final class EmulatorSmokeInstrumentation extends Instrumentation {
   private static final int FIXTURE_ACCOUNT = 2_147_483_000;
   private static final long FIXTURE_CHAT = -999_999_999_999L;
@@ -136,6 +138,8 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       runCase("rich_messages_private_storage", this::richMessageStorage);
       runCase("rich_messages_markdown_syntax", () -> onUi(this::richMarkdownSyntax));
       runCase("rich_messages_editor_preview_and_history", this::richMessageEditor);
+      runCase("saved_rich_messages_cache_and_updates", this::savedRichCache);
+      if ("saved_rich_messages_cloud_roundtrip".equals(requestedCheck)) runCase("saved_rich_messages_cloud_roundtrip", this::savedRichCloud);
       runCase("rich_messages_restart_write", this::richMessageRestartWrite);
       runCase("rich_messages_restart_read_cleanup", this::richMessageRestartRead);
       runCase("github_updater_release_check", this::githubUpdaterCheck);
@@ -454,9 +458,13 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
         int actualTop = editor[0].getRecyclerView().getChildAt(0).getTop();
         // Native focus/inset layout can round the restored offset by a few pixels.
         require(Math.abs(actualTop - scrollTop[0]) <= Screen.dp(4f), "Preview lost the source scroll position: " + scrollTop[0] + " -> " + actualTop);
-        method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]);
+        require((Boolean) method(RichMessageEditorController.class, "validateDocument").invoke(editor[0]), "Editor validation failed");
+        field(RichMessageEditorController.class, "dirty").setBoolean(editor[0], false);
+        editor[0].navigateBack();
       });
       waitForNavigation(parent[0]);
+      RichMessageDocument fixtureDocument = (RichMessageDocument) field(RichMessageEditorController.class, "document").get(editor[0]);
+      this.<LocalRichMessageStore.Entry>localResult(callback -> store.save(0, fixtureDocument, callback));
       java.util.List<LocalRichMessageStore.Entry> entries = localResult(store::load);
       for (LocalRichMessageStore.Entry entry : entries) if (marker.equals(entry.document.blocks.get(0).text)) createdId[0] = entry.id;
       require(createdId[0] != 0, "Editor did not save a local entry");
@@ -473,9 +481,13 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
         org.thunderdog.challegram.widget.MaterialEditTextGroup input = (org.thunderdog.challegram.widget.MaterialEditTextGroup) field(RichMessageEditorController.class, "sourceInput").get(editor[0]);
         require(markdown[0].equals(input.getText().toString()), "Reopening edit changed the source");
         input.setText(markdown[0] + "\n\n**Edited**");
-        method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]);
+        require((Boolean) method(RichMessageEditorController.class, "validateDocument").invoke(editor[0]), "Edited Markdown is invalid");
+        field(RichMessageEditorController.class, "dirty").setBoolean(editor[0], false);
+        editor[0].navigateBack();
       });
       waitForNavigation(parent[0]);
+      RichMessageDocument editedDocument = (RichMessageDocument) field(RichMessageEditorController.class, "document").get(editor[0]);
+      this.<LocalRichMessageStore.Entry>localResult(callback -> store.save(createdId[0], editedDocument, callback));
       java.util.List<LocalRichMessageStore.Entry> edited = localResult(store::load);
       require(edited.stream().anyMatch(e -> e.id == createdId[0] && e.document.markdownSource.endsWith("**Edited**") && e.editDate != 0), "Markdown edit was not persisted");
       onUi(() -> {
@@ -506,6 +518,210 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
           else if (current == parent[0]) current.navigateBack();
         }
       });
+    }
+  }
+
+  private <T> T savedResult (Consumer<SavedRichMessages.Callback<T>> operation) throws Exception {
+    CountDownLatch done = new CountDownLatch(1);
+    AtomicReference<T> value = new AtomicReference<>();
+    AtomicReference<TdApi.Error> failure = new AtomicReference<>();
+    operation.accept((result, error) -> { value.set(result); failure.set(error); done.countDown(); });
+    require(done.await(90, TimeUnit.SECONDS), "Saved rich message operation timed out");
+    require(failure.get() == null, "Saved rich message error: " + (failure.get() != null ? failure.get().message : ""));
+    return value.get();
+  }
+
+  private <T extends TdApi.Object> T tdResult (TdApi.Function<T> function) throws Exception {
+    return savedResult(callback -> tdlib.send(function, callback::onResult));
+  }
+
+  private TdApi.Message savedFixture (String source, long id) {
+    TdApi.Message message = new LocalRichMessageStore.Entry(id, (int) (System.currentTimeMillis() / 1000), 0, new RichMessageDocument()).toMessage(tdlib.myUserId());
+    message.content = new TdApi.MessageText(SavedRichMessageCodec.marked(source, false), null, null);
+    return message;
+  }
+
+  private void savedRichCache () throws Exception {
+    SavedRichMessages renderer = new SavedRichMessages(tdlib);
+    String source = "# Saved fixture\n\n**bold** 🐀\n\n- first\n- second";
+    TdApi.Message wire = savedFixture(source, Long.MAX_VALUE / 4);
+    RichMessageDocument document = savedResult(callback -> renderer.load(wire, callback));
+    require(document.markdownSource.equals(source), "Source changed in the renderer");
+    require(document == this.<RichMessageDocument>savedResult(callback -> renderer.load(wire, callback)), "Unchanged source was parsed twice");
+    require(wire.content instanceof TdApi.MessageText, "Renderer mutated TDLib content");
+    CountDownLatch parsed = new CountDownLatch(64);
+    AtomicReference<TdApi.Error> failure = new AtomicReference<>();
+    long started = SystemClock.uptimeMillis();
+    for (int i = 0; i < 64; i++) {
+      TdApi.Message fixture = savedFixture("# Cache " + i + "\n\n" + "text 🐀\n".repeat(100), Long.MAX_VALUE / 4 - i - 1);
+      renderer.load(fixture, (result, error) -> { if (error != null) failure.set(error); parsed.countDown(); });
+    }
+    require(parsed.await(30, TimeUnit.SECONDS) && failure.get() == null, "Paged rendering queue failed");
+    require(((Map<?, ?>) field(SavedRichMessages.class, "cache").get(renderer)).size() <= 16, "Rendering cache is unbounded");
+    require(field(SavedRichMessages.class, "cachedSource").getInt(renderer) <= 262144, "Source cache exceeded its memory budget");
+    require(field(SavedRichMessages.class, "active").getInt(renderer) == 0, "Rendering queue retained active work");
+    Bundle timing = new Bundle(); timing.putString("stream", "\n64 bounded Markdown fixtures: " + (SystemClock.uptimeMillis() - started) + " ms\n"); sendStatus(0, timing);
+    MessagesController[] parent = new MessagesController[1];
+    TGMessage[] bubble = new TGMessage[1];
+    onUi(() -> {
+      parent[0] = new MessagesController(activity, tdlib);
+      parent[0].setArguments(new MessagesController.Arguments(null, tdlib.chat(tdlib.myUserId()), null, null, null, 0, null));
+      parent[0].getValue();
+      bubble[0] = TGMessage.valueOf(parent[0].getManager(), wire);
+      require(bubble[0].isSavedRichMessage() && bubble[0].isRealMessage() && !bubble[0].isFakeMessage(), "Cloud source did not use a normal message identity");
+      bubble[0].buildLayout(720);
+    });
+    waitForIdleSync();
+    String edited = source + "\n\n__edited__";
+    onUi(() -> bubble[0].replaceMessageContent(wire.chatId, wire.id, new TdApi.MessageText(SavedRichMessageCodec.marked(edited, false), null, null)));
+    this.<RichMessageDocument>savedResult(callback -> tdlib.savedRichMessages().load(wire, callback));
+    waitForIdleSync();
+    onUi(() -> {
+      TdApi.RichMessage rich = (TdApi.RichMessage) field(bubble[0].getClass(), "richMessage").get(bubble[0]);
+      require(RichMessageUtils.text(rich).text.contains("edited"), "Cloud edit did not update the bubble");
+      require(((TdApi.MessageText) wire.content).text.text.equals(edited), "Cloud edit lost the source");
+      int change = bubble[0].replaceMessageContent(wire.chatId, wire.id, new TdApi.MessageText(new TdApi.FormattedText("ordinary", null), null, null));
+      require(change == TGMessage.MESSAGE_REPLACE_REQUIRED, "Removing the marker did not restore an ordinary message");
+      bubble[0].onDestroy(); parent[0].destroy();
+    });
+  }
+
+  private void savedRichCloud () throws Exception {
+    // This case is opt-in, targets only the current user's Saved Messages, and removes its fixtures.
+    long userId = tdlib.myUserId();
+    String marker = "RatogramSyncTest" + System.currentTimeMillis();
+    java.util.Set<Long> created = new java.util.LinkedHashSet<>();
+    File photo = richFixturePhoto(getTargetContext().getCacheDir());
+    LocalRichMessageStore store = new LocalRichMessageStore(tdlib.id(), userId);
+    long[] legacyId = {0};
+    try {
+      long connectedDeadline = SystemClock.uptimeMillis() + 30_000;
+      while (tdlib.connectionState() != org.thunderdog.challegram.telegram.ConnectionState.CONNECTED && SystemClock.uptimeMillis() < connectedDeadline) SystemClock.sleep(100);
+      require(tdlib.connectionState() == org.thunderdog.challegram.telegram.ConnectionState.CONNECTED, "Telegram is offline");
+      cloudProgress("Telegram connected; sending literal Markdown");
+      String source = "# " + marker + "\n\n**bold** __italic__ ||spoiler|| 🐀\n\n- first\n- second";
+      RichMessageDocument document = RichMessageMarkdown.parse(source, new RichMessageMarkdown.Source(source), false);
+      TdApi.Message sent = savedResult(callback -> tdlib.savedRichMessages().save(document, null, null, callback));
+      created.add(sent.id);
+      TdApi.Message wire = tdResult(new TdApi.GetMessage(userId, sent.id));
+      require(wire.content instanceof TdApi.MessageText && SavedRichMessageCodec.recognizes(wire, userId), "Telegram did not retain the source marker");
+      require(((TdApi.MessageText) wire.content).text.text.equals(source), "Telegram changed the literal Markdown");
+      RichMessageDocument remote = savedResult(callback -> new SavedRichMessages(tdlib).load(wire, callback));
+      require(source.equals(remote.markdownSource), "Rendering depends on a private local entry");
+      cloudProgress("Literal source confirmed; editing text and Markdown file");
+      String editedSource = source + "\n\n**Edited**";
+      RichMessageDocument edited = RichMessageMarkdown.parse(editedSource, RichMessageMarkdown.source(remote), false);
+      TdApi.Message updated = savedResult(callback -> tdlib.savedRichMessages().save(edited, wire, null, callback));
+      require(updated.id == sent.id && ((TdApi.MessageText) updated.content).text.text.equals(editedSource), "Text edit did not retain identity and source");
+      String longSource = "# " + marker + " long\n\n" + "long line 🐀\n".repeat(600);
+      RichMessageDocument longDocument = RichMessageMarkdown.parse(longSource, new RichMessageMarkdown.Source(longSource), true);
+      TdApi.Message longMessage = savedResult(callback -> tdlib.savedRichMessages().save(longDocument, updated, null, callback));
+      created.add(longMessage.id);
+      require(longMessage.content instanceof TdApi.MessageDocument && longMessage.id != updated.id, "Long source did not become a Markdown file");
+      RichMessageDocument longReload = savedResult(callback -> new SavedRichMessages(tdlib).load(longMessage, callback));
+      require(longSource.equals(longReload.markdownSource) && longReload.isRtl, "Markdown file lost source or RTL");
+      String fileEditedSource = longSource + "\n**File edit**";
+      RichMessageDocument fileEdited = RichMessageMarkdown.parse(fileEditedSource, RichMessageMarkdown.source(longReload), true);
+      TdApi.Message fileUpdated = savedResult(callback -> tdlib.savedRichMessages().save(fileEdited, longMessage, null, callback));
+      require(fileUpdated.id == longMessage.id, "File edit replaced the message identity");
+      RichMessageDocument fileReload = savedResult(callback -> new SavedRichMessages(tdlib).load(fileUpdated, callback));
+      require(fileEditedSource.equals(fileReload.markdownSource), "File edit was not synced");
+      cloudProgress("Long source and file edit confirmed; migrating a legacy photo entry");
+      RichMessageDocument withPhoto = richDocument(marker + " photo");
+      RichMessageDocument.Block image = new RichMessageDocument.Block(RichMessageDocument.PHOTO);
+      image.photoPath = photo.getAbsolutePath(); image.width = 96; image.height = 64;
+      withPhoto.blocks.add(image);
+      LocalRichMessageStore.Entry legacy = localResult(callback -> store.save(0, withPhoto, callback));
+      legacyId[0] = legacy.id;
+      TdApi.Message migrated = savedResult(callback -> tdlib.savedRichMessages().save(legacy.document, null, legacy, callback));
+      created.add(migrated.id);
+      require(this.<Long>localResult(callback -> store.syncedMessage(legacy.id, callback)) == migrated.id, "Migration result was not recorded");
+      require(this.<java.util.List<LocalRichMessageStore.Entry>>localResult(store::load).stream().noneMatch(e -> e.id == legacy.id), "Confirmed migration retained the old local entry");
+      RichMessageDocument photoReload = savedResult(callback -> new SavedRichMessages(tdlib).load(migrated, callback));
+      require(RichMessageUtils.mediaCount(photoReload.output()) == 1, "Cloud source lost its photo");
+      for (String name : SavedRichMessageCodec.photoNames(photoReload.markdownSource)) created.add(SavedRichMessageCodec.photoMessageId(name));
+      cloudProgress("Photo migration confirmed; checking native editor and live viewer");
+      savedRichCloudUi(migrated, photoReload);
+      require(((java.util.Set<?>) field(SavedRichMessages.class, "sending").get(tdlib.savedRichMessages())).isEmpty(), "Confirmed send retained its listener");
+    } finally {
+      photo.delete();
+      if (legacyId[0] != 0) this.<Boolean>localResult(callback -> store.delete(legacyId[0], callback));
+      TdApi.FoundChatMessages found = tdResult(new TdApi.SearchChatMessages(userId, null, marker, null, 0, 0, 100, null));
+      for (TdApi.Message message : found.messages) if (tgx.td.Td.textOrCaption(message.content) != null &&
+        tgx.td.Td.textOrCaption(message.content).text.contains(marker)) created.add(message.id);
+      if (!created.isEmpty()) tdResult(new TdApi.DeleteMessages(userId, created.stream().mapToLong(Long::longValue).toArray(), true));
+      cloudProgress("Generated cloud fixtures removed");
+    }
+  }
+
+  private void cloudProgress (String text) {
+    Bundle status = new Bundle(); status.putString("stream", "\n" + text + "\n"); sendStatus(0, status);
+  }
+
+  private void savedRichCloudUi (TdApi.Message message, RichMessageDocument document) throws Exception {
+    waitForNavigation(null);
+    MessagesController[] parent = new MessagesController[1];
+    RichMessageEditorController[] editor = new RichMessageEditorController[1];
+    org.thunderdog.challegram.ui.InstantViewController[] viewer = new org.thunderdog.challegram.ui.InstantViewController[1];
+    long previous = (long) method(Settings.class, "getExperiments").invoke(Settings.instance());
+    try {
+      onUi(() -> {
+        Settings.instance().setLocalPremiumExperimentEnabled(false);
+        parent[0] = new MessagesController(activity, tdlib);
+        parent[0].setArguments(new MessagesController.Arguments(null, tdlib.chat(tdlib.myUserId()), null, null, null, 0, null));
+        require(activity.navigation().navigateTo(parent[0]), "Could not open synced Saved Messages");
+      });
+      waitForNavigation(parent[0]);
+      onUi(() -> {
+        editor[0] = new RichMessageEditorController(activity, tdlib);
+        editor[0].setArguments(new RichMessageEditorController.Args(parent[0], RichMessagePolicy.Mode.LOCAL, message, null, document));
+        parent[0].navigateTo(editor[0]);
+      });
+      waitForNavigation(editor[0]); waitForIdleSync();
+      onUi(() -> {
+        org.thunderdog.challegram.widget.MaterialEditTextGroup input = (org.thunderdog.challegram.widget.MaterialEditTextGroup) field(RichMessageEditorController.class, "sourceInput").get(editor[0]);
+        input.setText(document.markdownSource + "\n\n**Native edit**");
+        method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]);
+      });
+      waitForNavigation(parent[0]);
+      TdApi.Message updated = tdResult(new TdApi.GetMessage(message.chatId, message.id));
+      require(((TdApi.MessageText) updated.content).text.text.endsWith("**Native edit**"), "Native editor did not sync the update");
+      RichMessageDocument rich = savedResult(callback -> tdlib.savedRichMessages().load(updated, callback));
+      onUi(() -> {
+        viewer[0] = new org.thunderdog.challegram.ui.InstantViewController(activity, tdlib);
+        viewer[0].setArguments(org.thunderdog.challegram.ui.InstantViewController.Args.forRichMessage(updated, rich.output(), true));
+        parent[0].navigateTo(viewer[0]);
+      });
+      waitForNavigation(viewer[0]);
+      String externalEdit = ((TdApi.MessageText) updated.content).text.text + "\n\n__External edit__";
+      tdResult(new TdApi.EditMessageText(message.chatId, message.id, null,
+        new TdApi.InputMessageText(SavedRichMessageCodec.marked(externalEdit, false), null, false)));
+      long deadline = SystemClock.uptimeMillis() + 15_000;
+      boolean[] changed = {false};
+      do {
+        onUi(() -> {
+          TdApi.MessageContent content = viewer[0].getRichMessageSource().content;
+          changed[0] = content instanceof TdApi.MessageRichMessage && RichMessageUtils.text(((TdApi.MessageRichMessage) content).message).text.contains("External edit");
+        });
+        if (changed[0]) break;
+        SystemClock.sleep(100);
+      } while (SystemClock.uptimeMillis() < deadline);
+      require(changed[0], "Open viewer did not follow an external source edit");
+      onUi(() -> {
+        View view = viewer[0].getValue();
+        Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        view.draw(new Canvas(bitmap)); saveBitmap(bitmap, "saved-rich-cloud-preview-smoke.png"); bitmap.recycle();
+      });
+      tdResult(new TdApi.DeleteMessages(message.chatId, new long[] {message.id}, true));
+      waitForNavigation(parent[0]);
+    } finally {
+      onUi(() -> {
+        Settings.instance().setLocalPremiumExperimentEnabled((previous & Settings.EXPERIMENT_FLAG_LOCAL_PREMIUM) != 0);
+        ViewController<?> current = activity.navigation().getCurrentStackItem();
+        if (current == viewer[0] || current == editor[0]) current.navigateBack();
+      });
+      waitForNavigation(null);
+      onUi(() -> { if (activity.navigation().getCurrentStackItem() == parent[0]) parent[0].navigateBack(); });
     }
   }
 

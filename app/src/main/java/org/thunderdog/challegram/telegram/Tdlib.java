@@ -153,6 +153,9 @@ import moe.kirao.mgx.utils.VideoPositionStore;
 import moe.kirao.mgx.utils.ForumPaginationPolicy;
 
 public class Tdlib implements TdlibProvider, Settings.SettingsChangeListener, DateChangeListener {
+  private final moe.kirao.mgx.utils.SavedRichMessages savedRichMessages = new moe.kirao.mgx.utils.SavedRichMessages(this);
+
+  public moe.kirao.mgx.utils.SavedRichMessages savedRichMessages () { return savedRichMessages; }
   @Override
   public final int accountId () {
     return id();

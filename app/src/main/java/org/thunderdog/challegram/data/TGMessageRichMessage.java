@@ -30,6 +30,7 @@ import org.thunderdog.challegram.widget.ProgressComponent;
 
 import moe.kirao.mgx.utils.RichMessageUtils;
 import moe.kirao.mgx.utils.RichMessageActions;
+import moe.kirao.mgx.utils.SavedRichMessageCodec;
 
 public final class TGMessageRichMessage extends TGMessage implements TGInlineKeyboard.ClickListener {
   private TdApi.RichMessage richMessage;
@@ -40,13 +41,39 @@ public final class TGMessageRichMessage extends TGMessage implements TGInlineKey
   private int contentWidth, contentHeight, mediaY, buttonY, thinkingY;
   private int loadGeneration;
   private boolean loading, fullRequestRunning;
+  private boolean savedMarkdown, savedAttempted, savedReady;
 
   public TGMessageRichMessage (MessagesManager manager, TdApi.Message message, TdApi.MessageRichMessage content) {
     super(manager, message);
     richMessage = content.message;
   }
 
+  public TGMessageRichMessage (MessagesManager manager, TdApi.Message message) {
+    super(manager, message);
+    savedMarkdown = true;
+    String source = message.content instanceof TdApi.MessageText ? ((TdApi.MessageText) message.content).text.text : ((TdApi.MessageDocument) message.content).caption.text;
+    richMessage = new TdApi.RichMessage(new TdApi.PageBlock[] {
+      new TdApi.PageBlockPreformatted(new TdApi.RichTextPlain(SavedRichMessageCodec.excerpt(source, 512)), "markdown")
+    }, SavedRichMessageCodec.isRtl(message.content), true);
+  }
+
+  public boolean isSavedMarkdown () { return savedMarkdown; }
+
+  private void loadSaved (TdApi.Message message) {
+    savedAttempted = true;
+    loading = true;
+    int generation = ++loadGeneration;
+    tdlib.savedRichMessages().load(message, (document, error) -> {
+      if (isDestroyed() || generation != loadGeneration) return;
+      loading = false;
+      savedReady = error == null;
+      if (document != null) richMessage = document.output();
+      refreshContent();
+    });
+  }
+
   @Override protected void buildContent (int maxWidth) {
+    if (savedMarkdown && !savedAttempted) loadSaved(msg);
     if (text != null) text.performDestroy();
     if (thinkingText != null) thinkingText.performDestroy();
     if (mediaCountText != null) mediaCountText.performDestroy();
@@ -149,16 +176,23 @@ public final class TGMessageRichMessage extends TGMessage implements TGInlineKey
   }
 
   @Override public boolean performLongPress (View view, float x, float y) {
+    if (savedMarkdown) return messagesController().showSavedRichMessageOptions(this);
     if (isLocalRichMessage()) return messagesController().showLocalRichMessageOptions(this);
     return (canBeSaved() && text != null && text.performLongPress(view)) || super.performLongPress(view, x, y);
   }
 
   @Override public boolean onMessageClick (MessageView view, org.thunderdog.challegram.ui.MessagesController controller) {
+    if (savedMarkdown) return controller.showSavedRichMessageOptions(this);
     return isLocalRichMessage() ? controller.showLocalRichMessageOptions(this) : super.onMessageClick(view, controller);
   }
 
   @Override public void onClick (View view, TGInlineKeyboard keyboard, TGInlineKeyboard.Button button) {
     if (loading || isDestroyed() || !controller().isFocused()) return;
+    if (savedMarkdown) {
+      if (savedReady) openFull(richMessage);
+      else { loadSaved(msg); refreshContent(); }
+      return;
+    }
     if (richMessage.isFull) { openFull(richMessage); return; }
     loading = true;
     refreshContent();
@@ -209,6 +243,14 @@ public final class TGMessageRichMessage extends TGMessage implements TGInlineKey
   }
 
   @Override protected boolean updateMessageContent (TdApi.Message message, TdApi.MessageContent newContent, boolean bottom) {
+    if (savedMarkdown) {
+      TdApi.Message updated = tgx.td.Td.copyOf(message);
+      updated.content = newContent;
+      savedReady = false;
+      loadSaved(updated);
+      refreshContent();
+      return true;
+    }
     if (!(newContent instanceof TdApi.MessageRichMessage)) return false;
     richMessage = ((TdApi.MessageRichMessage) newContent).message;
     loadGeneration++;

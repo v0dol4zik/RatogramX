@@ -86,6 +86,7 @@ public class InstantViewController extends ViewController<InstantViewController.
     public String anchorLink;
     public @Nullable TdApi.Message sourceMessage;
     public boolean allowForward;
+    public boolean savedMarkdown;
 
     public Args (TdApi.LinkPreview linkPreview, TdApi.WebPageInstantView instantView, String anchorLink) {
       this.linkPreview = linkPreview;
@@ -99,6 +100,7 @@ public class InstantViewController extends ViewController<InstantViewController.
       preview.displayUrl = preview.siteName = Lang.getString(R.string.RichMessageLabel);
       Args args = new Args(preview, instantViewOf(content), null);
       args.sourceMessage = Td.copyOf(message);
+      args.savedMarkdown = moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(message.content);
       args.sourceMessage.content = new TdApi.MessageRichMessage(content);
       args.allowForward = allowForward;
       return args;
@@ -634,6 +636,13 @@ public class InstantViewController extends ViewController<InstantViewController.
       if (content instanceof TdApi.MessageRichMessage) {
         replaceRichMessage(((TdApi.MessageRichMessage) content).message);
         requestFullRichMessage();
+      } else if (getArgumentsStrict().savedMarkdown && chatId == tdlib.myUserId() && moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(content)) {
+        int generation = richGeneration;
+        tdlib.savedRichMessages().load(Td.copyOf(source), (document, error) -> {
+          if (isDestroyed() || richSourceGone || generation != richGeneration) return;
+          if (document != null) replaceRichMessage(document.output());
+          else { UI.showToast(R.string.RichMessageSavedError, android.widget.Toast.LENGTH_LONG); closeRichSource(); }
+        });
       } else closeRichSource();
     });
   }

@@ -1458,6 +1458,7 @@ public class MessageView extends SparseDrawableView implements Destroyable, Draw
 
   private boolean performLongPress () {
     if (msg != null && msg.isLocalRichMessage()) return msg.messagesController().showLocalRichMessageOptions(msg);
+    if (msg != null && msg.isSavedRichMessage()) return msg.messagesController().showSavedRichMessageOptions(msg);
     if (msg instanceof TGMessageBotInfo || msg.isNotSent()) {
       return false;
     }

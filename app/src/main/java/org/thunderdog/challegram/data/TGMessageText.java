@@ -431,6 +431,7 @@ public class TGMessageText extends TGMessage {
 
   @Override
   protected boolean isSupportedMessageContent (TdApi.Message message, TdApi.MessageContent messageContent) {
+    if (message.chatId == tdlib.myUserId() && moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(messageContent)) return false;
     final @EmojiMessageContentType int contentType = getEmojiMessageContentType(messageContent);
     if (messageContent.getConstructor() == TdApi.MessageText.CONSTRUCTOR || messageContent.getConstructor() == TdApi.MessageAnimatedEmoji.CONSTRUCTOR) {
       return contentType == EmojiMessageContentType.NOT_EMOJI;

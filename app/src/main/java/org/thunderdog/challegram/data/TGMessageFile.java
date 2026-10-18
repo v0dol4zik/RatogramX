@@ -316,6 +316,7 @@ public class TGMessageFile extends TGMessage {
 
   @Override
   protected boolean isSupportedMessageContent (TdApi.Message message, TdApi.MessageContent messageContent) {
+    if (message.chatId == tdlib.myUserId() && moe.kirao.mgx.utils.SavedRichMessageCodec.recognizes(messageContent)) return false;
     return messageContent.getConstructor() == TdApi.MessageVoiceNote.CONSTRUCTOR
       || messageContent.getConstructor() == TdApi.MessageAudio.CONSTRUCTOR
       || messageContent.getConstructor() == TdApi.MessageDocument.CONSTRUCTOR;

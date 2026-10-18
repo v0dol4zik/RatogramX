@@ -74,14 +74,46 @@ Unchanged supported server blocks retain their original styles and list
 metadata. Unsupported block types or text styles show an explanation instead
 of opening a lossy editor. The ordinary text composer is unchanged.
 
-The local Premium experiment enables device-only creation in Saved Messages
-for accounts without Telegram Premium. These entries are explicitly marked
-**Local**, stored in private account/user-specific storage, and have private
-copies of their images. They appear alongside the loaded Saved Messages
-history and support local edit, copy and deletion. They survive restarting
-the app and disabling the experiment. Local identities are excluded from
-TDLib message IDs, cloud paging, reading, selection, replies, reactions and
-forwarding. They are not uploaded, synced or included in cloud search.
+The local Premium experiment enables Markdown rich messages in Saved Messages
+for accounts without Telegram Premium. The source is sent as an ordinary
+Telegram message with a single full-span `PreCode` entity whose language is
+`ratogramx-rich-v1` (or `ratogramx-rich-v1-rtl`). Other Telegram clients show
+the literal source, including `#` headings and `**` formatting. Ratogram X
+recognizes this explicit marker only in the current account's Saved Messages
+and renders a rich bubble and Instant View. Ordinary Markdown and unrelated
+code blocks keep their normal appearance. TDLib's stored message is unchanged.
+
+Source beyond Telegram's text limit is uploaded as a UTF-8
+`RatogramX-rich-*.md` file, with a marked source excerpt in its caption.
+Other clients can download and open the complete Markdown file. Existing
+files are edited in place. If a text message grows beyond the limit, the
+editor asks before uploading a new file and removing the original text
+message; this changes its position and identity. The original is kept until
+the replacement is confirmed. Source is limited to 65,536 UTF-16 units.
+
+Photos are uploaded as ordinary, separately visible Saved Messages photos.
+Standalone `![](attachment:tg_MESSAGE_ID)` references bind the source to those
+messages. Ratogram resolves them within the same Saved Messages chat; no
+local paths or external image URLs are taken from the source. Deleting the
+main message keeps these separately saved photos. Removing a referenced photo
+can prevent rich rendering; the cloud Markdown source remains available.
+
+These messages use normal Telegram IDs, history paging, search and deletion.
+Editing and deleting the source sync through Telegram. Existing messages
+remain viewable and editable after local Premium is disabled. Parsing runs
+on the background queue and coalesces requests for unchanged source. Each
+account caches at most 16 parsed documents and 262,144 source UTF-16 units;
+at most four source/attachment loads run concurrently. No periodic scan or
+full-history rewrite is used for new messages. Markdown files download only
+when their loaded bubble needs rendering, with a 256 KiB download bound.
+
+Older device-only entries are still marked **Local** and retain their private
+account/user-specific storage and images. Their menu offers **Sync to Saved
+Messages**; saving an edit also transfers the entry. The local copy is removed
+only after Telegram confirms sending and a private synchronization record is
+written. Failed transfers retain local data. Existing records let a retry
+reuse the confirmed cloud message. Legacy local IDs remain excluded from
+TDLib paging, reading, selection, replies, reactions and forwarding.
 An actual Telegram Premium account uses the Telegram path, including in
 Saved Messages; enabling the local experiment does not redirect its sends.
 
@@ -90,9 +122,9 @@ entries in shared-media tabs are separate follow-up work.
 Bot callback, login, Web App and switch-inline button actions also remain
 follow-up work for rich content.
 Local Premium does not grant server Premium permissions.
-Local storage retains the exact Markdown source and image bindings. Existing
+Legacy storage retains the exact Markdown source and image bindings. Existing
 messages from the previous block editor remain readable; supported layouts
-can be opened in the Markdown editor.
+can be opened in the Markdown editor and transferred.
 
 Metadata traversal limits depth to 32, visits to 1,024 blocks and output to
 32,768 UTF-16 units. Truncation preserves complete surrogate pairs and keeps
@@ -125,11 +157,29 @@ creation and editing through the one-field editor, Instant View photo preview,
 and source/selection/scroll preservation. A separate offline process restart
 retained the Markdown source, inline formatting and private photo.
 
+Saved Messages synchronization passed 48 targeted JVM checks, including nine
+new protocol checks for literal source, marker scope/version, Unicode, file
+bounds and photo references. Four Android 15 emulator cases passed for storage,
+Markdown, native editor/preview/history and cloud-source rendering. The latter
+also parsed 64 synthetic messages through the bounded queue and verified
+in-place content updates and marker removal.
+
+The separate opt-in cloud case passed with an authorized development account:
+Telegram retained the literal source and marker; text and Markdown files
+could be edited; a long text was replaced only after a confirmed file upload;
+RTL and a migrated photo survived loading with a fresh renderer. The native
+editor saved with local Premium disabled, and an open viewer followed an
+external source edit and closed after deletion. All generated cloud fixtures
+were removed. Send listeners are retained until success, failure or deletion,
+since TDLib's listener registry uses weak references. The native preview was
+visually inspected. Telegram Desktop UI and Android 13 runtime were not tested.
+
 Device/account checks still required:
 
 - Create and edit rich messages with a real Telegram Premium account in
-  Saved Messages and another writable chat. Emulator fixtures do not send
-  real messages or grant server-side Premium permissions.
+  Saved Messages and another writable chat. The opt-in synchronization case
+  sends ordinary Markdown source messages and does not grant or exercise
+  server-side Premium permissions.
 - Receive a full and an incomplete rich message from a supporting bot.
 - Open it during generation; check `Thinking`, updates, scroll position,
   retry after a failed request, navigating away and source deletion.

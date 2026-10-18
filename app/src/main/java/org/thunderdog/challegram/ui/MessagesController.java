@@ -10796,14 +10796,53 @@ public class MessagesController extends ViewController<MessagesController.Argume
 
   public void revealLocalRichMessage () { if (!isDestroyed()) manager.revealLocalRichMessage(); }
 
+  public boolean showSavedRichMessageOptions (TGMessage message) {
+    if (!message.isSavedRichMessage() || !isFocused() || message.getChatId() != tdlib.myUserId() || message.isSending()) return false;
+    TdApi.Message source = message.getMessage();
+    showOptions(Lang.getString(R.string.RichMessageSavedInfo), new int[] {R.id.btn_messageEdit, R.id.btn_messageCopy, R.id.btn_messageDelete},
+      new String[] {Lang.getString(R.string.Edit), Lang.getString(R.string.Copy), Lang.getString(R.string.Delete)},
+      new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.RED},
+      new int[] {R.drawable.baseline_edit_24, R.drawable.baseline_content_copy_24, R.drawable.baseline_delete_24}, (view, id) -> {
+        if (id == R.id.btn_messageDelete) {
+          showConfirm(Lang.getString(R.string.RichMessageDeleteSaved), Lang.getString(R.string.Delete), () ->
+            tdlib.send(new TdApi.DeleteMessages(source.chatId, new long[] {source.id}, true), (ok, error) -> {
+              if (error != null) UI.post(() -> UI.showError(error));
+            }));
+        } else if (id == R.id.btn_messageCopy && source.content instanceof TdApi.MessageText) {
+          UI.copyText(((TdApi.MessageText) source.content).text.text, R.string.CopiedText);
+        } else tdlib.savedRichMessages().load(source, (document, error) -> {
+          if (isDestroyed() || !isFocused()) return;
+          if (error != null) { UI.showToast(R.string.RichMessageSavedError, Toast.LENGTH_LONG); return; }
+          if (id == R.id.btn_messageCopy) UI.copyText(document.markdownSource, R.string.CopiedText);
+          else {
+            moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);
+            editor.setArguments(new moe.kirao.mgx.ui.RichMessageEditorController.Args(this, moe.kirao.mgx.utils.RichMessagePolicy.Mode.LOCAL, source, null, document));
+            hideSoftwareKeyboard();
+            navigateTo(editor);
+          }
+        });
+        return true;
+      });
+    return true;
+  }
+
   public boolean showLocalRichMessageOptions (TGMessage message) {
     if (!message.isLocalRichMessage() || !isFocused()) return false;
     moe.kirao.mgx.utils.LocalRichMessageStore.Entry entry = manager.localRichMessage(message.getId());
     if (entry == null) return false;
-    showOptions(Lang.getString(R.string.RichMessageLocalInfo), new int[] {R.id.btn_messageEdit, R.id.btn_messageCopy, R.id.btn_messageDelete},
-      new String[] {Lang.getString(R.string.Edit), Lang.getString(R.string.Copy), Lang.getString(R.string.Delete)},
-      new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.RED},
-      new int[] {R.drawable.baseline_edit_24, R.drawable.baseline_content_copy_24, R.drawable.baseline_delete_24}, (view, id) -> {
+    showOptions(Lang.getString(R.string.RichMessageLocalInfo), new int[] {R.id.btn_richSync, R.id.btn_messageEdit, R.id.btn_messageCopy, R.id.btn_messageDelete},
+      new String[] {Lang.getString(R.string.RichMessageSync), Lang.getString(R.string.Edit), Lang.getString(R.string.Copy), Lang.getString(R.string.Delete)},
+      new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.RED},
+      new int[] {R.drawable.baseline_sync_24, R.drawable.baseline_edit_24, R.drawable.baseline_content_copy_24, R.drawable.baseline_delete_24}, (view, id) -> {
+        if (id == R.id.btn_richSync) {
+          UI.showToast(R.string.RichMessageSyncStarted, Toast.LENGTH_SHORT);
+          tdlib.savedRichMessages().save(entry.document, null, entry, (sent, error) -> {
+            if (isDestroyed()) return;
+            if (error != null) UI.showToast(R.string.RichMessageSavedError, Toast.LENGTH_LONG);
+            refreshLocalRichMessages();
+            if (error == null) manager.scrollToStart(true);
+          });
+        }
         if (id == R.id.btn_messageEdit) {
           try {
             moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);

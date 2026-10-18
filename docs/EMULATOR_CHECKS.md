@@ -1,8 +1,10 @@
 # Android emulator regression checks
 
 The development test APK runs local component fixtures inside Ratogram X. It
-uses Android's built-in instrumentation API and does not need a test framework
-or send Telegram messages, polls, or reactions.
+uses Android's built-in instrumentation API and does not need a test framework.
+The default cases do not send Telegram messages, polls, or reactions. The
+separately requested cloud rich-message case writes and removes its own
+fixtures only in the current development account's Saved Messages.
 
 Use a dedicated, authorized development installation of
 `org.ratogramx.client.debug`. The runner rejects public packages. Enable
@@ -34,7 +36,7 @@ adb -s emulator-5554 shell am instrument -w -r \
 
 Adjust the serial and versioned application APK path to the actual build. Do
 not install over a public package or clear application data. A successful run
-ends with `16 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
+ends with `17 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
 exit code alone does not distinguish test failures from success.
 
 To repeat only affected cases, pass `-e check CASE_NAME` or a comma-separated
@@ -79,6 +81,29 @@ only the development package, then run `rich_messages_restart_read_cleanup`.
 The second case verifies the persisted message and private image and removes
 that fixture. It can run offline; restore the emulator's previous network
 settings afterwards.
+
+`saved_rich_messages_cache_and_updates` checks native rendering of marked
+Telegram source messages, account/chat isolation, source edits, reverting to
+ordinary text after marker removal, the parse queue, and cache bounds using
+64 synthetic messages. It does not send those messages.
+
+For the separate, live cloud test:
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r \
+  -e check saved_rich_messages_cloud_roundtrip \
+  org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
+```
+
+This opt-in case sends generated Markdown and a synthetic image only to the
+development account's Saved Messages. It verifies server acceptance of the
+code-block marker, literal source, text/file editing, long-source replacement,
+RTL, photo resolution using a fresh renderer, legacy migration, native editor
+save, external source updates in an open viewer, and source deletion. Its
+`finally` block removes only the IDs it created and matching unique fixture
+markers; no other chat is targeted. It needs an online, authorized account.
+This verifies the Telegram wire representation; it does not automate the
+Telegram Desktop UI or authenticate a second client.
 
 `github_updater_release_check` makes a read-only request to the public
 Ratogram X GitHub Releases API. It checks completion and the GitHub update
