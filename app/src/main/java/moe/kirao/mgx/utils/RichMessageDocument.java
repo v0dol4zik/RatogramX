@@ -1,5 +1,7 @@
 package moe.kirao.mgx.utils;
 
+import androidx.annotation.Nullable;
+
 import org.drinkless.tdlib.TdApi;
 
 import java.io.DataInputStream;
@@ -15,6 +17,7 @@ public final class RichMessageDocument {
   public static final int MAX_BLOCKS = 100, MAX_TEXT = 32768, MAX_MEDIA = 10;
   public final List<Block> blocks = new ArrayList<>();
   public boolean isRtl;
+  public @Nullable String markdownSource;
 
   public static final class Block {
     public final int type;
@@ -42,7 +45,10 @@ public final class RichMessageDocument {
 
     private TdApi.RichText richText () {
       if (unchanged()) {
-        TdApi.RichText rich = RichMessageUtils.blockText(original);
+        TdApi.RichText rich;
+        if (original instanceof TdApi.PageBlockSectionHeading) rich = ((TdApi.PageBlockSectionHeading) original).text;
+        else if (original instanceof TdApi.PageBlockPreformatted) rich = ((TdApi.PageBlockPreformatted) original).text;
+        else rich = RichMessageUtils.blockText(original);
         if (rich != null) return rich;
       }
       return new TdApi.RichTextPlain(text);
@@ -64,7 +70,7 @@ public final class RichMessageDocument {
         TdApi.PageBlockListItem[] items = new TdApi.PageBlockListItem[old.items.length];
         for (int i = 0; i < items.length; i++) {
           TdApi.PageBlockListItem item = old.items[i];
-          items[i] = new TdApi.PageBlockListItem(ordered ? (i + 1) + "." : "", item.blocks, item.hasCheckbox, item.isChecked, ordered ? i + 1 : 0, ordered ? "1" : "");
+          items[i] = new TdApi.PageBlockListItem(ordered ? (i + 1) + "." : "•", item.blocks, item.hasCheckbox, item.isChecked, ordered ? i + 1 : 0, ordered ? "1" : "");
         }
         return new TdApi.PageBlockList(items);
       }
@@ -79,7 +85,7 @@ public final class RichMessageDocument {
           String[] lines = text.split("\n", -1);
           TdApi.PageBlockListItem[] items = new TdApi.PageBlockListItem[lines.length];
           for (int i = 0; i < lines.length; i++) {
-            items[i] = new TdApi.PageBlockListItem(ordered ? (i + 1) + "." : "", new TdApi.PageBlock[] {
+            items[i] = new TdApi.PageBlockListItem(ordered ? (i + 1) + "." : "•", new TdApi.PageBlock[] {
               new TdApi.PageBlockParagraph(new TdApi.RichTextPlain(lines[i]))}, false, false, ordered ? i + 1 : 0, ordered ? "1" : "");
           }
           yield new TdApi.PageBlockList(items);
@@ -97,11 +103,13 @@ public final class RichMessageDocument {
   public RichMessageDocument copy () {
     RichMessageDocument d = new RichMessageDocument();
     d.isRtl = isRtl;
+    d.markdownSource = markdownSource;
     for (Block b : blocks) d.blocks.add(b.copy());
     return d;
   }
 
   public void validate () {
+    if (markdownSource != null && markdownSource.length() > RichMessageMarkdown.MAX_SOURCE) throw new IllegalArgumentException("source_limit");
     if (blocks.isEmpty() || blocks.size() > MAX_BLOCKS) throw new IllegalArgumentException("block_limit");
     int textLength = 0, mediaCount = 0, blockCount = 0;
     boolean hasContent = false;
@@ -213,13 +221,19 @@ public final class RichMessageDocument {
     validate();
     out.writeBoolean(isRtl); out.writeInt(blocks.size());
     for (Block b : blocks) {
-      if (b.original != null) throw new IOException("Server blocks cannot be stored as local drafts");
+      if ((b.original != null && markdownSource == null) || (b.type == PHOTO && b.photoPath.isEmpty())) throw new IOException("Server blocks cannot be stored as local drafts");
       out.writeInt(b.type); writeString(out, b.text); writeString(out, b.extra); writeString(out, b.photoPath);
       out.writeInt(b.size); out.writeInt(b.width); out.writeInt(b.height); out.writeBoolean(b.ordered);
     }
+    out.writeBoolean(markdownSource != null);
+    if (markdownSource != null) writeString(out, markdownSource);
   }
 
   public static RichMessageDocument read (DataInputStream in) throws IOException {
+    return read(in, 2);
+  }
+
+  public static RichMessageDocument read (DataInputStream in, int version) throws IOException {
     RichMessageDocument d = new RichMessageDocument();
     d.isRtl = in.readBoolean();
     int count = in.readInt();
@@ -232,6 +246,10 @@ public final class RichMessageDocument {
         d.blocks.add(b);
       }
       d.validate();
+      if (version >= 2 && in.readBoolean()) {
+        d.markdownSource = readString(in, RichMessageMarkdown.MAX_SOURCE);
+        d = RichMessageMarkdown.parse(d.markdownSource, RichMessageMarkdown.source(d), d.isRtl);
+      }
     } catch (IllegalArgumentException e) { throw new IOException("Invalid rich message", e); }
     return d;
   }
@@ -242,8 +260,12 @@ public final class RichMessageDocument {
   }
 
   private static String readString (DataInputStream in) throws IOException {
+    return readString(in, MAX_TEXT);
+  }
+
+  private static String readString (DataInputStream in, int maxLength) throws IOException {
     int length = in.readInt();
-    if (length < 0 || length > MAX_TEXT * 4) throw new IOException("Invalid string size");
+    if (length < 0 || length > maxLength * 4) throw new IOException("Invalid string size");
     byte[] bytes = new byte[length]; in.readFully(bytes);
     return new String(bytes, StandardCharsets.UTF_8);
   }

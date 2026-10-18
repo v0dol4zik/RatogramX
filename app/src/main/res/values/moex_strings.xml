@@ -10,6 +10,12 @@
   <string name="RatogramUpdateDownloadFailed">Could not download a compatible Ratogram X update. Check your connection or download it from the project’s GitHub Releases.</string>
   <string name="RichMessageCreate">Create rich message</string>
   <string name="RichMessageEditor">Rich message editor</string>
+  <string name="RichMessageAttach">Rich message</string>
+  <string name="RichMessageMarkdown">Markdown</string>
+  <string name="RichMessageInsertPhoto">Insert photo</string>
+  <string name="RichMessageSyntax">Markdown syntax</string>
+  <string name="RichMessageSyntaxInfo">Write in Markdown, then tap the eye to preview.\n\n**bold**\n__italic__\n~~strikethrough~~\n||spoiler||\n`code`\n[text](https://example.com)\n\n# Heading (levels 1–6)\n- List item\n1. Numbered item\n- [x] Checked item\n&gt; Quote\n```java\nCode block\n```\n\nSeparate paragraphs with a blank line. Indent nested list items by two spaces. Use Insert photo to add an image on a separate line; edit the text inside ![caption] to add a caption. Backslash escapes formatting characters.</string>
+  <string name="RichMessageMarkdownInvalid">Could not preview this Markdown. Add text or an image, check photo references and code languages. Use up to 100 blocks, 10 photos and 32,768 text characters.</string>
   <string name="RichMessageLocal">Local</string>
   <string name="RichMessageLocalInfo">Saved only on this device, in this account’s Saved Messages. It will not be sent to Telegram or synced with other devices.</string>
   <string name="RichMessageTelegramInfo">This message will be sent to this chat through Telegram. Telegram Premium and chat permissions are required.</string>

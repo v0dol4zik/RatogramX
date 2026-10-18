@@ -10805,9 +10805,11 @@ public class MessagesController extends ViewController<MessagesController.Argume
       new int[] {OptionColor.NORMAL, OptionColor.NORMAL, OptionColor.RED},
       new int[] {R.drawable.baseline_edit_24, R.drawable.baseline_content_copy_24, R.drawable.baseline_delete_24}, (view, id) -> {
         if (id == R.id.btn_messageEdit) {
-          moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);
-          editor.setArguments(new moe.kirao.mgx.ui.RichMessageEditorController.Args(this, moe.kirao.mgx.utils.RichMessagePolicy.Mode.LOCAL, message.getMessage(), entry, entry.document));
-          navigateTo(editor);
+          try {
+            moe.kirao.mgx.ui.RichMessageEditorController editor = new moe.kirao.mgx.ui.RichMessageEditorController(context(), tdlib);
+            editor.setArguments(new moe.kirao.mgx.ui.RichMessageEditorController.Args(this, moe.kirao.mgx.utils.RichMessagePolicy.Mode.LOCAL, message.getMessage(), entry, entry.document));
+            navigateTo(editor);
+          } catch (IllegalArgumentException e) { UI.showToast(R.string.RichMessageEditUnsupported, Toast.LENGTH_LONG); }
         } else if (id == R.id.btn_messageCopy) {
           UI.copyText(moe.kirao.mgx.utils.RichMessageUtils.text(entry.document.output()).text, R.string.CopiedText);
         } else if (id == R.id.btn_messageDelete) {

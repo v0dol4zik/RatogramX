@@ -17,6 +17,7 @@
   <item name="btn_richMoveDown" type="id" />
   <item name="btn_richOrdered" type="id" />
   <item name="btn_richRtl" type="id" />
+  <item name="btn_richSyntax" type="id" />
   <item name="controller_basicThemeEditor" type="id" />
   <item name="theme_category_basic" type="id" />
   <item name="btn_basicThemeAdvanced" type="id" />

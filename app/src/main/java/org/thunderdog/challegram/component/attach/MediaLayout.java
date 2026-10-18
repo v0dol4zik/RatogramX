@@ -254,28 +254,21 @@ public class MediaLayout extends FrameLayoutFix implements
       }
       default: {
         this.needVote = tdlib().canSendPolls(getTargetChatId());
-        if (rtl) {
-          items = new MediaBottomBar.BarItem[]{
-            needVote ?
-              new MediaBottomBar.BarItem(R.drawable.baseline_poll_24, R.string.CreatePoll, ColorId.attachInlineBot) :
-              new MediaBottomBar.BarItem(R.drawable.deproko_baseline_bots_24, R.string.InlineBot, ColorId.attachInlineBot),
-            new MediaBottomBar.BarItem(R.drawable.baseline_location_on_24, R.string.Location, ColorId.attachLocation, Screen.dp(1f)),
-            new MediaBottomBar.BarItem(R.drawable.baseline_image_24, R.string.Gallery, ColorId.attachPhoto),
-            new MediaBottomBar.BarItem(R.drawable.baseline_insert_drive_file_24, R.string.File, ColorId.attachFile),
-            new MediaBottomBar.BarItem(R.drawable.baseline_person_24, R.string.AttachContact, ColorId.attachContact, Screen.dp(1f))
-          };
-        } else {
-          items = new MediaBottomBar.BarItem[]{
+        List<MediaBottomBar.BarItem> actions = new ArrayList<>();
+        Collections.addAll(actions,
             new MediaBottomBar.BarItem(R.drawable.baseline_person_24, R.string.AttachContact, ColorId.attachContact, Screen.dp(1f)),
             new MediaBottomBar.BarItem(R.drawable.baseline_insert_drive_file_24, R.string.File, ColorId.attachFile),
             new MediaBottomBar.BarItem(R.drawable.baseline_image_24, R.string.Gallery, ColorId.attachPhoto),
             new MediaBottomBar.BarItem(R.drawable.baseline_location_on_24, R.string.Location, ColorId.attachLocation, Screen.dp(1f)),
             needVote ?
               new MediaBottomBar.BarItem(R.drawable.baseline_poll_24, R.string.CreatePoll, ColorId.attachInlineBot) :
-              new MediaBottomBar.BarItem(R.drawable.deproko_baseline_bots_24, R.string.InlineBot, ColorId.attachInlineBot)
-          };
+              new MediaBottomBar.BarItem(R.drawable.deproko_baseline_bots_24, R.string.InlineBot, ColorId.attachInlineBot));
+        if (canCreateRichMessage()) {
+          actions.add(new MediaBottomBar.BarItem(R.drawable.baseline_article_24, R.string.RichMessageAttach, ColorId.attachFile));
         }
-        index = 2;
+        if (rtl) Collections.reverse(actions);
+        items = actions.toArray(new MediaBottomBar.BarItem[0]);
+        index = rtl ? items.length - 1 - 2 : 2;
         mode = MODE_DEFAULT;
         break;
       }
@@ -481,9 +474,7 @@ public class MediaLayout extends FrameLayoutFix implements
         return itemsAdapter.createControllerForIndex(index);
       }
     }
-    if (rtl) {
-      index = controllers.length - index - 1;
-    }
+    index = attachmentIndex(index);
     switch (index) {
       case 0: return new MediaBottomContactsController(this);
       case 1: return new MediaBottomFilesController(this);
@@ -492,6 +483,10 @@ public class MediaLayout extends FrameLayoutFix implements
       case 4: return new MediaBottomInlineBotsController(this);
       default: throw new IllegalArgumentException("Unknown index passed: " + index);
     }
+  }
+
+  private int attachmentIndex (int index) {
+    return rtl && mode == MODE_DEFAULT && itemsAdapter == null ? controllers.length - index - 1 : index;
   }
 
   private MediaBottomBaseController<?> getCurrentController () {
@@ -648,7 +643,7 @@ public class MediaLayout extends FrameLayoutFix implements
     switch (code) {
       case BaseActivity.REQUEST_FINE_LOCATION: {
         if (granted) {
-          MediaBottomLocationController c = (MediaBottomLocationController) getControllerForIndex(inSpecificMode() ? 0 : 3);
+          MediaBottomLocationController c = (MediaBottomLocationController) getControllerForIndex(inSpecificMode() ? 0 : attachmentIndex(3));
           c.onLocationPermissionOk();
         } else {
           ViewController<?> c = UI.getCurrentStackItem(getContext());
@@ -674,7 +669,7 @@ public class MediaLayout extends FrameLayoutFix implements
         if (requestedPermissionIndex == 1) {
           if (granted) {
             if (bottomBar != null) {
-              bottomBar.setSelectedIndex(1);
+              bottomBar.setSelectedIndex(attachmentIndex(1));
             }
           } else {
             ViewController<?> c = UI.getCurrentStackItem(getContext());
@@ -702,7 +697,7 @@ public class MediaLayout extends FrameLayoutFix implements
       return false;
     }
 
-    switch (toIndex) {
+    switch (attachmentIndex(toIndex)) {
       case 3: {
         boolean googleMapsInstalled;
         try {
@@ -752,6 +747,10 @@ public class MediaLayout extends FrameLayoutFix implements
           return false;
         }
         break;
+      }
+      case 5: {
+        createRichMessage();
+        return false;
       }
     }
 

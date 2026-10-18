@@ -34,7 +34,7 @@ adb -s emulator-5554 shell am instrument -w -r \
 
 Adjust the serial and versioned application APK path to the actual build. Do
 not install over a public package or clear application data. A successful run
-ends with `15 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
+ends with `16 passed, 0 failed` and `INSTRUMENTATION_CODE: -1`. The ADB process
 exit code alone does not distinguish test failures from success.
 
 To repeat only affected cases, pass `-e check CASE_NAME` or a comma-separated
@@ -62,7 +62,7 @@ For local rich messages and their native editor:
 
 ```bash
 adb -s emulator-5554 shell am instrument -w -r \
-  -e check rich_messages_private_storage,rich_messages_editor_preview_and_history \
+  -e check rich_messages_private_storage,rich_messages_markdown_syntax,rich_messages_editor_preview_and_history \
   org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
 ```
 
@@ -89,8 +89,11 @@ The checks cover:
   TDLib state. A pin service message is rendered with the native message view;
   Ghost view requests use a source that does not send read receipts.
 - Local rich-message storage, account/user isolation, editing/deletion,
-  independent image copies, native editor and Instant View rendering,
-  visibility with local Premium disabled, and persistence across restart.
+  independent image copies, migration from the previous storage format,
+  native Markdown parsing, escaping and formatted persistence, attachment
+  action routing in LTR/RTL, one-field editing and Instant View rendering,
+  source/selection/scroll preservation, visibility with local Premium disabled,
+  and persistence across restart.
 - Live Ratogram GitHub release checking without Telegram X update downloads.
 - Locally read topic notifications, partially unread groups, and a delayed
   push fixture for an already viewed message.

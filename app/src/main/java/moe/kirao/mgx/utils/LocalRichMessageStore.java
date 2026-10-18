@@ -23,7 +23,7 @@ import java.util.UUID;
 
 /** Device-only rich messages. Every operation runs on the background queue. */
 public final class LocalRichMessageStore {
-  private static final int MAGIC = 0x5258524d, VERSION = 1, MAX_ENTRIES = 1000;
+  private static final int MAGIC = 0x5258524d, VERSION = 2, MAX_ENTRIES = 1000;
   private final File directory;
   private final int accountId;
   private final long userId;
@@ -132,14 +132,16 @@ public final class LocalRichMessageStore {
     AtomicFile file = index();
     if (!file.getBaseFile().exists() && !new File(directory, "messages.bin.bak").exists()) return entries;
     try (DataInputStream in = new DataInputStream(new BufferedInputStream(file.openRead()))) {
-      if (in.readInt() != MAGIC || in.readInt() != VERSION || in.readInt() != accountId || in.readLong() != userId) throw new IOException("Invalid history header");
+      if (in.readInt() != MAGIC) throw new IOException("Invalid history header");
+      int version = in.readInt();
+      if (version < 1 || version > VERSION || in.readInt() != accountId || in.readLong() != userId) throw new IOException("Invalid history header");
       int count = in.readInt();
       if (count < 0 || count > MAX_ENTRIES) throw new IOException("Invalid history size");
       Set<Long> ids = new HashSet<>();
       for (int i = 0; i < count; i++) {
         long id = in.readLong(); int date = in.readInt(), editDate = in.readInt();
         if (!RichMessagePolicy.isLocalId(id) || !ids.add(id)) throw new IOException("Invalid history ID");
-        RichMessageDocument document = RichMessageDocument.read(in);
+        RichMessageDocument document = RichMessageDocument.read(in, version);
         for (RichMessageDocument.Block block : document.blocks) {
           if (block.type == RichMessageDocument.PHOTO && !directory.getCanonicalFile().equals(new File(block.photoPath).getCanonicalFile().getParentFile())) throw new IOException("Invalid image path");
         }

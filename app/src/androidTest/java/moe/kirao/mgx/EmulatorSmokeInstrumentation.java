@@ -36,6 +36,9 @@ import org.thunderdog.challegram.BuildConfig;
 import org.thunderdog.challegram.MainActivity;
 import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.U;
+import org.thunderdog.challegram.core.Lang;
+import org.thunderdog.challegram.component.attach.MediaLayout;
+import org.thunderdog.challegram.component.attach.MediaBottomBar;
 import org.thunderdog.challegram.component.chat.MessageView;
 import org.thunderdog.challegram.component.chat.MessageViewGroup;
 import org.thunderdog.challegram.component.chat.WallpaperView;
@@ -82,6 +85,8 @@ import moe.kirao.mgx.utils.GhostReadStore;
 import moe.kirao.mgx.utils.GhostReadPolicy;
 import moe.kirao.mgx.utils.LocalRichMessageStore;
 import moe.kirao.mgx.utils.RichMessageDocument;
+import moe.kirao.mgx.utils.RichMessageMarkdown;
+import moe.kirao.mgx.utils.RichMessageUtils;
 import moe.kirao.mgx.utils.RichMessagePolicy;
 import moe.kirao.mgx.ui.RichMessageEditorController;
 import tgx.bridge.DeviceTokenRetriever;
@@ -127,6 +132,7 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       runCase("forum_counters_storage_and_account_isolation", () -> onUi(this::forumCounters));
       runCase("ghost_reactions_pins_and_service_reads", () -> onUi(this::ghostContentReads));
       runCase("rich_messages_private_storage", this::richMessageStorage);
+      runCase("rich_messages_markdown_syntax", () -> onUi(this::richMarkdownSyntax));
       runCase("rich_messages_editor_preview_and_history", this::richMessageEditor);
       runCase("rich_messages_restart_write", this::richMessageRestartWrite);
       runCase("rich_messages_restart_read_cleanup", this::richMessageRestartRead);
@@ -173,6 +179,25 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
 
   private void richMessageStorage () throws Exception {
     File root = new File(getTargetContext().getCacheDir(), "rich-store-smoke-" + java.util.UUID.randomUUID());
+    File legacy = new File(root, (FIXTURE_ACCOUNT - 2) + "-77/messages.bin");
+    require(legacy.getParentFile().mkdirs(), "Cannot prepare legacy history fixture");
+    try (java.io.DataOutputStream out = new java.io.DataOutputStream(new FileOutputStream(legacy))) {
+      out.writeInt(0x5258524d); out.writeInt(1); out.writeInt(FIXTURE_ACCOUNT - 2); out.writeLong(77); out.writeInt(1);
+      out.writeLong(RichMessagePolicy.localId(123)); out.writeInt(1); out.writeInt(0);
+      out.writeBoolean(false); out.writeInt(1); out.writeInt(RichMessageDocument.PARAGRAPH);
+      for (String value : new String[] {"Legacy fixture", "", ""}) {
+        byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8); out.writeInt(bytes.length); out.write(bytes);
+      }
+      out.writeInt(2); out.writeInt(0); out.writeInt(0); out.writeBoolean(false);
+    }
+    LocalRichMessageStore legacyStore = new LocalRichMessageStore(root, FIXTURE_ACCOUNT - 2, 77);
+    java.util.List<LocalRichMessageStore.Entry> old = localResult(legacyStore::load);
+    require(old.size() == 1 && old.get(0).document.blocks.get(0).text.equals("Legacy fixture"), "Legacy history no longer loads");
+    this.<LocalRichMessageStore.Entry>localResult(callback -> legacyStore.save(old.get(0).id, old.get(0).document, callback));
+    try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.FileInputStream(legacy))) {
+      require(in.readInt() == 0x5258524d && in.readInt() == 2, "Saving did not migrate legacy history");
+    }
+    require(this.<java.util.List<LocalRichMessageStore.Entry>>localResult(legacyStore::load).size() == 1, "Migration lost the existing entry");
     LocalRichMessageStore store = new LocalRichMessageStore(root, FIXTURE_ACCOUNT, 77);
     LocalRichMessageStore anotherAccount = new LocalRichMessageStore(root, FIXTURE_ACCOUNT - 1, 77);
     LocalRichMessageStore anotherUser = new LocalRichMessageStore(root, FIXTURE_ACCOUNT, 78);
@@ -235,7 +260,9 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       RichMessageDocument document = richDocument(RICH_RESTART_MARKER);
       RichMessageDocument.Block photo = new RichMessageDocument.Block(RichMessageDocument.PHOTO);
       photo.photoPath = source.getAbsolutePath(); photo.width = 96; photo.height = 64; document.blocks.add(photo);
-      LocalRichMessageStore.Entry entry = localResult(callback -> store.save(0, document, callback));
+      RichMessageMarkdown.Source markdown = RichMessageMarkdown.source(document);
+      RichMessageDocument parsed = RichMessageMarkdown.parse(markdown.text + "\n\n**Offline bold** and __italic__", markdown, false);
+      LocalRichMessageStore.Entry entry = localResult(callback -> store.save(0, parsed, callback));
       require(RichMessagePolicy.isLocalId(entry.id), "Restart fixture has no private identity");
     } finally { source.delete(); }
   }
@@ -250,7 +277,64 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
     try {
       require(new File(fixture.document.blocks.get(3).photoPath).isFile(), "Private photo did not survive the process restart");
       require(fixture.toMessage(tdlib.myUserId()).content instanceof TdApi.MessageRichMessage, "Restored content has the wrong type");
+      require(fixture.document.markdownSource != null && fixture.document.markdownSource.contains("**Offline bold**"), "Restart lost the Markdown source");
+      require(Arrays.stream(RichMessageUtils.text(fixture.document.output()).entities).anyMatch(e -> e.type instanceof TdApi.TextEntityTypeItalic), "Restart lost inline formatting");
     } finally { this.<Boolean>localResult(callback -> store.delete(id, callback)); }
+  }
+
+  private void richMarkdownSyntax () throws Exception {
+    String source = "# Heading\n\n**bold** __italic__ ~~strike~~ ||hidden|| `code` [link](https://example.com) 🐀\n\n> Quote\n> - nested\n\n3. [x] checked\n  - child\n\n```java\n\n**literal**\n```";
+    RichMessageDocument document = RichMessageMarkdown.parse(source, new RichMessageMarkdown.Source(source), false);
+    TdApi.FormattedText text = RichMessageUtils.text(document.output());
+    require(text.text.contains("bold italic strike hidden code link 🐀"), "Native Telegram Markdown did not render inline syntax");
+    for (Class<?> type : new Class<?>[] {TdApi.TextEntityTypeBold.class, TdApi.TextEntityTypeItalic.class, TdApi.TextEntityTypeStrikethrough.class,
+      TdApi.TextEntityTypeSpoiler.class, TdApi.TextEntityTypeCode.class, TdApi.TextEntityTypeTextUrl.class})
+      require(Arrays.stream(text.entities).anyMatch(e -> type.isInstance(e.type)), "Missing native formatting: " + type.getSimpleName());
+    String escaped = RichMessageUtils.plainText(RichMessageMarkdown.inline("\\*\\*literal\\*\\* `a\\*b`"));
+    require(escaped.equals("**literal** a\\*b"), "Escapes changed literal text or inline code");
+    java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+    document.write(new java.io.DataOutputStream(buffer));
+    RichMessageDocument restored = RichMessageDocument.read(new java.io.DataInputStream(new java.io.ByteArrayInputStream(buffer.toByteArray())));
+    require(source.equals(restored.markdownSource), "Persistence changed Markdown whitespace");
+    require(text.text.equals(RichMessageUtils.text(restored.output()).text), "Persistence changed rendered content");
+    require(Arrays.stream(RichMessageUtils.text(restored.output()).entities).anyMatch(e -> e.type instanceof TdApi.TextEntityTypeSpoiler), "Persistence lost spoiler formatting");
+    // A remote message has no stored Markdown: its supported formatting must be editable, too.
+    RichMessageDocument remote = RichMessageDocument.fromRichMessage(document.output());
+    RichMessageMarkdown.Source editable = RichMessageMarkdown.source(remote);
+    RichMessageDocument edited = RichMessageMarkdown.parse(editable.text.replace("bold", "changed"), editable, false);
+    require(RichMessageUtils.text(edited.output()).text.contains("changed italic strike hidden code link 🐀"), "Editing remote Markdown lost content");
+    require(Arrays.stream(RichMessageUtils.text(edited.output()).entities).anyMatch(e -> e.type instanceof TdApi.TextEntityTypeBold), "Editing remote Markdown lost bold formatting");
+    RichMessageDocument nested = RichMessageMarkdown.parse("**outer __inner__ tail**", new RichMessageMarkdown.Source(""), false);
+    RichMessageMarkdown.Source nestedSource = RichMessageMarkdown.source(RichMessageDocument.fromRichMessage(nested.output()));
+    RichMessageDocument changed = RichMessageMarkdown.parse(nestedSource.text.replace("tail", "end"), nestedSource, false);
+    TdApi.FormattedText nestedText = RichMessageUtils.text(changed.output());
+    require(nestedText.text.equals("outer inner end"), "Editing nested formatting left literal Markdown delimiters");
+    require(Arrays.stream(nestedText.entities).anyMatch(e -> e.type instanceof TdApi.TextEntityTypeItalic), "Nested italic formatting was lost");
+  }
+
+  private void richAttachmentRouting (MessagesController parent) throws Exception {
+    Field direction = field(Lang.class, "languageRtl");
+    boolean previous = direction.getBoolean(null);
+    try {
+      for (boolean rtl : new boolean[] {false, true}) {
+        direction.setBoolean(null, rtl);
+        MediaLayout layout = new MediaLayout(parent);
+        layout.initDefault(parent);
+        try {
+          MediaBottomBar bar = (MediaBottomBar) field(MediaLayout.class, "bottomBar").get(layout);
+          Object[] items = (Object[]) field(MediaBottomBar.class, "items").get(bar);
+          require(items.length == 6, "Rich message has no separate attachment action");
+          require(bar.getCurrentIndex() == (rtl ? 3 : 2), "RTL opened the wrong attachment category");
+          ViewController<?> files = layout.createControllerForIndex(rtl ? 4 : 1);
+          ViewController<?> location = layout.createControllerForIndex(rtl ? 2 : 3);
+          require(files instanceof org.thunderdog.challegram.component.attach.MediaBottomFilesController, "File routing is reversed");
+          require(location instanceof org.thunderdog.challegram.component.attach.MediaBottomLocationController, "Location routing is reversed");
+          files.destroy(); // The map was never created, so it has no lifecycle to close.
+          Object rich = items[rtl ? 0 : 5];
+          require(Lang.getString(R.string.RichMessageAttach).equals(field(rich.getClass(), "name").get(rich)), "Rich attachment action has no label");
+        } finally { layout.performDestroy(); }
+      }
+    } finally { direction.setBoolean(null, previous); }
   }
 
   private void githubUpdaterCheck () throws Exception {
@@ -289,6 +373,8 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
     File sourcePhoto = richFixturePhoto(getTargetContext().getCacheDir());
     File[] preparedPhoto = {null};
     long[] createdId = {0};
+    String[] markdown = {null};
+    int[] selection = {0}, scrollTop = {0};
     try {
       onUi(() -> {
         settings.setExperimentEnabled(Settings.EXPERIMENT_FLAG_ALLOW_EXPERIMENTS, true);
@@ -301,23 +387,44 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
       });
       waitForNavigation(parent[0]);
       onUi(() -> {
-        editor[0] = new RichMessageEditorController(activity, tdlib);
-        editor[0].setArguments(new RichMessageEditorController.Args(parent[0], RichMessagePolicy.Mode.LOCAL, null, null, richDocument(marker)));
-        require(parent[0].navigateTo(editor[0]), "Could not open the editor");
+        richAttachmentRouting(parent[0]);
+        MediaLayout layout = new MediaLayout(parent[0]);
+        layout.initDefault(parent[0]);
+        layout.show();
+        MediaBottomBar bar = (MediaBottomBar) field(MediaLayout.class, "bottomBar").get(layout);
+        int richIndex = Lang.rtl() ? 0 : 5;
+        bar.postDelayed(() -> bar.setSelectedIndex(richIndex), 500);
+      });
+      SystemClock.sleep(800);
+      onUi(() -> {
+        require(activity.navigation().getCurrentStackItem() instanceof RichMessageEditorController, "Attachment action did not open the Markdown editor");
+        editor[0] = (RichMessageEditorController) activity.navigation().getCurrentStackItem();
       });
       waitForNavigation(editor[0]);
+      waitForIdleSync(); SystemClock.sleep(400);
       onUi(() -> {
-        require(editor[0].getRecyclerView().getAdapter().getItemCount() >= 8, "Editor blocks did not render");
-        ViewGroup textRow = (ViewGroup) editor[0].getRecyclerView().getLayoutManager().findViewByPosition(2);
+        require(editor[0].getRecyclerView().getAdapter().getItemCount() == 2, "Editor did not use one Markdown field");
+        ViewGroup textRow = (ViewGroup) editor[0].getRecyclerView().getLayoutManager().findViewByPosition(0);
         require(textRow != null, "Editor text field did not render");
         org.thunderdog.challegram.widget.MaterialEditTextGroup textInput = (org.thunderdog.challegram.widget.MaterialEditTextGroup) textRow.getChildAt(0);
-        RichMessageDocument document = (RichMessageDocument) field(RichMessageEditorController.class, "document").get(editor[0]);
-        textInput.setText(marker + " edited");
-        require(document.blocks.get(0).text.equals(marker + " edited"), "Native text field did not update the block");
-        textInput.setText(marker);
+        String value = "# " + marker + "\n\n**Bold** and __italic__, ||spoiler|| and [link](https://example.com) 🐀\n\n> Quote\n\n- [x] First item\n  - Nested item\n- Second item\n\n```java\nlocal only\n```";
+        textInput.setText(value);
+        require(value.equals(field(RichMessageEditorController.class, "markdown").get(editor[0])), "Native text field did not update Markdown");
         RichMessageDocument.Block photo = (RichMessageDocument.Block) method(RichMessageEditorController.class, "preparePhoto", String.class).invoke(editor[0], sourcePhoto.getAbsolutePath());
         preparedPhoto[0] = new File(photo.photoPath);
-        document.blocks.add(1, photo);
+        textInput.getEditText().setSelection(marker.length() + 2);
+        method(RichMessageEditorController.class, "insertPhoto", RichMessageDocument.Block.class).invoke(editor[0], photo);
+        markdown[0] = textInput.getText().toString();
+        selection[0] = markdown[0].indexOf("Bold");
+        textInput.getEditText().setSelection(selection[0], selection[0] + 4);
+      });
+      waitForIdleSync(); SystemClock.sleep(250);
+      onUi(() -> {
+        editor[0].getRecyclerView().scrollBy(0, 60);
+        scrollTop[0] = editor[0].getRecyclerView().getChildAt(0).getTop();
+        View view = editor[0].getValue();
+        Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        view.draw(new Canvas(bitmap)); saveBitmap(bitmap, "rich-message-markdown-editor-smoke.png"); bitmap.recycle();
         editor[0].onMenuItemPressed(R.id.menu_btn_view, null);
       });
       waitForNavigation(null);
@@ -334,11 +441,38 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
         viewer.navigateBack();
       });
       waitForNavigation(editor[0]);
-      onUi(() -> method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]));
+      waitForIdleSync(); SystemClock.sleep(400);
+      onUi(() -> {
+        org.thunderdog.challegram.widget.MaterialEditTextGroup input = (org.thunderdog.challegram.widget.MaterialEditTextGroup) field(RichMessageEditorController.class, "sourceInput").get(editor[0]);
+        require(markdown[0].equals(input.getText().toString()), "Preview rewrote the Markdown source");
+        require(input.getEditText().getSelectionStart() == selection[0] && input.getEditText().getSelectionEnd() == selection[0] + 4, "Preview lost the selection");
+        int actualTop = editor[0].getRecyclerView().getChildAt(0).getTop();
+        // Native focus/inset layout can round the restored offset by a few pixels.
+        require(Math.abs(actualTop - scrollTop[0]) <= Screen.dp(4f), "Preview lost the source scroll position: " + scrollTop[0] + " -> " + actualTop);
+        method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]);
+      });
       waitForNavigation(parent[0]);
       java.util.List<LocalRichMessageStore.Entry> entries = localResult(store::load);
       for (LocalRichMessageStore.Entry entry : entries) if (marker.equals(entry.document.blocks.get(0).text)) createdId[0] = entry.id;
       require(createdId[0] != 0, "Editor did not save a local entry");
+      LocalRichMessageStore.Entry created = entries.stream().filter(e -> e.id == createdId[0]).findFirst().orElseThrow();
+      require(markdown[0].equals(created.document.markdownSource), "Saving lost the Markdown source");
+      require(Arrays.stream(RichMessageUtils.text(created.document.output()).entities).anyMatch(e -> e.type instanceof TdApi.TextEntityTypeItalic), "Saving lost inline formatting");
+      onUi(() -> {
+        editor[0] = new RichMessageEditorController(activity, tdlib);
+        editor[0].setArguments(new RichMessageEditorController.Args(parent[0], RichMessagePolicy.Mode.LOCAL, created.toMessage(tdlib.myUserId()), created, created.document));
+        parent[0].navigateTo(editor[0]);
+      });
+      waitForNavigation(editor[0]);
+      onUi(() -> {
+        org.thunderdog.challegram.widget.MaterialEditTextGroup input = (org.thunderdog.challegram.widget.MaterialEditTextGroup) field(RichMessageEditorController.class, "sourceInput").get(editor[0]);
+        require(markdown[0].equals(input.getText().toString()), "Reopening edit changed the source");
+        input.setText(markdown[0] + "\n\n**Edited**");
+        method(RichMessageEditorController.class, "onDoneClick").invoke(editor[0]);
+      });
+      waitForNavigation(parent[0]);
+      java.util.List<LocalRichMessageStore.Entry> edited = localResult(store::load);
+      require(edited.stream().anyMatch(e -> e.id == createdId[0] && e.document.markdownSource.endsWith("**Edited**") && e.editDate != 0), "Markdown edit was not persisted");
       onUi(() -> {
         settings.setLocalPremiumExperimentEnabled(false);
         parent[0].refreshLocalRichMessages();

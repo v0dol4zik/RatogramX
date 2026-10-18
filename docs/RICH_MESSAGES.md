@@ -38,16 +38,41 @@ when restoring the playlist.
 
 ## Scope
 
-The attachment panel has a **Create rich message** action for Telegram
-Premium users in writable, non-secret chats. The separate native block
-editor supports paragraphs, headings at levels 1–6, lists, quotes, code and
-gallery photos, block reordering/removal, RTL and Instant View preview.
+The attachment panel has a separate **Rich message** action alongside File,
+Gallery and Poll for Telegram Premium users in writable, non-secret chats.
+It opens a single multiline Markdown field. The eye button opens native
+Instant View preview; going back keeps the source, selection and scroll.
+The editor's overflow menu contains Insert photo, RTL and syntax help.
 Sending uses structured TDLib input and the existing chat send path;
-editing rechecks Telegram Premium and message edit permissions.
-Existing inline text styles, nested supported blocks and list metadata are
-retained when their text is unchanged. Messages containing unsupported
-block types cannot be edited yet and show an explanation; they are never
-flattened into ordinary text. The ordinary text composer is unchanged.
+editing rechecks Telegram Premium and message edit permissions. User accounts
+do not send the bots-only Markdown source type.
+
+Inline syntax uses Telegram X's native TDLib `ParseMarkdown` parser:
+
+```text
+**bold** __italic__ ~~strikethrough~~ ||spoiler|| `code`
+[label](https://example.com)
+
+# Heading (one to six # characters)
+
+- List item
+  - Nested item
+1. Numbered item
+- [x] Checked item
+
+> Quote
+```
+
+Blank lines separate paragraphs. Fenced code uses three or more backticks
+or tildes and an optional language. Backslash escapes punctuation outside
+code. Insert photo adds a standalone `![](attachment:photo-1)` reference at
+the cursor; text inside the square brackets becomes its caption. Removing
+that line removes the photo from the message. Photos inside lists or quotes,
+multiline photo captions and remote image URLs are not supported by the editor.
+
+Unchanged supported server blocks retain their original styles and list
+metadata. Unsupported block types or text styles show an explanation instead
+of opening a lossy editor. The ordinary text composer is unchanged.
 
 The local Premium experiment enables device-only creation in Saved Messages
 for accounts without Telegram Premium. These entries are explicitly marked
@@ -65,6 +90,9 @@ entries in shared-media tabs are separate follow-up work.
 Bot callback, login, Web App and switch-inline button actions also remain
 follow-up work for rich content.
 Local Premium does not grant server Premium permissions.
+Local storage retains the exact Markdown source and image bindings. Existing
+messages from the previous block editor remain readable; supported layouts
+can be opened in the Markdown editor.
 
 Metadata traversal limits depth to 32, visits to 1,024 blocks and output to
 32,768 UTF-16 units. Truncation preserves complete surrogate pairs and keeps
@@ -88,6 +116,14 @@ account/user isolation, local editing/deletion, private image copies,
 native editor and Instant View photo preview, and history visibility after
 disabling local Premium. A separate process restart with networking disabled
 verified that the local message and its image survived.
+
+The Markdown editor revision passed 39 targeted JVM checks covering block
+structure, nesting, Unicode entities, bounds, photo bindings, legacy encoding
+and Premium/local routing. Android 15 fixtures verified native inline parsing,
+formatted persistence, storage migration, LTR/RTL attachment routing,
+creation and editing through the one-field editor, Instant View photo preview,
+and source/selection/scroll preservation. A separate offline process restart
+retained the Markdown source, inline formatting and private photo.
 
 Device/account checks still required:
 

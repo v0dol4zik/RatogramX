@@ -10,6 +10,12 @@
   <string name="RatogramUpdateDownloadFailed">Не удалось скачать совместимое обновление Ratogram X. Проверьте подключение или скачайте APK из GitHub Releases проекта.</string>
   <string name="RichMessageCreate">Создать rich message</string>
   <string name="RichMessageEditor">Редактор rich messages</string>
+  <string name="RichMessageAttach">Rich message</string>
+  <string name="RichMessageMarkdown">Markdown</string>
+  <string name="RichMessageInsertPhoto">Вставить фото</string>
+  <string name="RichMessageSyntax">Синтаксис Markdown</string>
+  <string name="RichMessageSyntaxInfo">Пишите в Markdown, затем нажмите на глазок для предпросмотра.\n\n**жирный**\n__курсив__\n~~зачёркнутый~~\n||спойлер||\n`код`\n[текст](https://example.com)\n\n# Заголовок (уровни 1–6)\n- Пункт списка\n1. Нумерованный пункт\n- [x] Отмеченный пункт\n&gt; Цитата\n```java\nБлок кода\n```\n\nРазделяйте абзацы пустой строкой. Вложенные пункты списка начинайте с двух пробелов. «Вставить фото» добавляет изображение на отдельной строке; текст внутри ![подпись] станет подписью к нему. Обратная косая черта экранирует символы форматирования.</string>
+  <string name="RichMessageMarkdownInvalid">Не удалось открыть предпросмотр Markdown. Добавьте текст или изображение, проверьте ссылки на фото и язык кода. Допускается до 100 блоков, 10 фото и 32 768 символов текста.</string>
   <string name="RichMessageLocal">Локально</string>
   <string name="RichMessageLocalInfo">Сохранится только на этом устройстве в «Избранном» этого аккаунта. Сообщение не отправляется в Telegram и не синхронизируется с другими устройствами.</string>
   <string name="RichMessageTelegramInfo">Сообщение будет отправлено в этот чат через Telegram. Требуются Telegram Premium и разрешение на отправку сообщений.</string>

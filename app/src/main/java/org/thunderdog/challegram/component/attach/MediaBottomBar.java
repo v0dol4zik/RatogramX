@@ -27,6 +27,7 @@ import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
@@ -39,6 +40,7 @@ import org.thunderdog.challegram.tool.Drawables;
 import org.thunderdog.challegram.tool.Paints;
 import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.tool.Views;
+import org.thunderdog.challegram.tool.UI;
 
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.ViewUtils;
@@ -550,7 +552,11 @@ public class MediaBottomBar extends FrameLayoutFix implements GestureDetector.On
 
   @Override
   public void onLongPress (MotionEvent e) {
-
+    int index = findTouchIndex((int) e.getX());
+    if (index >= 0 && index < items.length) {
+      UI.showToast(items[index].name, Toast.LENGTH_SHORT);
+      touchIndex = -1;
+    }
   }
 
   private boolean handleFling (boolean left) {

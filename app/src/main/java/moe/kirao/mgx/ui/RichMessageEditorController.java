@@ -5,7 +5,10 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.media.ExifInterface;
+import android.os.Parcelable;
+import android.text.InputFilter;
 import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -26,6 +29,8 @@ import org.thunderdog.challegram.telegram.RightId;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.tool.Views;
+import org.thunderdog.challegram.tool.Fonts;
+import org.thunderdog.challegram.tool.Screen;
 import org.thunderdog.challegram.ui.EditBaseController;
 import org.thunderdog.challegram.ui.InstantViewController;
 import org.thunderdog.challegram.ui.ListItem;
@@ -37,16 +42,13 @@ import org.thunderdog.challegram.widget.MaterialEditTextGroup;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 
 import me.vkryl.android.widget.FrameLayoutFix;
 import moe.kirao.mgx.utils.LocalRichMessageStore;
 import moe.kirao.mgx.utils.RichMessageDocument;
+import moe.kirao.mgx.utils.RichMessageMarkdown;
 import moe.kirao.mgx.utils.RichMessagePolicy;
-import tgx.td.Td;
 
 public final class RichMessageEditorController extends EditBaseController<RichMessageEditorController.Args> implements View.OnClickListener, Menu {
   public static final class Args {
@@ -56,15 +58,22 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
     public final @Nullable TdApi.Message source;
     public final @Nullable LocalRichMessageStore.Entry local;
     public final RichMessageDocument document;
+    public final RichMessageMarkdown.Source markdown;
 
     public Args (MessagesController parent, RichMessagePolicy.Mode mode, @Nullable TdApi.Message source,
                  @Nullable LocalRichMessageStore.Entry local, RichMessageDocument document) {
       this.parent = parent; this.mode = mode; this.source = source; this.local = local;
       this.document = document.copy(); this.chatId = parent.getChatId(); this.userId = parent.tdlib().myUserId();
+      this.markdown = RichMessageMarkdown.source(this.document);
     }
   }
 
   private RichMessageDocument document;
+  private RichMessageMarkdown.Source source;
+  private String markdown;
+  private MaterialEditTextGroup sourceInput;
+  private Parcelable previewScroll;
+  private int previewSelectionStart, previewSelectionEnd, previewInputScroll;
   private SettingsAdapter adapter;
   private MediaToReplacePickerManager picker;
   private boolean dirty, preparingPhoto;
@@ -85,10 +94,11 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
     if (isDoneInProgress() || preparingPhoto) return;
     if (id == R.id.menu_btn_view) preview();
     else if (id == R.id.menu_btn_more) {
-      showOptions(new int[] {R.id.btn_richAddBlock, R.id.btn_richRtl},
-        new String[] {Lang.getString(R.string.RichMessageAddBlock), Lang.getString(R.string.RichMessageRtl)}, (v, option) -> {
-          if (option == R.id.btn_richAddBlock) addBlockMenu();
-          else { document.isRtl = !document.isRtl; dirty = true; rebuild(); }
+      showOptions(new int[] {R.id.btn_richPhoto, R.id.btn_richRtl, R.id.btn_richSyntax},
+        new String[] {Lang.getString(R.string.RichMessageInsertPhoto), Lang.getString(R.string.RichMessageRtl), Lang.getString(R.string.RichMessageSyntax)}, (v, option) -> {
+          if (option == R.id.btn_richPhoto) pickPhoto();
+          else if (option == R.id.btn_richSyntax) showMarkdownHelp();
+          else { document.isRtl = !document.isRtl; dirty = true; }
           return true;
         });
     }
@@ -96,103 +106,81 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
 
   @Override protected void onCreateView (Context context, FrameLayoutFix content, RecyclerView recycler) {
     document = getArgumentsStrict().document.copy();
+    source = getArgumentsStrict().markdown;
+    markdown = source.text;
     adapter = new SettingsAdapter(this) {
       @Override protected void modifyEditText (ListItem item, ViewGroup parent, MaterialEditTextGroup input) {
-        input.getEditText().setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        sourceInput = input;
+        input.getEditText().setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         Views.setSingleLine(input.getEditText(), false);
-        input.setMaxLength(RichMessageDocument.MAX_TEXT);
+        input.getEditText().setTypeface(Fonts.getRobotoMono());
+        input.getEditText().setGravity(Gravity.TOP | Gravity.START);
+        input.getEditText().setMinLines(12);
+        input.setMaxLength(RichMessageMarkdown.MAX_SOURCE);
       }
     };
     adapter.setTextChangeListener((id, item, input) -> {
-      RichMessageDocument.Block block = (RichMessageDocument.Block) item.getData();
-      if (block == null) return;
       String value = input.getText().toString();
-      if (id == R.id.input_richLanguage) {
-        if (!block.extra.equals(value)) { block.extra = value; dirty = true; }
-      } else if (!block.text.equals(value)) { block.text = value; dirty = true; }
+      if (!markdown.equals(value)) { markdown = value; dirty = true; }
       item.setStringValue(value);
     });
     recycler.setAdapter(adapter);
-    recycler.setPadding(0, 0, 0, org.thunderdog.challegram.tool.Screen.dp(88));
+    adapter.setLockFocusOn(this, true);
+    adapter.setItems(new ListItem[] {
+      new ListItem(ListItem.TYPE_EDITTEXT, R.id.input_richText, 0, R.string.RichMessageMarkdown).setStringValue(markdown)
+        .setInputFilters(new InputFilter[] {new InputFilter.LengthFilter(RichMessageMarkdown.MAX_SOURCE)}),
+      new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, getArgumentsStrict().mode == RichMessagePolicy.Mode.LOCAL ? R.string.RichMessageLocalInfo : R.string.RichMessageTelegramInfo)
+    }, false);
+    recycler.setPadding(0, 0, 0, Screen.dp(88));
     recycler.setClipToPadding(false);
     setDoneVisible(true, false);
     if (getArgumentsStrict().mode == RichMessagePolicy.Mode.TELEGRAM && getArgumentsStrict().source == null) setDoneIcon(R.drawable.baseline_send_24);
-    rebuild();
   }
 
-  private int label (int type) {
-    return switch (type) {
-      case RichMessageDocument.HEADING -> R.string.RichMessageHeading;
-      case RichMessageDocument.LIST -> R.string.RichMessageList;
-      case RichMessageDocument.QUOTE -> R.string.RichMessageQuote;
-      case RichMessageDocument.CODE -> R.string.RichMessageCode;
-      case RichMessageDocument.PHOTO -> R.string.Photo;
-      default -> R.string.RichMessageParagraph;
-    };
+  private void showMarkdownHelp () {
+    openAlert(R.string.RichMessageSyntax, Lang.getString(R.string.RichMessageSyntaxInfo));
   }
 
-  private void rebuild () {
-    List<ListItem> items = new ArrayList<>();
-    items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, getArgumentsStrict().mode == RichMessagePolicy.Mode.LOCAL ? R.string.RichMessageLocalInfo : R.string.RichMessageTelegramInfo));
-    for (RichMessageDocument.Block block : document.blocks) {
-      items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_richBlock, R.drawable.baseline_more_vert_24,
-        Lang.getString(label(block.type)) + (block.type == RichMessageDocument.HEADING ? " · H" + block.size : ""), false).setData(block));
-      items.add(new ListItem(ListItem.TYPE_EDITTEXT, R.id.input_richText, 0,
-        block.type == RichMessageDocument.LIST ? R.string.RichMessageListHint : block.type == RichMessageDocument.PHOTO ? R.string.Caption : label(block.type)).setData(block).setStringValue(block.text));
-      if (block.type == RichMessageDocument.CODE) items.add(new ListItem(ListItem.TYPE_EDITTEXT, R.id.input_richLanguage, 0, R.string.RichMessageLanguage).setData(block).setStringValue(block.extra));
-      items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
-    }
-    items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_richAddBlock, R.drawable.baseline_add_24, R.string.RichMessageAddBlock));
-    items.add(new ListItem(ListItem.TYPE_SETTING, R.id.btn_richPreview, R.drawable.baseline_visibility_24, R.string.RichMessagePreview));
-    adapter.setItems(items, false);
+  @Override protected void onProgressStateChanged (boolean inProgress) {
+    adapter.updateLockEditTextById(R.id.input_richText, inProgress ? markdown : null);
   }
 
-  @Override public void onClick (View view) {
-    if (isDoneInProgress() || preparingPhoto) return;
-    if (view.getId() == R.id.btn_richAddBlock) addBlockMenu();
-    else if (view.getId() == R.id.btn_richPreview) preview();
-    else if (view.getId() == R.id.btn_richBlock && view.getTag() instanceof ListItem) blockMenu((RichMessageDocument.Block) ((ListItem) view.getTag()).getData());
-  }
+  @Override public void onClick (View view) { }
 
-  private void addBlockMenu () {
-    showOptions(new int[] {R.id.btn_richParagraph, R.id.btn_richHeading, R.id.btn_richList, R.id.btn_richQuote, R.id.btn_richCode, R.id.btn_richPhoto},
-      new String[] {Lang.getString(R.string.RichMessageParagraph), Lang.getString(R.string.RichMessageHeading), Lang.getString(R.string.RichMessageList), Lang.getString(R.string.RichMessageQuote), Lang.getString(R.string.RichMessageCode), Lang.getString(R.string.Photo)}, (v, id) -> {
-        if (document.blocks.size() >= RichMessageDocument.MAX_BLOCKS) { UI.showToast(R.string.RichMessageInvalid, Toast.LENGTH_SHORT); return true; }
-        int type = id == R.id.btn_richHeading ? RichMessageDocument.HEADING : id == R.id.btn_richList ? RichMessageDocument.LIST :
-          id == R.id.btn_richQuote ? RichMessageDocument.QUOTE : id == R.id.btn_richCode ? RichMessageDocument.CODE : id == R.id.btn_richPhoto ? RichMessageDocument.PHOTO : RichMessageDocument.PARAGRAPH;
-        if (type == RichMessageDocument.PHOTO) pickPhoto();
-        else { document.blocks.add(new RichMessageDocument.Block(type)); dirty = true; rebuild(); }
-        return true;
-      });
-  }
-
-  private void blockMenu (RichMessageDocument.Block block) {
-    int index = document.blocks.indexOf(block);
-    if (index < 0) return;
-    List<Integer> ids = new ArrayList<>(); List<String> names = new ArrayList<>();
-    if (block.type == RichMessageDocument.HEADING) { ids.add(R.id.btn_richHeading); names.add(Lang.getString(R.string.RichMessageHeadingSize, block.size)); }
-    if (block.type == RichMessageDocument.LIST) { ids.add(R.id.btn_richOrdered); names.add(Lang.getString(R.string.RichMessageOrdered)); }
-    if (index > 0) { ids.add(R.id.btn_richMoveUp); names.add(Lang.getString(R.string.RichMessageMoveUp)); }
-    if (index + 1 < document.blocks.size()) { ids.add(R.id.btn_richMoveDown); names.add(Lang.getString(R.string.RichMessageMoveDown)); }
-    ids.add(R.id.btn_delete); names.add(Lang.getString(R.string.Delete));
-    int[] options = new int[ids.size()]; for (int i = 0; i < options.length; i++) options[i] = ids.get(i);
-    showOptions(options, names.toArray(new String[0]), (v, id) -> {
-      if (id == R.id.btn_delete) document.blocks.remove(block);
-      else if (id == R.id.btn_richMoveUp) Collections.swap(document.blocks, index, index - 1);
-      else if (id == R.id.btn_richMoveDown) Collections.swap(document.blocks, index, index + 1);
-      else if (id == R.id.btn_richHeading) block.size = block.size % 6 + 1;
-      else if (id == R.id.btn_richOrdered) block.ordered = !block.ordered;
-      dirty = true; rebuild(); return true;
+  @Override public void onFocus () {
+    super.onFocus();
+    if (previewScroll != null) recyclerView.post(() -> {
+      if (isDestroyed() || sourceInput == null || previewScroll == null) return;
+      sourceInput.getEditText().setSelection(previewSelectionStart, previewSelectionEnd);
+      sourceInput.getEditText().scrollTo(0, previewInputScroll);
+      recyclerView.getLayoutManager().onRestoreInstanceState(previewScroll);
+      previewScroll = null;
     });
   }
 
+  private void insertPhoto (RichMessageDocument.Block photo) {
+    String reference = source.addPhoto(photo);
+    int start = Math.max(0, sourceInput.getEditText().getSelectionStart());
+    int end = Math.max(start, sourceInput.getEditText().getSelectionEnd());
+    String insertion = (start == 0 ? "" : "\n\n") + reference + "\n\n";
+    if (markdown.length() - (end - start) + insertion.length() > RichMessageMarkdown.MAX_SOURCE) {
+      UI.showToast(R.string.RichMessageInvalid, Toast.LENGTH_LONG); return;
+    }
+    sourceInput.getEditText().getText().replace(start, end, insertion);
+    sourceInput.getEditText().setSelection(start + insertion.length());
+  }
+
   private boolean validateDocument () {
-    try { document.validate(); return true; }
-    catch (IllegalArgumentException e) { UI.showToast(R.string.RichMessageInvalid, Toast.LENGTH_LONG); return false; }
+    try { document = RichMessageMarkdown.parse(markdown, source, document.isRtl); return true; }
+    catch (IllegalArgumentException e) { UI.showToast(R.string.RichMessageMarkdownInvalid, Toast.LENGTH_LONG); return false; }
   }
 
   private void preview () {
     if (!validateDocument()) return;
+    previewSelectionStart = Math.max(0, sourceInput.getEditText().getSelectionStart());
+    previewSelectionEnd = Math.max(0, sourceInput.getEditText().getSelectionEnd());
+    previewInputScroll = sourceInput.getEditText().getScrollY();
+    previewScroll = recyclerView.getLayoutManager().onSaveInstanceState();
     hideSoftwareKeyboard();
     TdApi.Message message = new LocalRichMessageStore.Entry(RichMessagePolicy.localId(1), (int) (System.currentTimeMillis() / 1000), 0, document).toMessage(tdlib.myUserId());
     InstantViewController viewer = new InstantViewController(context(), tdlib);
@@ -261,7 +249,7 @@ public final class RichMessageEditorController extends EditBaseController<RichMe
           if (isDestroyed()) return;
           preparingPhoto = false;
           if (result == null) UI.showToast(R.string.RichMessagePhotoError, Toast.LENGTH_LONG);
-          else { document.blocks.add(result); dirty = true; rebuild(); }
+          else insertPhoto(result);
         });
       });
     }, getArgumentsStrict().chatId, null, false, null, 1 << RightId.SEND_PHOTOS, false);
