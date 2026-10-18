@@ -124,9 +124,11 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
           activity.proceedFromRecovery();
         }
       });
-      long deadline = SystemClock.uptimeMillis() + 60_000;
-      while (tdlib.myUserId() == 0 && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
-      require(tdlib.myUserId() != 0, "An authorized development account is required");
+      if (!"rich_messages_markdown_syntax".equals(requestedCheck)) {
+        long deadline = SystemClock.uptimeMillis() + 60_000;
+        while (tdlib.myUserId() == 0 && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100);
+        require(tdlib.myUserId() != 0, "An authorized development account is required");
+      }
       waitForIdleSync();
       runCase("clip_pixels_and_extreme_insets", () -> onUi(this::clipPixels));
       runCase("forum_counters_storage_and_account_isolation", () -> onUi(this::forumCounters));
@@ -283,6 +285,9 @@ public final class EmulatorSmokeInstrumentation extends Instrumentation {
   }
 
   private void richMarkdownSyntax () throws Exception {
+    RichMessageDocument empty = new RichMessageDocument();
+    empty.blocks.add(new RichMessageDocument.Block(RichMessageDocument.PARAGRAPH));
+    require(RichMessageMarkdown.source(empty).text.equals(""), "A new editor must start with empty Markdown");
     String source = "# Heading\n\n**bold** __italic__ ~~strike~~ ||hidden|| `code` [link](https://example.com) 🐀\n\n> Quote\n> - nested\n\n3. [x] checked\n  - child\n\n```java\n\n**literal**\n```";
     RichMessageDocument document = RichMessageMarkdown.parse(source, new RichMessageMarkdown.Source(source), false);
     TdApi.FormattedText text = RichMessageUtils.text(document.output());

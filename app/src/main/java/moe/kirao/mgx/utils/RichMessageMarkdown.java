@@ -61,7 +61,7 @@ public final class RichMessageMarkdown {
         if (caption.indexOf('\n') != -1 || caption.indexOf('\r') != -1) throw new IllegalArgumentException("multiline_caption");
         value = reference.replace("![]", "![" + caption + "]");
       } else value = serialize(block.output(), 0);
-      if (!text.isEmpty()) text.append("\n\n");
+      if (text.length() != 0) text.append("\n\n");
       text.append(value);
       result.originalSources.add(value.strip());
       result.originals.add(block.copy());

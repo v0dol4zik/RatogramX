@@ -66,6 +66,12 @@ adb -s emulator-5554 shell am instrument -w -r \
   org.ratogramx.client.debug.test/moe.kirao.mgx.EmulatorSmokeInstrumentation
 ```
 
+Run `rich_messages_markdown_syntax` on Android 13 (API 33) as well as the
+reference emulator to catch Java API compatibility regressions. This case
+also exercises empty editor initialization and list conversion; it can run
+alone without a logged-in account. The editor/history fixture still needs
+an authorized development account.
+
 Open Saved Messages once before the editor fixture so its chat is cached.
 The fixture restores experiment settings and deletes only its own entries.
 To check a real process restart, run `rich_messages_restart_write`, force-stop

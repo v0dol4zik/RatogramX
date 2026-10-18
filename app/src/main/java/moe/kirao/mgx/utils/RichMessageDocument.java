@@ -200,7 +200,7 @@ public final class RichMessageDocument {
         b = new Block(LIST);
         StringBuilder text = new StringBuilder();
         for (TdApi.PageBlockListItem item : ((TdApi.PageBlockList) source).items) {
-          if (!text.isEmpty()) text.append('\n');
+          if (text.length() != 0) text.append('\n');
           text.append(RichMessageUtils.text(new TdApi.RichMessage(item.blocks, false, true)).text);
         }
         b.text = text.toString();
