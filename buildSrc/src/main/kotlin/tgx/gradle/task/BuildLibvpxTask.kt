@@ -242,20 +242,26 @@ abstract class BuildLibvpxTask : BuildNativeLibraryTask() {
         "make" to arrayOf(
           resolveBinary("make", msys2Dir),
           "-j${Runtime.getRuntime().availableProcessors()}",
-          "install"
+          "all"
         )
       )
     )
 
-    // The generated install map uses a relative `libvpx.a` prerequisite. With
-    // VPATH pointing at the source checkout, a stale source-tree archive can
-    // be selected instead of the freshly built `obj/libvpx.a`. Copy the
-    // architecture-specific archive explicitly so the published output always
-    // matches the current toolchain/ABI.
+    // The install map ignores BUILD_PFX. Provide its prerequisite locally so
+    // a clean checkout works and VPATH cannot select a stale source archive.
     fs.copy {
-      from(build.resolve("obj/libvpx.a"))
-      into(output.resolve("lib"))
-      rename { "libvpx.a" }
+      from(requireFile(build.resolve("obj/libvpx.a")))
+      into(build)
     }
+
+    runCommands(
+      TAG,
+      env,
+      build,
+      logFile,
+      mapOf(
+        "install" to arrayOf(resolveBinary("make", msys2Dir), "install")
+      )
+    )
   }
 }
