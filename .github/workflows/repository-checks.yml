@@ -51,6 +51,8 @@ jobs:
           cache: gradle
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android toolchain
         run: sdkmanager "platforms;android-37.2" "build-tools;37.0.0" "cmake;3.22.1" "ndk;30.0.16248370" "ndk;23.2.8568313"
       - name: Configure compile-only credentials
@@ -90,6 +92,8 @@ jobs:
           cache: gradle
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android toolchain
         run: sdkmanager "platforms;android-37.2" "build-tools;37.0.0" "cmake;3.22.1" "ndk;30.0.16248370" "ndk;23.2.8568313"
       - name: Configure local properties
